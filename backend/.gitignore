@@ -1,0 +1,13 @@
+node_modules/
+.env
+.encryption_key
+config.enc
+*.log
+.npm-cache-tmp/
+# Banco interno SQLite (usuários e logs)
+src/data/*.db
+src/data/ananim.db
+
+# Credenciais por cliente (cada pasta em clients/ tem .env local - não commitar)
+src/config/clients/*/.env
+src/config/clients/*/env.txt

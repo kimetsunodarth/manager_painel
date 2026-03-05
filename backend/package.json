@@ -1,0 +1,57 @@
+{
+  "name": "ananim-manager-painel-backend",
+  "version": "1.0.0",
+  "description": "API do painel de gerenciamento Huawei / SAP B1",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "build:bundle": "node scripts/build-bundle.js",
+    "build:exe": "node scripts/build-bundle.js && pkg dist/app.cjs --targets node18-win-x64 --output dist/Ananim-Manager-Painel-API.exe --public-packages better-sqlite3",
+    "build:linux": "node scripts/build-bundle.js && pkg dist/app.cjs --targets node18-linux-x64 --output dist/Ananim-Manager-Painel-API --public-packages better-sqlite3",
+    "gerar-chave": "node scripts/gerar_chave.js",
+    "gerar-jwt-e-enc": "node scripts/gerar-jwt-e-enc.js",
+    "encrypt-config": "node scripts/encrypt_config.js",
+    "test-ssh": "node scripts/test-ssh.js",
+    "test-ssh-sql": "node scripts/test-ssh-sql.js",
+    "test-ssh-web": "node scripts/test-ssh-web.js",
+    "test-ssh-roland-web": "node scripts/test-ssh-roland-web.js",
+    "test-ssh-controlla-web": "node scripts/test-ssh-controlla-web.js",
+    "test-ssh-controlla-hdb": "node scripts/test-ssh-controlla-hdb.js",
+    "test-control-center": "node scripts/test-control-center.js",
+    "test-control-center-controlla": "node scripts/test-control-center-controlla.js",
+    "encrypt-client-credentials": "node scripts/encrypt-client-credentials.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.6.2",
+    "chromium": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.4",
+    "e": "^0.2.33",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "fernet-nodejs": "^1.0.6",
+    "helmet": "^8.1.0",
+    "install": "^0.13.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.1",
+    "npx": "^10.2.2",
+    "playwright": "^1.58.2",
+    "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "scripts": {
+      "better-sqlite3": "node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+    },
+    "assets": [
+      "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "node_modules/better-sqlite3/lib/**/*.js"
+    ]
+  }
+}

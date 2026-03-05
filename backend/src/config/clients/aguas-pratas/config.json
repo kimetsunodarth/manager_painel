@@ -1,0 +1,13 @@
+{
+  "clientKey": "aguas-pratas",
+  "displayName": "Águas Pratas",
+  "type": "sql",
+  "comment": "Grupos de serviços Windows (Get-Service -Name). Credenciais SSH em credentials.enc (gerado a partir do .env desta pasta).",
+  "groups": [
+    { "id": "service-layer", "name": "Service Layer", "serviceIds": ["b1s50000", "b1s50055", "b1s50060", "b1s50061", "b1s50062"] },
+    { "id": "sbomail", "name": "SBOMail", "serviceIds": ["SBOMail", "SBOMAILER"] },
+    { "id": "authentication", "name": "Authentication", "serviceIds": ["B1ServerToolsAuthentication"] },
+    { "id": "servertools", "name": "Servertools", "serviceIds": ["B1ServerTools64"] },
+    { "id": "webclient", "name": "WebClient", "serviceIds": ["SAP Business One WebClient anly", "SAP Business One WebClient auth", "SAP Business One WebClient extn", "SAP Business One WebClient gate", "SAP Business One WebClient noti", "SAP Business One WebClient tcli"] }
+  ]
+}

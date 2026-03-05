@@ -1,0 +1,23 @@
+{
+  "clientKey": "roland",
+  "displayName": "ROLANDHDB",
+  "comment": "Roland: conectar no servidor web (ROLANDWEB) e jump para ROLANDHDB. Credenciais via .env. Serviços SAP no mesmo arquivo (abaixo).",
+  "envHostKey": "SSH_HANA_ROLAND_HOST",
+  "envUserKey": "SSH_HANA_ROLAND_USER",
+  "envPasswordKey": "SSH_HANA_ROLAND_PASSWORD",
+  "envPortKey": "SSH_HANA_ROLAND_PORT",
+  "envPrivateKeyPathKey": "SSH_HANA_ROLAND_PRIVATE_KEY_PATH",
+  "envJumpHostKey": "SSH_HANA_ROLAND_JUMP_HOST",
+  "envJumpUserKey": "SSH_HANA_ROLAND_JUMP_USER",
+  "envJumpPasswordKey": "SSH_HANA_ROLAND_JUMP_PASSWORD",
+  "envJumpPortKey": "SSH_HANA_ROLAND_JUMP_PORT",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "services": [
+    { "id": "serviceLayer", "name": "Reiniciar Service Layer", "action": "executar" },
+    { "id": "sld", "name": "Reiniciar SLD", "action": "executar" },
+    { "id": "hana", "name": "Reiniciar HANA (Cuidado)", "action": "executar" },
+    { "id": "authentication", "name": "Reiniciar Authentication", "action": "executar" },
+    { "id": "all", "name": "Reiniciar TUDO", "action": "executar" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "clientKey": "cloudhdb",
+  "displayName": "CLOUDHDB (Kitfire)",
+  "comment": "VM SUSE/HANA do projeto Kitfire. Credenciais via env (envHostKey, envUserKey, envPasswordKey).",
+  "envHostKey": "SSH_HANA_CLOUDHDB_HOST",
+  "envUserKey": "SSH_HANA_CLOUDHDB_USER",
+  "envPasswordKey": "SSH_HANA_CLOUDHDB_PASSWORD",
+  "envPortKey": "SSH_HANA_CLOUDHDB_PORT",
+  "envPrivateKeyPathKey": "SSH_HANA_CLOUDHDB_PRIVATE_KEY_PATH",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00"
+}
