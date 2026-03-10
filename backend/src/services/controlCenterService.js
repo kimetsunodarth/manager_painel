@@ -139,12 +139,6 @@ export async function runActivateSupport({ baseUrl, username, password, headless
     await page.waitForTimeout(5000);
 
     await page.waitForTimeout(2000);
-    const activateBtn = page.getByRole('button', { name: /Activate Support User/i }).or(page.locator('input[value*="Activate Support"]')).or(page.locator('button:has-text("Activate Support User")')).first();
-
-    if (!(await activateBtn.isVisible().catch(() => false))) {
-      await browser.close();
-      return { ok: false, error: 'Botão "Activate Support User" não encontrado após login' };
-    }
 
     const dbInstancesTable = page.locator('table').filter({ has: page.locator('text=Server Name') });
     const serverRowCheckbox = dbInstancesTable.locator('input[type="checkbox"]').nth(1);
@@ -201,21 +195,28 @@ export async function runActivateSupport({ baseUrl, username, password, headless
         await companyCheckboxes.nth(i).check().catch(() => {});
       }
     }
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(3000);
 
-    const activateSupportBtn = page.getByRole('button', { name: /Activate Support User/i }).or(page.locator('button:has-text("Activate Support User")')).first();
-    if (await activateSupportBtn.isVisible().catch(() => false)) {
+    const activateSupportBtn = page.getByRole('button', { name: /Activate Support User|Activate Support|Ativar Suporte/i })
+      .or(page.locator('input[value*="Activate Support"]'))
+      .or(page.locator('button:has-text("Activate Support User")'))
+      .or(page.locator('button:has-text("Activate Support")'))
+      .or(page.locator('[type="submit"]').filter({ hasText: /Activate|Support|Suporte/i }))
+      .first();
+    const btnVisible = await activateSupportBtn.isVisible().catch(() => false);
+    if (btnVisible) {
       await activateSupportBtn.click();
       await page.waitForTimeout(2000);
       const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$/i }).or(page.locator('button:has-text("Activate")')).or(page.locator('button:has-text("Active")')).first();
       if (await activeBtn.isVisible().catch(() => false)) {
         await activeBtn.click();
       }
+      await page.waitForTimeout(3000);
+      await browser.close();
+      return { ok: true, message: 'Activate Support User executado com sucesso.' };
     }
-    await page.waitForTimeout(3000);
-
     await browser.close();
-    return { ok: true, message: 'Activate Support User executado com sucesso.' };
+    return { ok: false, error: 'Botão "Activate Support User" não encontrado após seleção de servidor e empresa. Verifique se o Control Center exibe o botão na tela atual.' };
   } catch (err) {
     try {
       await browser.close();

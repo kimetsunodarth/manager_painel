@@ -28,6 +28,7 @@ if (typeof process.pkg !== 'undefined') {
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { initDb } from './db/database.js';
 import authRoutes from './routes/auth.js';
@@ -78,6 +79,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '512kb' }));
+app.use(cookieParser());
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -86,6 +88,15 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/health',
+  keyGenerator: (req) => {
+    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+    if (typeof ip === 'string') {
+      ip = ip.split(',')[0].trim();
+      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
+      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
+    }
+    return ip;
+  },
 });
 app.use('/api', apiLimiter);
 

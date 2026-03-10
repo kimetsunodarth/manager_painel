@@ -14,8 +14,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { token, user } = await auth.login(email, password);
-      localStorage.setItem('token', token);
+      const { user } = await auth.login(email, password);
       localStorage.setItem('user', JSON.stringify(user));
       navigate('/');
     } catch (err: any) {

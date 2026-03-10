@@ -69,6 +69,8 @@ async function runOne(schedule) {
         minute: schedule.minute,
         scheduleCreatedBy: schedule.createdBy || null,
       },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Cron/Automated Schedule',
       createdAt: now.toISOString(),
     });
     return { ok: true };
@@ -89,6 +91,8 @@ async function runOne(schedule) {
         action: schedule.action,
         error: e.message,
       },
+      ipAddress: '127.0.0.1',
+      userAgent: 'Cron/Automated Schedule',
       createdAt: new Date().toISOString(),
     });
     return { ok: false, error: e.message };

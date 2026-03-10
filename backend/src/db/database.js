@@ -19,19 +19,13 @@ if (isExe) {
   if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 }
 
-const isPkg = typeof process.pkg !== 'undefined';
-const betterSqlite3Path = isPkg
-  ? path.join(process.cwd(), 'lib', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')
-  : path.join(__dirname, '../../node_modules/better-sqlite3/build/Release/better_sqlite3.node');
-const betterSqlite3 = require(betterSqlite3Path);
-
 let db = null;
 
 export function getDb() {
   if (!db) {
     const opts = {};
     if (isExe) {
-      opts.nativeBinding = betterSqlite3;
+      opts.nativeBinding = path.join(process.cwd(), 'lib', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
     }
     db = new Database(DB_PATH, opts);
     db.pragma('journal_mode = WAL');
@@ -64,6 +58,8 @@ export function initDb() {
       userEmail TEXT,
       action TEXT NOT NULL,
       details TEXT,
+      ipAddress TEXT,
+      userAgent TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
 
@@ -100,6 +96,18 @@ export function initDb() {
   }
   try {
     database.exec(`ALTER TABLE users ADD COLUMN preferredServiceClientKey TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN ipAddress TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN userAgent TEXT`);
   } catch (e) {
     if (!e.message?.includes('duplicate column')) throw e;
   }

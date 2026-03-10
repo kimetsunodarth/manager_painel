@@ -8,7 +8,7 @@
 #define PackageDir "package-iis"
 #endif
 #define MyAppName "Ananim Manager Painel"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "Ananim"
 #define MyAppURL "https://github.com/"
 

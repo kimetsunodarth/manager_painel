@@ -63,6 +63,7 @@ router.post('/clients', (req, res) => {
     : [];
   const huaweiPerfil = typeof body.huaweiPerfil === 'string' ? body.huaweiPerfil.trim() : null;
   const huaweiProjectId = typeof body.huaweiProjectId === 'string' ? body.huaweiProjectId.trim() : null;
+  const huaweiEcsId = typeof body.huaweiEcsId === 'string' ? body.huaweiEcsId.trim() : null;
   if (huaweiPerfil) validated.huaweiPerfil = huaweiPerfil;
   try {
     const result = generateClientConfig(validated);
@@ -97,10 +98,24 @@ router.post('/clients', (req, res) => {
         if (p && p.id) byId.set(p.id, p);
       }
       merged = Array.from(byId.values());
-      userStore.update(userId, {
+      const updates = {
         visibleProjects: merged,
         preferredServiceClientKey: result.clientKey,
-      });
+      };
+
+      if (huaweiEcsId) {
+        const currentAllowed = typeof u.allowedHuaweiEcsIds === 'object' && u.allowedHuaweiEcsIds !== null ? u.allowedHuaweiEcsIds : {};
+        const pKey = projectEntry.perfil ? `${projectEntry.perfil}-${projectEntry.id}` : projectEntry.id;
+        const ecsList = Array.isArray(currentAllowed[pKey]) ? currentAllowed[pKey] : [];
+        if (!ecsList.includes(huaweiEcsId)) {
+          updates.allowedHuaweiEcsIds = {
+            ...currentAllowed,
+            [pKey]: [...ecsList, huaweiEcsId]
+          };
+        }
+      }
+
+      userStore.update(userId, updates);
       assigned.push({ userId, name: u.name, alreadyHad: alreadyHasProject });
     }
 

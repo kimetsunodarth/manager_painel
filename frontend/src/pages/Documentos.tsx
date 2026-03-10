@@ -62,11 +62,9 @@ export default function Documentos() {
   };
 
   const onDownload = async (id: string, fileName: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
     try {
       const res = await fetch(`/api/documents/${id}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

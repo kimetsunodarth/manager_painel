@@ -84,6 +84,7 @@ export function addSchedule(body) {
     minute: Math.max(0, Math.min(59, parseInt(body.minute, 10) || 0)),
     days: Array.isArray(body.days) ? body.days.filter((d) => d >= 0 && d <= 6) : null,
     enabled: body.enabled !== false,
+    isExternal: !!body.isExternal,
     createdBy: body.createdBy != null ? String(body.createdBy) : null,
     lastModifiedBy: null,
   };
@@ -110,6 +111,7 @@ export function updateSchedule(id, body) {
   if (body.minute !== undefined) s.minute = Math.max(0, Math.min(59, parseInt(body.minute, 10) || 0));
   if (body.days !== undefined) s.days = Array.isArray(body.days) ? body.days.filter((d) => d >= 0 && d <= 6) : null;
   if (body.enabled !== undefined) s.enabled = !!body.enabled;
+  if (body.isExternal !== undefined) s.isExternal = !!body.isExternal;
   if (body.modifiedBy !== undefined) s.lastModifiedBy = body.modifiedBy != null ? String(body.modifiedBy) : null;
   writeJson(AGENDAMENTOS_FILE, list);
   return s;
@@ -129,6 +131,7 @@ export function removeSchedule(id) {
 /** Retorna true se o agendamento deve rodar agora (data/hora local). */
 export function shouldRunNow(schedule, now = new Date()) {
   if (!schedule.enabled) return false;
+  if (schedule.isExternal) return false;
   if (schedule.hour !== now.getHours()) return false;
   if (schedule.minute !== now.getMinutes()) return false;
   const day = now.getDay();

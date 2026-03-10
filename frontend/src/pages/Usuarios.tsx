@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { users as api, environments, huawei, services as servicesApi, type User, type CreateUser, type HuaweiProject, PREFERRED_SERVICE_CLIENT_OPTIONS } from '../api/client';
+import { users as api, environments, huawei, services as servicesApi, type User, type CreateUser, type HuaweiProject, type HuaweiEcsServer, PREFERRED_SERVICE_CLIENT_OPTIONS } from '../api/client';
 
 function projectKey(p: HuaweiProject) {
   return p.perfil ? `${p.perfil}-${p.id}` : p.id;
@@ -45,7 +45,7 @@ export default function Usuarios() {
   const [huaweiProjectsLoading, setHuaweiProjectsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<CreateUser & { allowedEcsIds: string[]; visibleProjects: HuaweiProject[]; allowedServiceIds: string[] }>({
+  const [form, setForm] = useState<CreateUser & { allowedEcsIds: string[]; visibleProjects: HuaweiProject[]; allowedServiceIds: string[]; allowedHuaweiEcsIds: Record<string, string[]> }>({
     name: '',
     email: '',
     password: '',
@@ -54,6 +54,7 @@ export default function Usuarios() {
     allowedEcsIds: [],
     visibleProjects: [],
     allowedServiceIds: [],
+    allowedHuaweiEcsIds: {},
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -68,12 +69,14 @@ export default function Usuarios() {
     permissions: string[];
     allowedEcsIds: string[];
     visibleProjects: HuaweiProject[];
+    allowedHuaweiEcsIds: Record<string, string[]>;
     allowedServiceIds: string[];
     preferredServiceClientKey: string;
     password: string;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [sapServiceOptions, setSapServiceOptions] = useState<{ id: string; name: string }[]>(SAP_SERVICES_FALLBACK);
+  const [projectEcsMap, setProjectEcsMap] = useState<Record<string, HuaweiEcsServer[]>>({});
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +115,22 @@ export default function Usuarios() {
         .catch(() => setSapServiceOptions(SAP_SERVICES_FALLBACK));
     }
   }, [showForm, editingUserId]);
+
+  useEffect(() => {
+    const projs = showForm ? form.visibleProjects : (editForm ? editForm.visibleProjects : []);
+    if (!projs || projs.length === 0) return;
+    
+    projs.forEach(p => {
+      const key = projectKey(p);
+      if (!projectEcsMap[key]) {
+        huawei.ecs(p.id, p.region || undefined, p.perfil)
+          .then(ecsList => {
+            setProjectEcsMap(prev => ({ ...prev, [key]: Array.isArray(ecsList) ? ecsList : [] }));
+          })
+          .catch(() => {});
+      }
+    });
+  }, [showForm, form.visibleProjects, editForm?.visibleProjects]);
 
   const toggleEcs = (id: string) => {
     setForm((f) => ({
@@ -182,6 +201,25 @@ export default function Usuarios() {
     }));
   };
 
+  const togglePermission = (perm: string) => {
+    setForm((f) => ({
+      ...f,
+      permissions: (f.permissions || []).includes(perm)
+        ? (f.permissions || []).filter((x) => x !== perm)
+        : [...(f.permissions || []), perm],
+    }));
+  };
+
+  const toggleEditPermission = (perm: string) => {
+    if (!editForm) return;
+    setEditForm((f) => (!f ? f : {
+      ...f,
+      permissions: (f.permissions || []).includes(perm)
+        ? (f.permissions || []).filter((x) => x !== perm)
+        : [...(f.permissions || []), perm],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -191,19 +229,14 @@ export default function Usuarios() {
       return;
     }
     try {
-      const permissions =
-        form.role === 'admin'
-          ? ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects']
-          : form.allowedEcsIds.length || form.allowedServiceIds.length
-            ? ['backups:list', 'ecs:*', 'services:*']
-            : ['backups:list'];
       await api.create({
         name: form.name,
         email: form.email,
         password: form.password,
         role: form.role,
-        permissions,
+        permissions: form.permissions,
         allowedEcsIds: form.allowedEcsIds,
+        allowedHuaweiEcsIds: form.allowedHuaweiEcsIds,
         visibleProjects: form.visibleProjects,
         allowedServiceIds: form.allowedServiceIds,
       });
@@ -217,6 +250,7 @@ export default function Usuarios() {
         allowedEcsIds: [],
         visibleProjects: [],
         allowedServiceIds: [],
+        allowedHuaweiEcsIds: {},
       });
       setShowForm(false);
       load();
@@ -269,6 +303,7 @@ export default function Usuarios() {
         permissions: full.permissions || [],
         allowedEcsIds: full.allowedEcsIds || [],
         visibleProjects: (full.visibleProjects || []) as HuaweiProject[],
+        allowedHuaweiEcsIds: full.allowedHuaweiEcsIds || {},
         allowedServiceIds: full.allowedServiceIds || [],
         preferredServiceClientKey: full.preferredServiceClientKey ?? '',
         password: '',
@@ -285,18 +320,13 @@ export default function Usuarios() {
     setEditLoading(true);
     setError('');
     try {
-      const permissions =
-        editForm.role === 'admin'
-          ? ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects']
-          : editForm.allowedEcsIds.length || editForm.allowedServiceIds.length
-            ? ['backups:list', 'ecs:*', 'services:*']
-            : ['backups:list'];
       const payload: Parameters<typeof api.update>[1] = {
         name: editForm.name,
         email: editForm.email,
         role: editForm.role,
-        permissions,
+        permissions: editForm.permissions,
         allowedEcsIds: editForm.allowedEcsIds,
+        allowedHuaweiEcsIds: editForm.allowedHuaweiEcsIds,
         visibleProjects: editForm.visibleProjects,
         allowedServiceIds: editForm.allowedServiceIds,
         preferredServiceClientKey: editForm.preferredServiceClientKey || null,
@@ -371,7 +401,13 @@ export default function Usuarios() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
                 <select
                   value={form.role}
-                  onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                  onChange={(e) => {
+                    const newRole = e.target.value;
+                    const newPerms = newRole === 'admin' 
+                      ? ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects']
+                      : ['backups:list'];
+                    setForm((f) => ({ ...f, role: newRole, permissions: newPerms }));
+                  }}
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 >
                   <option value="operator">Operador</option>
@@ -379,6 +415,31 @@ export default function Usuarios() {
                 </select>
               </div>
             </div>
+
+            {form.role !== 'admin' && (
+              <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Permissões Especiais</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('ecs:*') ?? false} onChange={() => togglePermission('ecs:*')} className="rounded border-gray-300"/>
+                    <span className="text-sm">Controlar ECS (Ligar/Desligar)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('services:*') ?? false} onChange={() => togglePermission('services:*')} className="rounded border-gray-300"/>
+                    <span className="text-sm">Acessar Aba Serviços</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('huawei:projects') ?? false} onChange={() => togglePermission('huawei:projects')} className="rounded border-gray-300"/>
+                    <span className="text-sm">Gerenciar API Huawei (Home)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('backups:list') ?? false} onChange={() => togglePermission('backups:list')} className="rounded border-gray-300"/>
+                    <span className="text-sm">Visualizar Backups</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Projetos Huawei (visão ao logar)
@@ -425,6 +486,38 @@ export default function Usuarios() {
                 </>
               )}
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
+              {form.visibleProjects.map(p => {
+                const key = projectKey(p);
+                const ecsList = projectEcsMap[key] || [];
+                const allowed = form.allowedHuaweiEcsIds?.[key] || [];
+                const toggle = (ecsId: string) => {
+                  setForm(f => {
+                    const prevMap = f.allowedHuaweiEcsIds || {};
+                    const prevList = prevMap[key] || [];
+                    const newList = prevList.includes(ecsId) ? prevList.filter(x => x !== ecsId) : [...prevList, ecsId];
+                    return { ...f, allowedHuaweiEcsIds: { ...prevMap, [key]: newList } };
+                  });
+                };
+                return (
+                  <div key={key} className="mb-2">
+                    <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {ecsList.length === 0 && <span className="text-xs text-gray-400">Carregando ECS...</span>}
+                      {ecsList.map(ecs => (
+                        <label key={ecs.id} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={allowed.includes(ecs.id)} onChange={() => toggle(ecs.id)} className="rounded border-gray-300"/>
+                          <span className="text-xs">{ecs.name || ecs.id}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 ECS permitidos (start/stop/restart)
@@ -654,7 +747,14 @@ export default function Usuarios() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
                   <select
                     value={editForm.role}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, role: e.target.value } : f)}
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+                      if (newRole === 'admin') {
+                        setEditForm((f) => f ? { ...f, role: newRole, permissions: ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects'] } : f);
+                      } else {
+                        setEditForm((f) => f ? { ...f, role: newRole } : f);
+                      }
+                    }}
                     className="w-full border border-gray-300 rounded px-3 py-2"
                   >
                     <option value="operator">Operador</option>
@@ -673,6 +773,31 @@ export default function Usuarios() {
                   />
                 </div>
               </div>
+
+              {editForm.role !== 'admin' && (
+                <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Permissões Especiais</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.permissions?.includes('ecs:*') ?? false} onChange={() => toggleEditPermission('ecs:*')} className="rounded border-gray-300"/>
+                      <span className="text-sm">Controlar ECS (Ligar/Desligar)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.permissions?.includes('services:*') ?? false} onChange={() => toggleEditPermission('services:*')} className="rounded border-gray-300"/>
+                      <span className="text-sm">Acessar Aba Serviços</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.permissions?.includes('huawei:projects') ?? false} onChange={() => toggleEditPermission('huawei:projects')} className="rounded border-gray-300"/>
+                      <span className="text-sm">Gerenciar API Huawei (Home)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm.permissions?.includes('backups:list') ?? false} onChange={() => toggleEditPermission('backups:list')} className="rounded border-gray-300"/>
+                      <span className="text-sm">Visualizar Backups</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Projetos Huawei (visão ao logar)</label>
                 {huaweiProjectsLoading ? (
@@ -713,6 +838,37 @@ export default function Usuarios() {
                     </div>
                   </>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
+                {(editForm.visibleProjects || []).map(p => {
+                  const key = projectKey(p);
+                  const ecsList = projectEcsMap[key] || [];
+                  const allowed = editForm.allowedHuaweiEcsIds?.[key] || [];
+                  const toggle = (ecsId: string) => {
+                    setEditForm(f => {
+                      if (!f) return f;
+                      const prevMap = f.allowedHuaweiEcsIds || {};
+                      const prevList = prevMap[key] || [];
+                      const newList = prevList.includes(ecsId) ? prevList.filter(x => x !== ecsId) : [...prevList, ecsId];
+                      return { ...f, allowedHuaweiEcsIds: { ...prevMap, [key]: newList } };
+                    });
+                  };
+                  return (
+                    <div key={key} className="mb-2">
+                      <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {ecsList.length === 0 && <span className="text-xs text-gray-400">Carregando ECS...</span>}
+                        {ecsList.map(ecs => (
+                          <label key={ecs.id} className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={allowed.includes(ecs.id)} onChange={() => toggle(ecs.id)} className="rounded border-gray-300"/>
+                            <span className="text-xs">{ecs.name || ecs.id}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">ECS permitidos</label>

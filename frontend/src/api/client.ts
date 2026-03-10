@@ -9,23 +9,18 @@ export function getApiBaseUrl(): string {
   return typeof API_BASE === 'string' && API_BASE.startsWith('http') ? API_BASE : '';
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('token');
-}
-
 export async function api<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
-  if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
 
   let res: Response;
   try {
+    options.credentials = 'include';
     res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro de rede';
@@ -35,7 +30,6 @@ export async function api<T>(
     throw new Error(msg.includes('Failed') || msg.includes('NetworkError') ? backendMsg : msg);
   }
   if (res.status === 401) {
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Não autorizado');
@@ -58,9 +52,13 @@ export async function api<T>(
 
 export const auth = {
   login: (email: string, password: string) =>
-    api<{ token: string; user: User }>('/auth/login', {
+    api<{ ok: boolean; user: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+  logout: () =>
+    api<{ ok: boolean }>('/auth/logout', {
+      method: 'POST',
     }),
 };
 
@@ -240,6 +238,8 @@ export interface AuditLogEntry {
   userEmail: string;
   action: string;
   details: Record<string, unknown> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
 }
 
@@ -283,6 +283,8 @@ export interface AdminClientCreateBody {
   huaweiPerfil?: string;
   /** ID do projeto Huawei (quando criado a partir de um perfil/projeto selecionado). Garante que visibleProjects use o projeto correto. */
   huaweiProjectId?: string;
+  /** Opcional: ID da ECS específica para atribuir este cliente ao operador. */
+  huaweiEcsId?: string;
 }
 
 export interface AdminClientCreateResult {
@@ -400,7 +402,7 @@ function getSchedulesVmApi(): {
   add: (body: ScheduleVmCreate) => Promise<ScheduleVm>;
   update: (id: number, body: Partial<ScheduleVmCreate>) => Promise<ScheduleVm>;
   remove: (id: number) => Promise<{ ok: boolean }>;
-  cancelForDate: (projectKey: string, serverId: string, date: string, action?: 'stop' | 'start') => Promise<{ ok: boolean; message: string }>;
+  cancelForDate: (projectKey: string, serverId: string, date: string, action?: 'stop' | 'start' | 'restart') => Promise<{ ok: boolean; message: string }>;
   clearCancelForDate: (projectKey: string, serverId: string, date: string) => Promise<{ ok: boolean }>;
 } {
   function filterList(list: ScheduleVm[], projectKey?: string, projectId?: string): ScheduleVm[] {
@@ -445,7 +447,7 @@ function getSchedulesVmApi(): {
       invalidateSchedulesVmCache();
       return result;
     },
-    cancelForDate: async (projectKey: string, serverId: string, date: string, action?: 'stop' | 'start') => {
+    cancelForDate: async (projectKey: string, serverId: string, date: string, action?: 'stop' | 'start' | 'restart') => {
       const result = await api<{ ok: boolean; message: string }>('/huawei/schedules/cancel-for-date', {
         method: 'POST',
         body: JSON.stringify({ projectKey, serverId, date, action: action || 'stop' }),
@@ -674,6 +676,7 @@ export interface ScheduleVm {
   minute: number;
   days: number[] | null;
   enabled: boolean;
+  isExternal?: boolean;
   createdBy: string | null;
   lastModifiedBy: string | null;
 }
@@ -690,6 +693,7 @@ export interface ScheduleVmCreate {
   minute: number;
   days?: number[] | null;
   enabled?: boolean;
+  isExternal?: boolean;
 }
 
 /** Mapa projectKey -> array de serverId que o usuário pode ver e operar (ex.: RAMOONE). */

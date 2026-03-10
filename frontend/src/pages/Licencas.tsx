@@ -66,6 +66,37 @@ export default function Licencas() {
     })();
   }, []);
 
+  const onSaveSummary = async () => {
+    if (!summary) return;
+    setSummarySaving(true);
+    setSaveMessage(null);
+    try {
+      await api.updateSummary(summary);
+      setSaveMessage('Quantidades salvas com sucesso.');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (e) {
+      console.error(e);
+      setSaveMessage('Erro ao salvar quantidades.');
+    } finally {
+      setSummarySaving(false);
+    }
+  };
+
+  const onSaveAddons = async () => {
+    setAddonsSaving(true);
+    setSaveMessage(null);
+    try {
+      await api.updateAddons(addons);
+      setSaveMessage('Add-ons salvos com sucesso.');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (e) {
+      console.error(e);
+      setSaveMessage('Erro ao salvar add-ons.');
+    } finally {
+      setAddonsSaving(false);
+    }
+  };
+
   const summaryEntries = summary && typeof summary === 'object' ? Object.entries(summary) : [];
   const maxVal = summaryEntries.length
     ? Math.max(

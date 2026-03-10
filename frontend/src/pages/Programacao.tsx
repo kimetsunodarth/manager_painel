@@ -185,7 +185,7 @@ export default function Programacao() {
     setSaving(true);
     setError(null);
     try {
-      await huawei.schedulesVm.cancelForDate(schedule.projectKey, schedule.serverId, cancelDate, schedule.action);
+      await huawei.schedulesVm.cancelForDate(schedule.projectKey || '', schedule.serverId, cancelDate, schedule.action);
       setShowCancelDateModal(null);
       setCancelDate('');
     } catch (e: unknown) {
@@ -333,6 +333,11 @@ export default function Programacao() {
                         >
                           {s.action === 'stop' ? 'Stop' : s.action === 'restart' ? 'Restart' : 'Start'}
                         </span>
+                        {s.isExternal && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-purple-100 text-purple-800" title="Execução externa (fora da API do Painel)">
+                            Externo
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-4">{formatDays(s.days)}</td>
                       <td className="py-2 px-4 text-gray-600">
@@ -462,6 +467,7 @@ function ScheduleFormModal({
   const [hour, setHour] = useState(initial?.hour ?? 23);
   const [minute, setMinute] = useState(initial?.minute ?? 0);
   const [days, setDays] = useState<number[]>(initial?.days && initial.days.length ? [...initial.days] : [1, 2, 3, 4, 5]);
+  const [isExternal, setIsExternal] = useState<boolean>(initial?.isExternal ?? false);
 
   const timeValue = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   const setTimeFromInput = (value: string) => {
@@ -482,6 +488,7 @@ function ScheduleFormModal({
       hour,
       minute,
       days: days.length === 7 || days.length === 0 ? null : days,
+      isExternal,
     };
     if (initial) {
       payload.projectKey = initial.projectKey;
@@ -624,6 +631,17 @@ function ScheduleFormModal({
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="pt-2 border-t border-gray-100">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isExternal}
+                  onChange={(e) => setIsExternal(e.target.checked)}
+                  className="rounded border-gray-300 w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm font-medium text-gray-700">Controle externo (Apenas exibir, não executar API)</span>
+              </label>
             </div>
           </div>
           <div className="flex gap-2 justify-end mt-6">

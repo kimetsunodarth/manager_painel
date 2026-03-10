@@ -83,7 +83,6 @@ export default function Clientes() {
   const [huaweiProjects, setHuaweiProjects] = useState<HuaweiProject[] | null>(null);
   const [perfisLoading, setPerfisLoading] = useState(false);
   const [perfisError, setPerfisError] = useState<string | null>(null);
-  const [perfisSearch, setPerfisSearch] = useState('');
   const [selectedHuaweiProject, setSelectedHuaweiProject] = useState<HuaweiProject | null>(null);
   const [huaweiEcsList, setHuaweiEcsList] = useState<HuaweiEcsServer[]>([]);
   const [huaweiEcsLoading, setHuaweiEcsLoading] = useState(false);
@@ -167,21 +166,9 @@ export default function Clientes() {
     }
   };
 
-  /** Lista única de perfis (ANANIMCLOUD_4ERP, etc.) ordenada. */
-  const perfisUnicos = (() => {
-    if (!huaweiProjects?.length) return [];
-    const set = new Set<string>();
-    huaweiProjects.forEach((p) => {
-      if (p.perfil?.trim()) set.add(p.perfil.trim());
-    });
-    return Array.from(set).sort();
-  })();
 
-  const perfisFiltrados = perfisSearch.trim()
-    ? perfisUnicos.filter((perfil) =>
-        perfil.toLowerCase().includes(perfisSearch.trim().toLowerCase())
-      )
-    : perfisUnicos;
+
+
 
   const clearProfileSelection = () => {
     setProfileKey('');
@@ -299,6 +286,7 @@ export default function Clientes() {
       if (selectedHuaweiProject?.perfil) {
         body.huaweiPerfil = selectedHuaweiProject.perfil;
         if (selectedHuaweiProject.id) body.huaweiProjectId = selectedHuaweiProject.id;
+        if (selectedEcsIdForName) body.huaweiEcsId = selectedEcsIdForName;
       }
       const data = await adminClients.create(body);
       setResult(data);

@@ -94,10 +94,10 @@ export default function Servicos() {
     }
   };
 
-  const fetchServiceList = async (clientKey?: string | null) => {
+  const fetchServiceList = async (clientKeyFromUser?: string | null) => {
     setListError(null);
     try {
-      const data = await api.list(clientKey ?? undefined);
+      const data = await api.list(clientKeyFromUser ?? undefined);
       if (Array.isArray(data)) {
         setServiceList(data);
         setSqlMode(false);
@@ -109,10 +109,18 @@ export default function Servicos() {
         setSqlDisplayName('displayName' in data && data.displayName ? data.displayName : '');
         const servers = 'availableServers' in data && Array.isArray(data.availableServers) ? data.availableServers : [];
         setAvailableServers(servers);
-        const currentKey = 'clientKey' in data && typeof data.clientKey === 'string' ? data.clientKey : null;
-        const nextKey = currentKey || (servers.length ? servers[0].clientKey : null);
+        const fromBackend = 'clientKey' in data && typeof data.clientKey === 'string' ? data.clientKey : null;
+        const nextKey =
+          clientKeyFromUser != null && clientKeyFromUser !== '' && servers.some((s) => s.clientKey === clientKeyFromUser)
+            ? clientKeyFromUser
+            : fromBackend || (servers.length ? servers[0].clientKey : null);
         setSelectedClientKey(nextKey);
-        // Garantir que a VM exibida seja a do cliente retornado pela lista (ex.: Roland quando há preferência)
+        if (nextKey) {
+          try {
+            sessionStorage.setItem('servicos.selectedClientKey', nextKey);
+          } catch { /* ignora */ }
+        }
+        // Garantir que a VM exibida seja a do cliente retornado pela lista
         if (nextKey) {
           try {
             const conn = await api.connectionInfo(nextKey);
@@ -158,7 +166,14 @@ export default function Servicos() {
   };
 
   useEffect(() => {
-    fetchServiceList();
+    const savedKey = (() => {
+      try {
+        return sessionStorage.getItem('servicos.selectedClientKey');
+      } catch {
+        return null;
+      }
+    })();
+    fetchServiceList(savedKey || undefined);
   }, []);
 
   useEffect(() => {
@@ -247,6 +262,9 @@ export default function Servicos() {
 
   const onSelectServer = (clientKey: string) => {
     setSelectedClientKey(clientKey);
+    try {
+      sessionStorage.setItem('servicos.selectedClientKey', clientKey);
+    } catch { /* ignora */ }
     fetchServiceList(clientKey);
   };
 

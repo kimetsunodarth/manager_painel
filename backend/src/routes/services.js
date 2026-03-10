@@ -591,7 +591,9 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
     const serviceList = getHanaServiceList(hanaClientKey);
     const windowsGroupIds = serviceList.filter((s) => getHanaWindowsServiceGroup(hanaClientKey, s.id)).map((s) => s.id);
     if (windowsGroupIds.length > 0) {
-      const conn = getHanaConnectionConfig(hanaClientKey);
+      const conn = hasClientCredentials(hanaClientKey)
+        ? hanaConnFromCredentials(getClientCredentials(hanaClientKey))
+        : getHanaConnectionConfig(hanaClientKey);
       if (!conn) {
         for (const id of windowsGroupIds) results[id] = 'unconfigured';
         return res.json(results);
@@ -764,7 +766,9 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
       } else if (isHanaWindowsGroup && hanaClientKey) {
         const cmd = getSqlRestartGroupCommand(hanaWindowsGroupNames);
         if (!cmd) return res.status(400).json({ error: 'Grupo de serviços Windows sem nomes configurados' });
-        const conn = getHanaConnectionConfig(hanaClientKey);
+        const conn = hasClientCredentials(hanaClientKey)
+          ? hanaConnFromCredentials(getClientCredentials(hanaClientKey))
+          : getHanaConnectionConfig(hanaClientKey);
         if (!conn) return res.status(400).json({ error: 'SSH do cliente (ROLANDWEB) não configurado' });
         result = await sshExecWithConfig(conn, cmd);
       } else if (isHanaService && hanaClientKey) {

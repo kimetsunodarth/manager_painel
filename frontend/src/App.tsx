@@ -14,8 +14,8 @@ import Usuarios from './pages/Usuarios';
 import Logs from './pages/Logs';
 
 function PrivateRoute({ children }: { children: ReactNode }) {
-  const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" replace />;
+  const user = localStorage.getItem('user');
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 

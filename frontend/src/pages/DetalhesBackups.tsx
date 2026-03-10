@@ -22,7 +22,7 @@ const DAYS_SEMANA = 7;
 
 type BackupWithClient = CbrBackupItem & { clientName: string; region?: string };
 
-/** Agrupa todos os backups por nome do recurso (ex.: aguassql, aguasweb), ordenado por nome do recurso. */
+/** Agrupa todos os backups por nome do recurso, ordenado por nome do recurso. */
 function groupBackupsByResource(byClient: CbrByClientItem[]): { resourceName: string; backups: BackupWithClient[] }[] {
   const map = new Map<string, BackupWithClient[]>();
   for (const client of byClient) {
@@ -111,7 +111,7 @@ export default function DetalhesBackups() {
           </button>
         </div>
       </div>
-      <p className="text-sm text-gray-600 mb-4">Backups da semana (últimos 7 dias), agrupados por recurso (ex.: aguassql, aguasweb).</p>
+      <p className="text-sm text-gray-600 mb-4">Backups da semana (últimos 7 dias), agrupados por recurso.</p>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           {cbrLoading ? (
             <div className="p-8 text-center text-gray-500">Carregando CBR...</div>

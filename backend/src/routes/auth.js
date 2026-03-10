@@ -17,6 +17,15 @@ const loginLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+    if (typeof ip === 'string') {
+      ip = ip.split(',')[0].trim();
+      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
+      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
+    }
+    return ip;
+  },
 });
 
 router.post('/login', loginLimiter, async (req, res) => {
@@ -50,6 +59,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       userEmail: user.email,
       action: 'Login',
       details: { role: user.role },
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent'],
       createdAt: new Date().toISOString(),
     });
     const token = jwt.sign(
@@ -57,8 +68,30 @@ router.post('/login', loginLimiter, async (req, res) => {
       getJwtSecret(),
       { expiresIn: JWT_EXPIRES_IN }
     );
+    
+    // Parse JWT_EXPIRES_IN (e.g. '7d', '24h') to milliseconds for cookie maxAge
+    let maxAge = 7 * 24 * 60 * 60 * 1000; // default 7 days
+    if (typeof JWT_EXPIRES_IN === 'string') {
+      const match = JWT_EXPIRES_IN.match(/^(\d+)([dhms])$/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        const unit = match[2];
+        if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
+        else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
+        else if (unit === 'm') maxAge = val * 60 * 1000;
+        else if (unit === 's') maxAge = val * 1000;
+      }
+    }
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge,
+    });
+
     res.json({
-      token,
+      ok: true,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds, visibleProjects: user.visibleProjects || [], allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {}, allowedServiceIds: user.allowedServiceIds || [] },
     });
   } catch (e) {
@@ -67,6 +100,15 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
     res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
+  res.json({ ok: true, message: 'Logout realizado com sucesso' });
 });
 
 export default router;

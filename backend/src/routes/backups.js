@@ -37,15 +37,21 @@ function getCbrTargets(u) {
     const visible = u.visibleProjects || [];
     const profileNames = getProfileNames();
     const projectIdToProfile = new Map();
-    profileNames.forEach((p) => {
+    profileNames.forEach((pn) => {
       try {
-        const creds = getProfileCredentials(p);
-        if (creds.project_id) projectIdToProfile.set(creds.project_id.trim(), p);
+        const creds = getProfileCredentials(pn);
+        if (creds.project_id) projectIdToProfile.set(creds.project_id.trim(), pn);
       } catch (_) {}
     });
+    const exactNames = new Set(profileNames);
     visible.forEach((p) => {
       const projectId = p.id;
-      const profile = p.perfil || projectIdToProfile.get(projectId);
+      let profile = (p.perfil && exactNames.has(String(p.perfil).trim())) ? String(p.perfil).trim() : null;
+      if (!profile) profile = projectIdToProfile.get(projectId) || null;
+      if (!profile && (p.perfil || p.name)) {
+        const search = (p.perfil || p.name || '').toLowerCase();
+        profile = profileNames.find((pn) => pn.toLowerCase().includes(search) || search.includes(pn.toLowerCase())) || null;
+      }
       const clientName = p.name || profile || projectId;
       const region = p.region || 'la-south-2';
       targets.push({ profile: profile || '', projectId, clientName, region });
@@ -94,7 +100,10 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
         const projectIdForCbr = (projectId && String(projectId).trim()) || creds.project_id;
         let backups = await listBackups(profile, { days, projectId: projectIdForCbr, region: region || creds.region });
         const key = projectKey(projectIdForCbr, profile);
-        const allowedIds = allowedByProject[key];
+        let allowedIds = allowedByProject[key];
+        if (!allowedIds && allowedByProject[projectIdForCbr]) {
+          allowedIds = allowedByProject[projectIdForCbr];
+        }
         if (u.role !== 'admin' && Array.isArray(allowedIds) && allowedIds.length > 0) {
           const idSet = new Set(allowedIds);
           backups = backups.filter((b) => b.resource_id && idSet.has(b.resource_id));

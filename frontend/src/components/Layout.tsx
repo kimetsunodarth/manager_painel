@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { auth } from '../api/client';
 
 const menuItems = [
   { path: '/', label: 'Home', icon: '🏠' },
@@ -26,10 +27,16 @@ export default function Layout() {
   const location = useLocation();
   const user = safeUser();
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await auth.logout();
+    } catch (err) {
+      console.warn('Erro ao chamar logout na API:', err);
+    }
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   return (

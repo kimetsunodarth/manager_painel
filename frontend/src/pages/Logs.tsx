@@ -48,7 +48,6 @@ export default function Logs() {
     service_restart: 'Restart serviço',
     service_list: 'Listar serviço',
     service_execute: 'Executar serviço',
-    schedule_update: 'Atualizar programação',
     cancel_stop_requested: 'Cancelar stop (prorrogação)',
     cancel_stop_cleared: 'Remover cancelamento de stop',
     schedule_add: 'Agendamento adicionado',
@@ -115,8 +114,8 @@ export default function Logs() {
                 <tr>
                   <th className="text-left py-2 px-4 font-semibold text-gray-700">Data</th>
                   <th className="text-left py-2 px-4 font-semibold text-gray-700">Usuário</th>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-700">E-mail</th>
                   <th className="text-left py-2 px-4 font-semibold text-gray-700">Ação</th>
+                  <th className="text-left py-2 px-4 font-semibold text-gray-700">Origem</th>
                   <th className="text-left py-2 px-4 font-semibold text-gray-700">Detalhes</th>
                 </tr>
               </thead>
@@ -124,9 +123,19 @@ export default function Logs() {
                 {list.map((entry) => (
                   <tr key={entry.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-4 text-gray-600 whitespace-nowrap">{formatDate(entry.createdAt)}</td>
-                    <td className="py-2 px-4 font-medium">{entry.userName || '—'}</td>
-                    <td className="py-2 px-4 text-gray-600">{entry.userEmail || '—'}</td>
+                    <td className="py-2 px-4">
+                      <div className="font-medium">{entry.userName || '—'}</div>
+                      <div className="text-xs text-gray-500">{entry.userEmail || '—'}</div>
+                    </td>
                     <td className="py-2 px-4">{getActionLabel(entry.action || '') || '—'}</td>
+                    <td className="py-2 px-4 text-gray-600">
+                      <div className="text-sm font-mono bg-gray-100 px-1 rounded inline-block mb-1">{entry.ipAddress || '—'}</div>
+                      {entry.userAgent && (
+                        <div className="text-xs text-gray-400 max-w-[120px] truncate" title={entry.userAgent}>
+                          {entry.userAgent}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 px-4 text-gray-700 align-top">
                       {entry.details != null ? (
                         <div className="min-w-[200px] max-w-[480px]">

@@ -21,11 +21,17 @@ function getJwtSecret() {
 }
 
 export function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token = null;
+
+  if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.slice(7);
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'Token não informado' });
   }
-  const token = authHeader.slice(7);
   try {
     const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret);
