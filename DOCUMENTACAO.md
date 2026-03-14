@@ -1,4 +1,4 @@
-# Documentação — Ananim Manager Painel
+# Documentação — Ananim Manager Painel (v1.2.0)
 
 Este documento reúne configuração, scripts, localização de arquivos e deploy (desenvolvimento e produção).
 

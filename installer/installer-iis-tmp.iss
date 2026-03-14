@@ -1,11 +1,11 @@
 ; Instalador Ananim Manager Painel para IIS (backend + frontend, como huawei-cloud-panel)
 ; Instala backend Node, frontend (public/), web.config HttpPlatformHandler e scripts.
 ; O site no IIS executa o Node que serve /api e o frontend; nao precisa do backend na pasta do projeto.
-; Requer: IIS, HttpPlatformHandler, Node.js, URL Rewrite. Gere o pacote: .\installer\build-package-iis.ps1
-; Compile com: iscc /DPackageDir=package-iis-tmp installer-iis.iss (se o pacote estiver em package-iis-tmp)
+; Requer: IIS, HttpPlatformHandler, Node.js, URL Rewrite. Gere o pacote: .\installer\build-package-iis-tmp.ps1
+; Compile com: iscc /DPackageDir=package-iis-tmp-tmp installer-iis.iss (se o pacote estiver em package-iis-tmp-tmp)
 
 #ifndef PackageDir
-#define PackageDir "package-iis"
+#define PackageDir "package-iis-tmp"
 #endif
 #define MyAppName "Ananim Manager Painel"
 #define MyAppVersion "1.2.0"
@@ -40,7 +40,7 @@ Name: "installurlrewrite"; Description: "Instalar modulo URL Rewrite no IIS (nec
 Name: "configiis"; Description: "Configurar site no IIS ao final da instalacao (app pool + site na porta 8890)"; GroupDescription: "IIS:"; Flags: checkedonce
 
 [Files]
-; Pacote gerado por build-package-iis.ps1: APENAS exe + public + lib + logs + scripts (NAO inclui config, data, iisnode, node_modules)
+; Pacote gerado por build-package-iis-tmp.ps1: APENAS exe + public + lib + logs + scripts (NAO inclui config, data, iisnode, node_modules)
 Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]

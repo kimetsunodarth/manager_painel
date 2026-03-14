@@ -24,16 +24,15 @@ function runWorker({ baseUrl, username, password, headless }) {
     if (!existsSync(browsersDir)) {
       return resolve({ ok: false, error: `Pasta de browsers do Playwright não encontrada em ${browsersDir}. Reinstale o aplicativo com o instalador completo (Ativar Support requer Chromium).` });
     }
+
     const child = spawn(nodeExe, [workerScript], {
       cwd,
       windowsHide: true,
       env: {
         ...process.env,
-        // Chromium instalado na pasta browsers do pacote (instalador copia para {app}\browsers).
         PLAYWRIGHT_BROWSERS_PATH: browsersDir,
         NODE_PATH: join(cwd, 'node_modules'),
       },
-      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     const timeoutMs = 3 * 60 * 1000;
@@ -46,19 +45,32 @@ function runWorker({ baseUrl, username, password, headless }) {
     let err = '';
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (d) => { out += d; });
-    child.stderr.on('data', (d) => { err += d; });
+    child.stdout.on('data', (d) => { 
+      out += d; 
+      console.log(`[control-center-worker] STDOUT: ${d.trim()}`);
+    });
+    child.stderr.on('data', (d) => { 
+      err += d; 
+      console.warn(`[control-center-worker] STDERR: ${d.trim()}`);
+    });
 
     child.on('error', (e) => {
       clearTimeout(timeout);
+      console.error('[control-center] Failed to start worker:', e);
       resolve({ ok: false, error: e?.message || 'Falha ao iniciar worker do Control Center' });
     });
-    child.on('exit', () => {
+
+    child.on('exit', (code) => {
       clearTimeout(timeout);
+      console.log(`[control-center] Worker finished with code ${code}`);
       try {
         const parsed = out ? JSON.parse(out) : null;
-        if (parsed && typeof parsed === 'object') return resolve(parsed);
-      } catch {}
+        if (parsed && typeof parsed === 'object') {
+          return resolve(parsed);
+        }
+      } catch (parseError) {
+        console.warn('[control-center] Failed to parse worker output as JSON:', parseError.message);
+      }
       const msg = (err || out || '').trim() || 'Falha ao executar worker do Control Center';
       resolve({ ok: false, error: msg });
     });
@@ -87,8 +99,12 @@ export async function runActivateSupport({ baseUrl, username, password, headless
     return { ok: false, error: 'Configuração incompleta (baseUrl, usuário e senha obrigatórios)' };
   }
 
-  // IIS/.exe (pkg): executar Playwright fora do snapshot do pkg (via node.exe embarcado).
-  if (typeof process.pkg !== 'undefined') {
+  // Sempre executar o Playwright através do worker (processo filho isolado) no ambiente empacotado (pkg) 
+  // ou quando hospedado no IIS (onde a lib nativa pode lidar mal com o carregamento do perfil de usuário).
+  const isPkg = typeof process.pkg !== 'undefined';
+  const isIisNode = typeof process.env.IISNODE_VERSION !== 'undefined';
+  
+  if (isPkg || isIisNode) {
     const r = await runWorker({ baseUrl, username, password, headless });
     if (r && typeof r === 'object') return r;
     return { ok: false, error: 'Falha ao executar automação do Control Center (worker).' };
@@ -157,70 +173,46 @@ export async function runActivateSupport({ baseUrl, username, password, headless
 
     if (await serverRowCheckbox2.isVisible().catch(() => false)) {
       await serverRowCheckbox2.check();
-      await page.waitForTimeout(10000);
-    }
-
-    const maxWaitMs = 120000;
-    const start = Date.now();
-    let companiesVisible = await companiesLoadedText.isVisible().catch(() => false);
-    if (!companiesVisible) {
-      const rowCb = page.locator('table').filter({ has: page.locator('text=Server Name') }).locator('input[type="checkbox"]').nth(1);
-      while (Date.now() - start < maxWaitMs) {
-        await rowCb.check();
-        await page.waitForTimeout(8000);
-        if (await companiesLoadedText.isVisible().catch(() => false)) {
-          companiesVisible = true;
-          break;
-        }
-        await rowCb.uncheck();
+      await page.waitForTimeout(3000);
+      const loadOk = await companiesLoadedText.isVisible().catch(() => false) || await companyTable.isVisible().catch(() => false);
+      if (!loadOk) {
+        await serverRowCheckbox2.uncheck();
+        await page.waitForTimeout(1000);
+        await serverRowCheckbox2.check();
         await page.waitForTimeout(5000);
-        if (await companiesLoadedText.isVisible().catch(() => false)) {
-          companiesVisible = true;
-          break;
-        }
-      }
-      if (!companiesVisible && (await rowCb.isVisible().catch(() => false))) {
-        await rowCb.check();
       }
     }
-    await page.waitForTimeout(2000);
 
-    const companyHeaderCheckbox = companyTable.locator('input[type="checkbox"]').first();
-    if (await companyHeaderCheckbox.isVisible().catch(() => false)) {
-      await companyHeaderCheckbox.check();
-    } else {
-      const companyCheckboxes = companyTable.locator('tbody input[type="checkbox"]');
-      const count = await companyCheckboxes.count();
-      for (let i = 0; i < count; i++) {
-        await companyCheckboxes.nth(i).check().catch(() => {});
-      }
+    const companyCheck = companyTable.locator('input[type="checkbox"]').first();
+    if (await companyCheck.isVisible().catch(() => false)) {
+      await companyCheck.check();
+      await page.waitForTimeout(1000);
     }
-    await page.waitForTimeout(3000);
 
     const activateSupportBtn = page.getByRole('button', { name: /Activate Support User|Activate Support|Ativar Suporte/i })
       .or(page.locator('input[value*="Activate Support"]'))
       .or(page.locator('button:has-text("Activate Support User")'))
       .or(page.locator('button:has-text("Activate Support")'))
-      .or(page.locator('[type="submit"]').filter({ hasText: /Activate|Support|Suporte/i }))
+      .or(page.locator('[type="submit"]')).filter({ hasText: /Activate|Support|Suporte/i })
       .first();
+    
     const btnVisible = await activateSupportBtn.isVisible().catch(() => false);
     if (btnVisible) {
       await activateSupportBtn.click();
       await page.waitForTimeout(2000);
-      const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$/i }).or(page.locator('button:has-text("Activate")')).or(page.locator('button:has-text("Active")')).first();
+      const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$|^Ativar$/i }).or(page.locator('button:has-text("Activate")')).or(page.locator('button:has-text("Active")')).first();
       if (await activeBtn.isVisible().catch(() => false)) {
         await activeBtn.click();
       }
       await page.waitForTimeout(3000);
-      await browser.close();
-      return { ok: true, message: 'Activate Support User executado com sucesso.' };
+      return { ok: true, message: 'Suporte ativado com sucesso.' };
     }
-    await browser.close();
-    return { ok: false, error: 'Botão "Activate Support User" não encontrado após seleção de servidor e empresa. Verifique se o Control Center exibe o botão na tela atual.' };
+
+    return { ok: false, error: 'Botão "Activate Support User" não encontrado após login.' };
   } catch (err) {
-    try {
-      await browser.close();
-    } catch {}
-    return { ok: false, error: err.message || 'Erro na automação do Control Center' };
+    console.error('[control-center] Erro na automação:', err);
+    return { ok: false, error: err.message || 'Erro inesperado na automação do Control Center' };
+  } finally {
+    if (browser) await browser.close();
   }
 }

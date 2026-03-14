@@ -26,23 +26,35 @@ import { getEnrichedVisibleProjects } from './huawei.js';
 const router = Router();
 router.use(authMiddleware);
 
-/** Retorna o clientKey SQL efetivo: preferência do usuário > query > ordem dos visibleProjects. */
+/** Retorna o clientKey SQL efetivo: query > preferência do usuário > ordem dos visibleProjects. */
 function getEffectiveSqlClientKey(u, queryClientKey) {
   const allowed = getSqlClientKeysForUser(u);
   if (!allowed.length) return null;
+  
+  // 1) Prioridade para o que o usuário explicitamente selecionou no dropdown (query)
+  if (queryClientKey && allowed.includes(queryClientKey)) return queryClientKey;
+  
+  // 2) Segunda prioridade para a preferência do usuário (se não for admin ignorando via query)
   const preferred = u?.preferredServiceClientKey && allowed.includes(u.preferredServiceClientKey) ? u.preferredServiceClientKey : null;
   if (preferred) return preferred;
-  if (queryClientKey && allowed.includes(queryClientKey)) return queryClientKey;
+  
+  // 3) Fallback para o primeiro disponível
   return getSqlClientKey(u);
 }
 
-/** Retorna o clientKey HANA efetivo: preferência do usuário > query > ordem dos visibleProjects. */
+/** Retorna o clientKey HANA efetivo: query > preferência do usuário > ordem dos visibleProjects. */
 function getEffectiveHanaClientKey(u, queryClientKey) {
   const allowed = getHanaClientKeysForUser(u);
   if (!allowed.length) return null;
+  
+  // 1) Prioridade para o que o usuário explicitamente selecionou no dropdown (query)
+  if (queryClientKey && allowed.includes(queryClientKey)) return queryClientKey;
+  
+  // 2) Segunda prioridade para a preferência do usuário (se não for admin ignorando via query)
   const preferred = u?.preferredServiceClientKey && allowed.includes(u.preferredServiceClientKey) ? u.preferredServiceClientKey : null;
   if (preferred) return preferred;
-  if (queryClientKey && allowed.includes(queryClientKey)) return queryClientKey;
+  
+  // 3) Fallback para o primeiro disponível
   return getHanaClientKey(u);
 }
 
@@ -75,19 +87,25 @@ async function execHanaSsh(hanaClientKey, command) {
   return sshExecWithConfig(conn, command);
 }
 
-/** Retorna o clientKey efetivo (SQL ou HANA): preferência do usuário > query > ordem dos visibleProjects. */
+/** Retorna o clientKey efetivo (SQL ou HANA): query > preferência do usuário > ordem dos visibleProjects. */
 function getEffectiveClientKey(u, clientKeyQuery) {
   const sqlKeys = getSqlClientKeysForUser(u);
   const hanaKeys = getHanaClientKeysForUser(u);
+
+  // 1) Prioridade para o que o usuário explicitamente selecionou no dropdown (URL query)
+  if (clientKeyQuery) {
+    if (sqlKeys.includes(clientKeyQuery)) return { clientKey: clientKeyQuery, type: 'sql' };
+    if (hanaKeys.includes(clientKeyQuery)) return { clientKey: clientKeyQuery, type: 'hana' };
+  }
+
+  // 2) Segunda prioridade para a preferência do usuário
   const preferred = u?.preferredServiceClientKey || null;
   if (preferred) {
     if (sqlKeys.includes(preferred)) return { clientKey: preferred, type: 'sql' };
     if (hanaKeys.includes(preferred)) return { clientKey: preferred, type: 'hana' };
   }
-  if (clientKeyQuery) {
-    if (sqlKeys.includes(clientKeyQuery)) return { clientKey: clientKeyQuery, type: 'sql' };
-    if (hanaKeys.includes(clientKeyQuery)) return { clientKey: clientKeyQuery, type: 'hana' };
-  }
+
+  // 3) Fallback para disponiveis
   if (sqlKeys.length) return { clientKey: getSqlClientKey(u), type: 'sql' };
   if (hanaKeys.length) return { clientKey: getHanaClientKey(u), type: 'hana' };
   return null;
@@ -112,11 +130,17 @@ router.get('/', async (req, res) => {
           ? getSqlClientDisplayName(effective.clientKey)
           : getHanaClientDisplayName(effective.clientKey);
         const serverMap = new Map();
+        const preferredKey = u.preferredServiceClientKey;
+        
         for (const k of sqlKeys) {
-          if (!serverMap.has(k)) serverMap.set(k, { clientKey: k, displayName: getSqlClientDisplayName(k) });
+          if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
+          const dn = getSqlClientDisplayName(k);
+          if (!serverMap.has(dn)) serverMap.set(dn, { clientKey: k, displayName: dn });
         }
         for (const k of hanaKeys) {
-          if (!serverMap.has(k)) serverMap.set(k, { clientKey: k, displayName: getHanaClientDisplayName(k) });
+          if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
+          const dn = getHanaClientDisplayName(k);
+          if (!serverMap.has(dn)) serverMap.set(dn, { clientKey: k, displayName: dn });
         }
         const servers = Array.from(serverMap.values());
         const payload = { list, mode: effective.type, displayName, clientKey: effective.clientKey };
@@ -639,9 +663,10 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
         const s = settled[i];
         if (s.status === 'fulfilled') {
           const stdout = (s.value.out && s.value.out.stdout != null) ? String(s.value.out.stdout) : '';
+          const stdoutLower = stdout.toLowerCase();
           const isActive = key === 'hana'
-            ? stdout.toLowerCase().includes('hdbnameserver') || stdout.toLowerCase().includes('nameserver')
-            : (stdout.trim() === 'active');
+            ? stdoutLower.includes('hdbnameserver') || stdoutLower.includes('nameserver')
+            : stdoutLower.includes('active');
           results[key] = isActive ? 'active' : 'inactive';
         } else {
           console.warn('[services/health] HANA', hanaClientKey, key, s.reason?.message || s.reason);

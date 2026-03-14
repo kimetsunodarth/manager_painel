@@ -1,11 +1,6 @@
 /**
  * Worker Playwright para IIS/.exe (pkg).
- *
- * Motivação: Playwright não roda de forma confiável dentro do runtime do pkg.
- * Este worker é executado por um node.exe embarcado no instalador e retorna JSON via stdout.
- *
- * Entrada (stdin): JSON { baseUrl, username, password, headless }
- * Saída (stdout): JSON { ok: boolean, message?: string, error?: string }
+ * Final v1.1.1 - Baseado em simulação real bem-sucedida.
  */
 
 const fs = require('fs');
@@ -41,130 +36,107 @@ async function main() {
 
     try {
       const page = await context.newPage();
+      console.error(`[worker] Navegando para ${url}`);
 
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(3000);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForTimeout(5000);
 
-      const advanceLink = page.locator('text=Advanced, text=Avançado, a:has-text("Advanced"), a:has-text("Proceed")').first();
-      if (await advanceLink.isVisible().catch(() => false)) {
-        await advanceLink.click();
-        await page.waitForTimeout(1000);
-        const proceedLink = page.locator('a:has-text("Proceed"), a:has-text("Continuar"), button:has-text("Proceed")').first();
-        if (await proceedLink.isVisible().catch(() => false)) await proceedLink.click();
+      // --- LOGIN ---
+      const userInput = page.locator('input[type="text"], input[name="username"], input[placeholder*="user" i]').first();
+      const passInput = page.locator('input[type="password"], input[name="password"], input[placeholder*="pass" i]').first();
+      const loginBtn = page.locator('button:has-text("Log In"), input[type="submit"], button#login-btn').first();
+
+      if (await userInput.isVisible().catch(() => false)) {
+        await userInput.fill(username);
+        await loginBtn.click();
         await page.waitForTimeout(2000);
-      }
-
-      const userInput = page.getByPlaceholder(/Username or email|user|login/i).or(page.locator('input[type="text"]')).first();
-      const logInBtn = page.getByRole('button', { name: /Log In|Log in|Login/i }).or(page.locator('button:has-text("Log In")')).first();
-
-      await userInput.waitFor({ state: 'visible', timeout: 10000 });
-      await userInput.fill(username);
-      await logInBtn.click();
-      await page.waitForTimeout(3000);
-
-      const passInput = page.getByPlaceholder(/Password|senha/i).or(page.locator('input[type="password"]')).first();
-      await passInput.waitFor({ state: 'visible', timeout: 10000 });
-      await passInput.fill(password);
-      await logInBtn.click();
-      await page.waitForTimeout(5000);
-
-      await page.waitForTimeout(2000);
-
-      const dbInstancesTable = page.locator('table').filter({ has: page.locator('text=Server Name') });
-      const serverRowCheckbox = dbInstancesTable.locator('input[type=\"checkbox\"]').nth(1);
-      if (await serverRowCheckbox.isVisible().catch(() => false)) {
-        await serverRowCheckbox.check();
-        await page.waitForTimeout(3000);
-      }
-
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(5000);
-
-      const dbTable2 = page.locator('table').filter({ has: page.locator('text=Server Name') });
-      const serverRowCheckbox2 = dbTable2.locator('input[type=\"checkbox\"]').nth(1);
-      const companiesLoadedText = page.getByText(/Companies \\([1-9]\\d*\\)/);
-      const companyTable = page.locator('table').filter({ has: page.locator('text=Company Name') });
-
-      if (await serverRowCheckbox2.isVisible().catch(() => false)) {
-        await serverRowCheckbox2.check();
-        await page.waitForTimeout(10000);
-      }
-
-      const maxWaitMs = 120000;
-      const start = Date.now();
-      let companiesVisible = await companiesLoadedText.isVisible().catch(() => false);
-      if (!companiesVisible) {
-        const rowCb = page.locator('table').filter({ has: page.locator('text=Server Name') }).locator('input[type=\"checkbox\"]').nth(1);
-        while (Date.now() - start < maxWaitMs) {
-          if (await rowCb.isVisible().catch(() => false)) {
-            await rowCb.check().catch(() => {});
-          }
-          await page.waitForTimeout(8000);
-          if (await companiesLoadedText.isVisible().catch(() => false)) {
-            companiesVisible = true;
-            break;
-          }
-          if (await rowCb.isVisible().catch(() => false)) {
-            await rowCb.uncheck().catch(() => {});
-          }
-          await page.waitForTimeout(5000);
-          if (await companiesLoadedText.isVisible().catch(() => false)) {
-            companiesVisible = true;
-            break;
-          }
-          if (!(await rowCb.isVisible().catch(() => false))) {
-              break; // Se o checkbox não está visível, aguardar neste loop não ajudará. Quebra e tenta prosseguir.
-          }
-        }
-        if (!companiesVisible && (await rowCb.isVisible().catch(() => false))) {
-          await rowCb.check().catch(() => {});
-        }
-      }
-      await page.waitForTimeout(2000);
-
-      const companyHeaderCheckbox = companyTable.locator('input[type=\"checkbox\"]').first();
-      if (await companyHeaderCheckbox.isVisible().catch(() => false)) {
-        await companyHeaderCheckbox.check();
+        await passInput.fill(password);
+        await loginBtn.click();
+        await page.waitForTimeout(8000);
       } else {
-        const companyCheckboxes = companyTable.locator('tbody input[type=\"checkbox\"]');
-        const count = await companyCheckboxes.count();
-        for (let i = 0; i < count; i++) {
-          await companyCheckboxes.nth(i).check().catch(() => {});
+        // Tenta fluxo alternativo se já cair na senha (raro)
+        const possibleUser = page.getByPlaceholder(/Username/i).first();
+        if (await possibleUser.isVisible().catch(() => false)) {
+             await possibleUser.fill(username);
+             await page.keyboard.press('Enter');
+             await page.waitForTimeout(3000);
+             await page.getByPlaceholder(/Password/i).fill(password);
+             await page.keyboard.press('Enter');
+             await page.waitForTimeout(8000);
         }
       }
-      await page.waitForTimeout(3000);
 
-      const activateSupportBtn = page.getByRole('button', { name: /Activate Support User|Activate Support|Ativar Suporte/i })
-        .or(page.locator('input[value*="Activate Support"]'))
-        .or(page.locator('button:has-text("Activate Support User")'))
-        .or(page.locator('button:has-text("Activate Support")'))
-        .or(page.locator('[type="submit"]')).filter({ hasText: /Activate|Support|Suporte/i })
-        .first();
-      const btnVisible = await activateSupportBtn.isVisible().catch(() => false);
-      if (btnVisible) {
-        await activateSupportBtn.click();
-        await page.waitForTimeout(2000);
-        const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$/i }).or(page.locator('button:has-text("Activate")')).or(page.locator('button:has-text("Active")')).first();
-        if (await activeBtn.isVisible().catch(() => false)) {
-          await activeBtn.click();
+      // --- WORKFLOW SLD ---
+      let attempt = 0;
+      let companiesReady = false;
+
+      while (attempt < 3 && !companiesReady) {
+        attempt++;
+        console.error(`[worker] Tentativa ${attempt}: Selecionando servidor...`);
+
+        // Checkbox do servidor (primeiro item da tabela de instâncias)
+        const serverCb = page.locator('table').filter({ hasText: 'Server Name' }).locator('input[type="checkbox"]').nth(1);
+        await serverCb.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+        
+        if (await serverCb.isVisible().catch(() => false)) {
+          await serverCb.check().catch(() => {});
+          console.error(`[worker] Servidor marcado. Aguardando companies...`);
+          await page.waitForTimeout(8000); // SLD é lento
         }
-        await page.waitForTimeout(3000);
+
+        const companiesTable = page.locator('table').filter({ hasText: 'Company Name' });
+        const companyRows = await companiesTable.locator('tbody tr').count().catch(() => 0);
+
+        if (companyRows > 0) {
+          companiesReady = true;
+          console.error(`[worker] ${companyRows} empresas encontradas.`);
+        } else {
+          console.error(`[worker] Empresas não carregaram. Retentando...`);
+          if (await serverCb.isVisible().catch(() => false)) await serverCb.uncheck().catch(() => {});
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(5000);
+        }
+      }
+
+      if (!companiesReady) {
         await browser.close();
-        process.stdout.write(JSON.stringify({ ok: true, message: 'Activate Support User executado com sucesso.' }));
+        process.stdout.write(JSON.stringify({ ok: false, error: 'As empresas não carregaram no Control Center após retries.' }));
         return;
       }
+
+      // Selecionar todas as empresas
+      const headerCb = page.locator('table').filter({ hasText: 'Company Name' }).locator('thead input[type="checkbox"]').first();
+      await headerCb.check().catch(() => {});
+      await page.waitForTimeout(2000);
+
+      // Clicar no botão Activate Support User
+      const mainBtn = page.locator('button').filter({ hasText: /^Activate Support User$/i }).first();
+      if (await mainBtn.isVisible().catch(() => false)) {
+        console.error(`[worker] Clicando no botão principal de ativação...`);
+        await mainBtn.click();
+        await page.waitForTimeout(3000);
+
+        const modalBtn = page.locator('button').filter({ hasText: /^Activate$/i }).first();
+        if (await modalBtn.isVisible().catch(() => false)) {
+          console.error(`[worker] Confirmando no modal...`);
+          await modalBtn.click();
+          await page.waitForTimeout(5000);
+          await browser.close();
+          process.stdout.write(JSON.stringify({ ok: true, message: 'Sucesso: Support User ativado.' }));
+          return;
+        }
+      }
+
       await browser.close();
-      process.stdout.write(JSON.stringify({ ok: false, error: 'Botão "Activate Support User" não encontrado após seleção de servidor e empresa. Verifique se o Control Center exibe o botão na tela atual.' }));
-      return;
+      process.stdout.write(JSON.stringify({ ok: false, error: 'Botão de ativação ou modal final não encontrado.' }));
+
     } catch (err) {
       try { await browser.close(); } catch {}
-      process.stdout.write(JSON.stringify({ ok: false, error: (err && err.message) ? err.message : 'Erro na automação do Control Center' }));
-      return;
+      process.stdout.write(JSON.stringify({ ok: false, error: err.message || 'Erro durante automação' }));
     }
   } catch (e) {
-    process.stdout.write(JSON.stringify({ ok: false, error: (e && e.message) ? e.message : 'Erro ao executar worker' }));
+    process.stdout.write(JSON.stringify({ ok: false, error: 'Falha crítica no worker' }));
   }
 }
 
 main();
-

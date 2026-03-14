@@ -42,16 +42,21 @@ import documentsRoutes from './routes/documents.js';
 import huaweiRoutes from './routes/huawei.js';
 import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
-import { runDue } from './services/scheduleRunner.js';
+import { runDue, monitorStatus } from './services/scheduleRunner.js';
 
 initDb();
 
 // Cron: a cada minuto executa agendamentos VM (Start/Stop por ECS); usa hora LOCAL do servidor
 const scheduleNow = new Date();
 console.log('[Schedule] Hora do servidor (local):', scheduleNow.toLocaleString('pt-BR'), '— agendamentos usam esta hora.');
+
+// Execução inicial
 runDue().catch((e) => console.error('[Schedule]', e?.message || e));
+monitorStatus().catch((e) => console.error('[Monitor]', e?.message || e));
+
 setInterval(() => {
   runDue().catch((e) => console.error('[Schedule]', e?.message || e));
+  monitorStatus().catch((e) => console.error('[Monitor]', e?.message || e));
 }, 60 * 1000);
 
 const app = express();

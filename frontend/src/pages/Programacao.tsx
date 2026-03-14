@@ -633,14 +633,19 @@ function ScheduleFormModal({
               </div>
             </div>
             <div className="pt-2 border-t border-gray-100">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-start gap-2 cursor-pointer p-2 bg-purple-50 rounded border border-purple-100">
                 <input
                   type="checkbox"
                   checked={isExternal}
                   onChange={(e) => setIsExternal(e.target.checked)}
-                  className="rounded border-gray-300 w-4 h-4 text-blue-600"
+                  className="rounded border-gray-300 w-4 h-4 text-purple-600 mt-0.5"
                 />
-                <span className="text-sm font-medium text-gray-700">Controle externo (Apenas exibir, não executar API)</span>
+                <span className="text-sm text-purple-900">
+                  <strong>Monitoramento Externo (Cloud8, etc.)</strong>
+                  <br />
+                  Se marcado, a nossa API <strong>não enviará comandos</strong> de ligar/desligar. 
+                  Em vez disso, ela apenas monitorará o status real da VM para <strong>calcular automaticamente as horas extras</strong> caso ela esteja ligada fora deste horário.
+                </span>
               </label>
             </div>
           </div>

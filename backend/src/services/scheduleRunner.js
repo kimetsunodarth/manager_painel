@@ -3,10 +3,10 @@
  * Usa vmScheduleV2 e huawei-ecs para Start/Stop.
  */
 
-import { listSchedules, shouldRunNow, isStopCanceledForDate, isStartCanceledForDate, isRestartCanceledForDate } from '../config/vmScheduleV2.js';
-import { startEcs, stopEcs, restartEcs } from './huawei-ecs.js';
+import { listSchedules, shouldRunNow, isStopCanceledForDate, isStartCanceledForDate, isRestartCanceledForDate, isInsideScheduleWindow } from '../config/vmScheduleV2.js';
+import { startEcs, stopEcs, restartEcs, listEcsForProject } from './huawei-ecs.js';
 import { appendLog } from '../data/auditLog.js';
-import { closeOpenSession } from '../data/extensionSessions.js';
+import { closeOpenSession, getOpenSession, createManualStart } from '../data/extensionSessions.js';
 
 function dateStr(d) {
   const y = d.getFullYear();
@@ -96,6 +96,57 @@ async function runOne(schedule) {
       createdAt: new Date().toISOString(),
     });
     return { ok: false, error: e.message };
+  }
+}
+
+/**
+ * Monitoramento automático de status (v1.2.0).
+ * Percorre as VMs agendadas, verifica se estão ligadas fora do horário e gerencia sessões de extra hours.
+ */
+export async function monitorStatus() {
+  const list = listSchedules().filter((s) => s.enabled);
+  if (list.length === 0) return;
+
+  const now = new Date();
+  
+  // Agrupar por projeto para otimizar chamadas de listagem
+  const byProject = new Map();
+  for (const s of list) {
+    const key = `${s.projectId}|${s.region}|${s.perfil}`;
+    if (!byProject.has(key)) byProject.set(key, { projectId: s.projectId, region: s.region, perfil: s.perfil, schedules: [] });
+    byProject.get(key).schedules.push(s);
+  }
+
+  for (const [key, info] of byProject.entries()) {
+    try {
+      // Listar status reais das VMs no projeto
+      const servers = await listEcsForProject(info.projectId, info.region || undefined, info.perfil);
+      const serverStatusMap = new Map(servers.map((s) => [s.id, s.status]));
+
+      // Analisar cada agendamento
+      for (const s of info.schedules) {
+        const currentStatus = serverStatusMap.get(s.serverId);
+        if (!currentStatus) continue;
+
+        const isRunning = currentStatus.toUpperCase() === 'ACTIVE' || currentStatus.toUpperCase() === 'RUNNING';
+        const shouldBeRunning = isInsideScheduleWindow(s.projectKey, s.serverId, now);
+        const openSession = getOpenSession(s.projectKey, s.serverId);
+
+        if (isRunning && !shouldBeRunning) {
+          // VM ligada fora do horário -> Abre sessão se não houver
+          if (!openSession) {
+            console.log(`[Monitor] VM ${s.serverName} ativa fora do horário. Abrindo sessão de extra hours.`);
+            createManualStart(s.projectKey, s.serverId, s.serverName, null, 'Sistema (Monitor)', 'auto-monitor@ananim.com.br');
+          }
+        } else if (!isRunning && openSession) {
+          // VM desligada mas com sessão aberta -> Fecha sessão
+          console.log(`[Monitor] VM ${s.serverName} desligada. Fechando sessão de extra hours.`);
+          closeOpenSession(s.projectKey, s.serverId);
+        }
+      }
+    } catch (err) {
+      console.warn(`[Monitor] Erro ao processar projeto ${info.projectId}:`, err.message);
+    }
   }
 }
 

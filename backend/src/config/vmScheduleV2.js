@@ -131,12 +131,65 @@ export function removeSchedule(id) {
 /** Retorna true se o agendamento deve rodar agora (data/hora local). */
 export function shouldRunNow(schedule, now = new Date()) {
   if (!schedule.enabled) return false;
-  if (schedule.isExternal) return false;
+  if (schedule.isExternal) return false; // Externo nunca roda o Start/Stop da nossa API
   if (schedule.hour !== now.getHours()) return false;
   if (schedule.minute !== now.getMinutes()) return false;
   const day = now.getDay();
   if (schedule.days != null && schedule.days.length > 0 && !schedule.days.includes(day)) return false;
   return true;
+}
+
+/**
+ * Retorna true se o horário 'now' está dentro da janela de funcionamento programada.
+ * Se houver um Start às 08:00 e Stop às 18:00, retorna true entre esses horários.
+ * Tratamos apenas o par Start/Stop mais próximo.
+ */
+export function isInsideScheduleWindow(projectKey, serverId, now = new Date()) {
+  const list = listSchedules(projectKey).filter((s) => s.serverId === serverId && s.enabled);
+  if (list.length === 0) return false;
+
+  const day = now.getDay();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Filtra agendamentos válidos para hoje
+  const todaySchedules = list.filter((s) => !s.days || s.days.length === 0 || s.days.includes(day));
+  if (todaySchedules.length === 0) return false;
+
+  const startScheds = todaySchedules.filter((s) => s.action === 'start').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+  const stopScheds = todaySchedules.filter((s) => s.action === 'stop').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+
+  // Lógica simplificada: Se a hora atual for maior que o último Start e menor que o último Stop do dia (considerando pares)
+  // Nota: Para sistemas complexos com múltiplos turnos, precisaríamos de algo mais robusto. 
+  // Para 1 start e 1 stop, funciona bem:
+  const lastStart = startScheds.length > 0 ? startScheds[startScheds.length - 1] : null;
+  const lastStop = stopScheds.length > 0 ? stopScheds[stopScheds.length - 1] : null;
+
+  if (lastStart && lastStop) {
+    const startMin = lastStart.hour * 60 + lastStart.minute;
+    const stopMin = lastStop.hour * 60 + lastStop.minute;
+
+    if (stopMin > startMin) {
+      // Janela normal no mesmo dia
+      return currentMinutes >= startMin && currentMinutes < stopMin;
+    } else {
+      // Janela que vira o dia (ex: Start 22:00, Stop 06:00)
+      return currentMinutes >= startMin || currentMinutes < stopMin;
+    }
+  }
+
+  // Se tem só Start, consideramos que "deveria estar ligado" após o Start
+  if (lastStart && !lastStop) {
+    const startMin = lastStart.hour * 60 + lastStart.minute;
+    return currentMinutes >= startMin;
+  }
+
+  // Se tem só Stop, consideramos que "deveria estar ligado" antes do Stop
+  if (!lastStart && lastStop) {
+    const stopMin = lastStop.hour * 60 + lastStop.minute;
+    return currentMinutes < stopMin;
+  }
+
+  return false;
 }
 
 /**

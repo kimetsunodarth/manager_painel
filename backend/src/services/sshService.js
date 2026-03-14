@@ -85,7 +85,7 @@ function escapePsName(name) {
 export function getSqlRestartCommand(serviceId) {
   if (COMMANDS_SQL[serviceId]) return COMMANDS_SQL[serviceId];
   const safe = escapePsName(serviceId);
-  return `powershell -Command "Restart-Service -Name '${safe}' -Force -ErrorAction SilentlyContinue; exit 0"`;
+  return `powershell -Command "$svc = Get-Service -Name '${safe}' -ErrorAction SilentlyContinue; if ($null -ne $svc) { if ($svc.Status -eq 'Stopped') { Start-Service -Name '${safe}' -ErrorAction SilentlyContinue } else { Restart-Service -Name '${safe}' -Force -ErrorAction SilentlyContinue } }; exit 0"`;
 }
 
 /**
@@ -104,7 +104,7 @@ export function getSqlHealthCommand(serviceId) {
 export function getSqlRestartGroupCommand(serviceIds) {
   if (!Array.isArray(serviceIds) || serviceIds.length === 0) return null;
   const names = serviceIds.map((id) => "'" + escapePsName(id) + "'").join(',');
-  return `powershell -Command "Restart-Service -Name ${names} -Force -ErrorAction SilentlyContinue; exit 0"`;
+  return `powershell -Command "foreach ($name in @(${names})) { $svc = Get-Service -Name $name -ErrorAction SilentlyContinue; if ($null -ne $svc) { if ($svc.Status -eq 'Stopped') { Start-Service -Name $name -ErrorAction SilentlyContinue } else { Restart-Service -Name $name -Force -ErrorAction SilentlyContinue } } }; exit 0"`;
 }
 
 /**
