@@ -16,20 +16,21 @@ const password = process.env.SSH_PASSWORD || process.env.SUSE_PASSWORD;
 // Nomes dos serviços systemd (podem ser sobrescritos no .env se diferente no SUSE)
 const svcSld = process.env.SSH_SERVICE_SLD || 'sapb1servertools.service';
 const svcAuth = process.env.SSH_SERVICE_AUTHENTICATION || 'sapb1servertools-authentication.service';
+const svcLayer = (process.env.SSH_SERVICE_LAYER || 'b1s').trim();
 
 /** Whitelist de comandos permitidos (conforme documento). Authentication usa nome configurável (alguns ambientes usam sapblservertools-authentication.service). */
 export const COMMANDS = {
   hana: `sudo su - ndbadm -c "HDB restart"`,
-  serviceLayer: `sudo systemctl restart b1s`,
+  serviceLayer: `sudo systemctl restart ${svcLayer}`,
   sld: `sudo systemctl restart ${svcSld}`,
   authentication: `sudo systemctl restart ${svcAuth}`,
-  all: `sudo su - ndbadm -c "HDB restart" && sudo systemctl restart b1s ${svcSld} ${svcAuth}`,
+  all: `sudo su - ndbadm -c "HDB restart" && sudo systemctl restart ${svcLayer} ${svcSld} ${svcAuth}`,
 };
 
 /** Comandos de verificação de status (conforme documento). */
 export const HEALTH_COMMANDS = {
   hana: `sudo su - ndbadm -c "HDB info"`,
-  serviceLayer: `sudo systemctl is-active b1s`,
+  serviceLayer: `sudo systemctl is-active ${svcLayer}`,
   sld: `sudo systemctl is-active ${svcSld}`,
   authentication: `sudo systemctl is-active ${svcAuth}`,
 };

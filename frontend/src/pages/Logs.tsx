@@ -63,7 +63,6 @@ export default function Logs() {
     'Usuário atualizado': 'Usuário atualizado',
     'Usuário removido': 'Usuário removido',
     'Senha redefinida': 'Senha redefinida',
-    'Ativar Support (Control Center)': 'Ativar Support',
     client_delete: 'Cliente excluído',
     'apply-visible-projects': 'Aplicar projetos visíveis',
     'clear-visible-projects': 'Limpar projetos visíveis',

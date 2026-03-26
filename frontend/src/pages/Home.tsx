@@ -92,6 +92,15 @@ function formatDiskSize(s: HuaweiEcsServer): string {
   return '—';
 }
 
+function formatMinutes(minutes: number | undefined): string {
+  if (minutes === undefined || minutes <= 0) return '—';
+  const mins = Math.round(minutes);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m} min`;
+}
+
 export default function Home() {
   const user = JSON.parse(localStorage.getItem('user') || '{}') as User;
   const isAdmin = user.role === 'admin';
@@ -706,7 +715,7 @@ export default function Home() {
                             <td className="py-2 px-3 font-medium">{p.displayPerfil ?? displayPerfil(p.perfil)}</td>
                             <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
                             <td className="py-2 px-3 text-gray-600">{p.region || '—'}</td>
-                            <td className="py-2 px-3 capitalize">{p.enabled ? 'Ativo' : 'Desativado'}</td>
+                            <td className="py-2 px-3 capitalize">{p.enabled !== false ? 'Ativo' : 'Desativado'}</td>
                             <td className="py-2 px-3">
                               <span className="inline-flex gap-1 items-center">
                                 <button
@@ -881,9 +890,7 @@ export default function Home() {
                                   <td className="py-2 px-3 text-gray-600">{formatDiskSize(s)}</td>
                                   <td className="py-2 px-3 text-gray-600">{ips || '—'}</td>
                                   <td className="py-2 px-3 text-gray-700 font-medium" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
-                                    {(s.extraHours ?? 0) > 0
-                                      ? `${Math.round(Number(s.extraHours) * 60)} min`
-                                      : '—'}
+                                    {formatMinutes(s.extraHours ? Math.round(Number(s.extraHours) * 60) : undefined)}
                                   </td>
                                   <td className="py-2 px-3">
                                     <span className="inline-flex flex-wrap gap-1">

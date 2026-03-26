@@ -682,7 +682,7 @@ export default function Clientes() {
         <div className="border-t pt-4">
           <h2 className="text-lg font-medium text-gray-800 mb-2">Atribuir a operadores</h2>
           <p className="text-gray-600 text-sm mb-3">
-            Selecione quem já deve ver este cliente na aba <strong>Serviços</strong> (ex.: Edmar). Para quem for atribuído, a aba Serviços mostrará <strong>este</strong> cliente: se for Roland, Serviços exibirá Roland; se for Brado, exibirá Brado (VM de banco, status, reinício, Ativar Support).
+            Selecione quem já deve ver este cliente na aba <strong>Serviços</strong> (ex.: Edmar). Para quem for atribuído, a aba Serviços mostrará <strong>este</strong> cliente: se for Roland, Serviços exibirá Roland; se for Brado, exibirá Brado (VM de banco, status, reinício).
           </p>
           <div className="flex flex-wrap gap-4">
             {userList.map((u) => (

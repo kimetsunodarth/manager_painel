@@ -5,13 +5,11 @@
  */
 
 const DEFAULT_SERVICES = [
-  
-  { id: 'serviceLayer', name: 'Reiniciar Service Layer', action: 'executar' },
-  { id: 'sld', name: 'Reiniciar SLD', action: 'executar' },
-  { id: 'hana', name: 'Reiniciar HANA (Cuidado)', action: 'executar' },
-  { id: 'authentication', name: 'Reiniciar Authentication', action: 'executar' },
-  { id: 'all', name: 'Reiniciar TUDO', action: 'executar' },
-  
+  { id: 'serviceLayer', name: 'Service Layer', action: 'executar' },
+  { id: 'sld', name: 'SLD', action: 'executar' },
+  { id: 'hana', name: 'HANA (Cuidado)', action: 'executar' },
+  { id: 'authentication', name: 'Authentication', action: 'executar' },
+  { id: 'all', name: 'TUDO', action: 'executar' },
 ];
 
 function loadFromEnv() {

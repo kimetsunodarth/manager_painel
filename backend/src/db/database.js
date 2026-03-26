@@ -16,7 +16,11 @@ const DB_PATH = process.env.DB_PATH || (isExe
   : path.join(getAppRoot(), 'src', 'data', 'ananim.db'));
 if (isExe) {
   const dataDir = path.dirname(DB_PATH);
-  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+  if (!existsSync(dataDir)) {
+    try { mkdirSync(dataDir, { recursive: true }); } catch (e) {
+      console.warn('[Ananim] Nao foi possivel criar pasta data (EPERM). Certifique-se que', dataDir, 'existe e o App Pool IIS tem permissao Modify:', e.message);
+    }
+  }
 }
 
 let db = null;

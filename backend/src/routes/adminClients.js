@@ -15,6 +15,7 @@ import { listControlCenterClientKeys } from '../config/controlCenterClients.js';
 import { userStore } from '../data/store.js';
 import { mergeIntoConfigEnc, isConfigEncInCwd } from '../config/configLoader.js';
 import { clearHanaClientsCache } from '../config/hanaClients.js';
+import { clearSqlClientsCache } from '../config/sqlClients.js';
 import fs from 'fs';
 import path from 'path';
 import { getConfigDir } from '../appRoot.js';
@@ -71,6 +72,7 @@ router.post('/clients', (req, res) => {
       return res.status(400).json({ error: result.error });
     }
     clearHanaClientsCache();
+    clearSqlClientsCache();
     const nameForMatch = result.displayName.toLowerCase().replace(/\s+/g, '');
     /** Usar projectId e perfil Huawei existentes para que o cliente use a conta já configurada (não cria novo perfil). */
     const projectEntry = {

@@ -1,6 +1,6 @@
 {
   "clientKey": "roland",
-  "displayName": "ROLANDHDB",
+  "displayName": "Roland",
   "comment": "Roland: conectar no servidor web (ROLANDWEB) e jump para ROLANDHDB. Credenciais via .env. Serviços SAP no mesmo arquivo (abaixo).",
   "envHostKey": "SSH_HANA_ROLAND_HOST",
   "envUserKey": "SSH_HANA_ROLAND_USER",

@@ -91,6 +91,15 @@ function getDynamicHanaRules() {
 /** Regras: primeira que der match no visibleProjects do usuário define o cliente HANA. */
 const HANA_CLIENT_RULES = [
   {
+    key: 'SA-BRAZIL-1_PREVENDASHDB',
+    test(project) {
+      const name = (project?.name || '').toString().toLowerCase();
+      const perfil = (project?.perfil || '').toString();
+      const displayPerfil = (project?.displayPerfil || '').toString();
+      return name.includes('prevendas') || perfil.includes('PREVENDASHDB') || displayPerfil.includes('PREVENDASHDB');
+    },
+  },
+  {
     key: 'ananimcloud',
     test(project) {
       const name = (project?.name || '').toString().toLowerCase();
@@ -170,6 +179,22 @@ const HANA_CLIENT_RULES = [
       return false;
     },
   },
+  {
+    key: 'generic-hana',
+    test(project) {
+      const name = (project?.name || '').toString().toLowerCase();
+      const perfil = (project?.perfil || '').toString().toLowerCase();
+      const displayPerfil = (project?.displayPerfil || '').toString().toLowerCase();
+      return (
+        name.includes('hana') ||
+        name.includes('hdb') ||
+        perfil.includes('hana') ||
+        perfil.includes('hdb') ||
+        displayPerfil.includes('hana') ||
+        displayPerfil.includes('hdb')
+      );
+    },
+  },
 ];
 
 /**
@@ -200,18 +225,21 @@ export function getHanaClientKey(u) {
 export function getHanaClientKeysForUser(u) {
   const projects = u?.visibleProjects || [];
   if (!Array.isArray(projects) || projects.length === 0) return [];
-  const seen = new Set();
-  const keys = [];
+  const keys = new Set();
   const dynamicRules = getDynamicHanaRules();
   const allRules = [...dynamicRules, ...HANA_CLIENT_RULES];
-  for (const rule of allRules) {
-    if (seen.has(rule.key)) continue;
-    if (projects.some((p) => rule.test(p)) && loadClientConfig(rule.key)) {
-      seen.add(rule.key);
-      keys.push(rule.key);
+
+  // Prioriza regras: cada projeto contribui apenas para a primeira regra que der match.
+  // Isso evita que um projeto como 'Prevendas' apareça 3 vezes (SA-BRAZIL-1, Ananimcloud e Generic).
+  for (const p of projects) {
+    for (const rule of allRules) {
+      if (rule.test(p) && loadClientConfig(rule.key)) {
+        keys.add(rule.key);
+        break; // Match encontrado para este projeto, pula para o próximo projeto
+      }
     }
   }
-  return keys;
+  return Array.from(keys);
 }
 
 /** Lista de serviços para restart do cliente HANA (do JSON ou fallback sapServices). */
@@ -240,25 +268,37 @@ export function getHanaConnectionConfig(clientKey) {
   const config = loadClientConfig(clientKey);
   if (!config) return null;
 
-  const host = process.env[config.envHostKey];
-  const username = process.env[config.envUserKey];
-  if (!host || !username) return null;
+  let host = process.env[config.envHostKey];
+  let username = process.env[config.envUserKey];
+  let port = config.envPortKey && process.env[config.envPortKey] ? Number(process.env[config.envPortKey]) : null;
+  let password = config.envPasswordKey && process.env[config.envPasswordKey] ? process.env[config.envPasswordKey] : null;
+  let privateKeyPath = config.envPrivateKeyPathKey && process.env[config.envPrivateKeyPathKey];
 
-  const port = config.envPortKey && process.env[config.envPortKey]
-    ? Number(process.env[config.envPortKey])
-    : 22;
+  // Regra pedida pelo usuário: se não houver config específica no .env para o cliente,
+  // tenta usar as variáveis SSH globais (SSH_HOST, SSH_USER, etc.) como fallback.
+  if (!host || !username) {
+    host = process.env.SSH_HOST;
+    username = process.env.SSH_USER;
+    if (!port) port = process.env.SSH_PORT ? Number(process.env.SSH_PORT) : null;
+    if (!password) password = process.env.SSH_PASSWORD;
+    if (!privateKeyPath) privateKeyPath = process.env.SSH_PRIVATE_KEY_PATH;
+  }
+
+  if (!host || !username) return null;
+  if (!port) port = 22;
 
   const result = { host, port, username };
 
-  const privateKeyPath = config.envPrivateKeyPathKey && process.env[config.envPrivateKeyPathKey];
   if (privateKeyPath) {
     try {
       result.privateKey = fs.readFileSync(privateKeyPath, 'utf8');
     } catch {
-      return null;
+      // Se falhar ao ler chave, tenta senha se houver
+      if (password) result.password = password;
+      else return null;
     }
-  } else if (config.envPasswordKey && process.env[config.envPasswordKey]) {
-    result.password = process.env[config.envPasswordKey];
+  } else if (password) {
+    result.password = password;
   } else {
     return null;
   }

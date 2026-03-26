@@ -97,7 +97,18 @@ New-Item -ItemType Directory -Path $publicDir -Force | Out-Null
 Copy-Item (Join-Path $frontend "dist\*") $publicDir -Recurse -Force
 Write-Host "Copiado: public/"
 
-# NAO copiar config/, data/, iisnode/, node_modules/ (app cria config e data em tempo de execucao)
+# Copiar configuracoes estaticas de clientes (essencial para o funcionamento correto)
+$pkgConfig = Join-Path $packageIisTmp "config"
+New-Item -ItemType Directory -Path $pkgConfig -Force | Out-Null
+foreach ($sub in @("hana-clients", "sql-clients")) {
+    $src = Join-Path $backend "src\config\$sub"
+    if (Test-Path $src) {
+        Copy-Item $src $pkgConfig -Recurse -Force
+        Write-Host "Copiado: config/$sub" -ForegroundColor Cyan
+    }
+}
+
+# NAO copiar data/, iisnode/, node_modules/ (app cria data em tempo de execucao)
 
 # logs/ (HttpPlatformHandler; app cria data/ ao iniciar)
 New-Item -ItemType Directory -Path (Join-Path $packageIisTmp "logs") -Force | Out-Null
@@ -170,7 +181,7 @@ SEGURANCA IIS:
 Set-Content -Path (Join-Path $packageIisTmp "CONFIG-README.txt") -Value $configReadme -Encoding UTF8
 
 # 4) Remover pastas que NAO devem ir na instalacao (caso tenham sido criadas por engano)
-foreach ($dir in @('config', 'data', 'iisnode', 'node_modules')) {
+foreach ($dir in @('data', 'iisnode', 'node_modules_old')) {
     $p = Join-Path $packageIisTmp $dir
     if (Test-Path $p) {
         Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue

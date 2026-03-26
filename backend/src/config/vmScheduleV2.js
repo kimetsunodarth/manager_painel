@@ -155,38 +155,31 @@ export function isInsideScheduleWindow(projectKey, serverId, now = new Date()) {
   const todaySchedules = list.filter((s) => !s.days || s.days.length === 0 || s.days.includes(day));
   if (todaySchedules.length === 0) return false;
 
-  const startScheds = todaySchedules.filter((s) => s.action === 'start').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
-  const stopScheds = todaySchedules.filter((s) => s.action === 'stop').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+  const starts = todaySchedules.filter((s) => s.action === 'start').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+  const stops = todaySchedules.filter((s) => s.action === 'stop').sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
 
-  // Lógica simplificada: Se a hora atual for maior que o último Start e menor que o último Stop do dia (considerando pares)
-  // Nota: Para sistemas complexos com múltiplos turnos, precisaríamos de algo mais robusto. 
-  // Para 1 start e 1 stop, funciona bem:
-  const lastStart = startScheds.length > 0 ? startScheds[startScheds.length - 1] : null;
-  const lastStop = stopScheds.length > 0 ? stopScheds[stopScheds.length - 1] : null;
-
-  if (lastStart && lastStop) {
-    const startMin = lastStart.hour * 60 + lastStart.minute;
-    const stopMin = lastStop.hour * 60 + lastStop.minute;
-
-    if (stopMin > startMin) {
-      // Janela normal no mesmo dia
-      return currentMinutes >= startMin && currentMinutes < stopMin;
+  // Lógica de Janelas: Se a hora atual estiver entre QUALQUER Start e o subsequente Stop do dia.
+  for (const start of starts) {
+    const startMin = start.hour * 60 + start.minute;
+    // Procura o primeiro Stop que ocorre APÓS este Start
+    const matchingStop = stops.find((s) => (s.hour * 60 + s.minute) > startMin);
+    
+    if (matchingStop) {
+      const stopMin = matchingStop.hour * 60 + matchingStop.minute;
+      if (currentMinutes >= startMin && currentMinutes < stopMin) return true;
     } else {
-      // Janela que vira o dia (ex: Start 22:00, Stop 06:00)
-      return currentMinutes >= startMin || currentMinutes < stopMin;
+      // Se tem um Start mas nenhum Stop depois dele HOJE, 
+      // verificamos se há um Stop amanhã cedo (virada de dia) ou se o Stop de hoje foi antes (erro de config).
+      // Para o Monitor ser seguro: se houve Start e não houve Stop ainda, assumimos que deve estar ligado.
+      if (currentMinutes >= startMin) return true;
     }
   }
 
-  // Se tem só Start, consideramos que "deveria estar ligado" após o Start
-  if (lastStart && !lastStop) {
-    const startMin = lastStart.hour * 60 + lastStart.minute;
-    return currentMinutes >= startMin;
-  }
-
-  // Se tem só Stop, consideramos que "deveria estar ligado" antes do Stop
-  if (!lastStart && lastStop) {
-    const stopMin = lastStop.hour * 60 + lastStop.minute;
-    return currentMinutes < stopMin;
+  // Caso especial: VM ligada ontem à noite que deveria desligar hoje de madrugada
+  // Se o primeiro evento do dia for um STOP e já estamos antes dele:
+  const firstStop = stops[0];
+  if (firstStop && (starts.length === 0 || (starts[0].hour * 60 + starts[0].minute) > (firstStop.hour * 60 + firstStop.minute))) {
+    if (currentMinutes < (firstStop.hour * 60 + firstStop.minute)) return true;
   }
 
   return false;

@@ -138,6 +138,10 @@ export async function monitorStatus() {
             console.log(`[Monitor] VM ${s.serverName} ativa fora do horário. Abrindo sessão de extra hours.`);
             createManualStart(s.projectKey, s.serverId, s.serverName, null, 'Sistema (Monitor)', 'auto-monitor@ananim.com.br');
           }
+        } else if (isRunning && shouldBeRunning && openSession) {
+          // VM ligada e dentro do horário -> Fecha sessão se houver uma aberta de antes (madrugada/extensão)
+          console.log(`[Monitor] VM ${s.serverName} dentro do horário programado. Encerrando sessão de extra hours.`);
+          closeOpenSession(s.projectKey, s.serverId);
         } else if (!isRunning && openSession) {
           // VM desligada mas com sessão aberta -> Fecha sessão
           console.log(`[Monitor] VM ${s.serverName} desligada. Fechando sessão de extra hours.`);

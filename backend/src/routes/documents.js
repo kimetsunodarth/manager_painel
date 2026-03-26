@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import path from 'path';
 import { listDocuments, addDocument, getDocumentById, updateDocument, deleteDocument, clearAllDocuments, DOCUMENTS_FILES_DIR } from '../data/documents.js';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
+import { logAction } from '../middleware/auditLog.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -35,12 +36,15 @@ router.post('/', requireAdmin, (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: 'Falha ao salvar arquivo: ' + e.message });
   }
+  logAction(req, 'document_imported', { fileName: item.arquivo || item.name });
   return res.status(201).json(item);
 });
 
 /** Limpar todos os documentos (apenas admin). */
-router.post('/clear', requireAdmin, (_, res) => {
+router.post('/clear', requireAdmin, (req, res) => {
+  const list = listDocuments();
   clearAllDocuments();
+  logAction(req, 'documents_cleared', { count: list.length });
   return res.json({ ok: true, message: 'Todos os documentos foram removidos.' });
 });
 
@@ -57,7 +61,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
   if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
   const filePath = path.join(DOCUMENTS_FILES_DIR, doc.id);
   if (existsSync(filePath)) {
-    try { unlinkSync(filePath); } catch (_) {}
+    try { unlinkSync(filePath); } catch (e) { console.warn('[Documents] Falha ao deletar arquivo:', filePath, e.message); }
   }
   deleteDocument(req.params.id);
   return res.json({ ok: true });

@@ -39,6 +39,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   static getDerivedStateFromError() {
     return { hasError: true };
   }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Unhandled React error:', error, errorInfo);
+  }
   render() {
     if (this.state.hasError) {
       return (

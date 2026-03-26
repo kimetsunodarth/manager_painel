@@ -35,7 +35,7 @@ function runWorker({ baseUrl, username, password, headless }) {
       },
     });
 
-    const timeoutMs = 3 * 60 * 1000;
+    const timeoutMs = 5 * 60 * 1000;
     const timeout = setTimeout(() => {
       try { child.kill(); } catch {}
       resolve({ ok: false, error: 'Timeout na automação do Control Center (Playwright).' });
@@ -133,10 +133,14 @@ export async function runActivateSupport({ baseUrl, username, password, headless
 
     const advanceLink = page.locator('text=Advanced, text=Avançado, a:has-text("Advanced"), a:has-text("Proceed")').first();
     if (await advanceLink.isVisible().catch(() => false)) {
+      console.log('[control-center] Certificate warning detected, clicking Advanced...');
       await advanceLink.click();
       await page.waitForTimeout(1000);
-      const proceedLink = page.locator('a:has-text("Proceed"), a:has-text("Continuar"), button:has-text("Proceed")').first();
-      if (await proceedLink.isVisible().catch(() => false)) await proceedLink.click();
+      const proceedLink = page.locator('a:has-text("Proceed"), a:has-text("Continuar"), button:has-text("Proceed"), #proceed-link').first();
+      if (await proceedLink.isVisible().catch(() => false)) {
+        console.log('[control-center] Clicking Proceed...');
+        await proceedLink.click();
+      }
       await page.waitForTimeout(2000);
     }
 
@@ -189,18 +193,34 @@ export async function runActivateSupport({ baseUrl, username, password, headless
       await page.waitForTimeout(1000);
     }
 
-    const activateSupportBtn = page.getByRole('button', { name: /Activate Support User|Activate Support|Ativar Suporte/i })
+    const activateSupportBtn = page.getByRole('button', { name: /Activate Support User|Activate Support|Ativar Suporte|Suporte/i })
       .or(page.locator('input[value*="Activate Support"]'))
       .or(page.locator('button:has-text("Activate Support User")'))
       .or(page.locator('button:has-text("Activate Support")'))
+      .or(page.locator('button:has-text("Suporte")'))
       .or(page.locator('[type="submit"]')).filter({ hasText: /Activate|Support|Suporte/i })
       .first();
     
-    const btnVisible = await activateSupportBtn.isVisible().catch(() => false);
-    if (btnVisible) {
+    let btnVisible = await activateSupportBtn.isVisible().catch(() => false);
+    if (!btnVisible) {
+      console.log('[control-center] Primary activate button not visible, checking for input value...');
+      const altBtn = page.locator('input[value*="Activate"]').first();
+      if (await altBtn.isVisible().catch(() => false)) {
+        await altBtn.click();
+        btnVisible = true;
+      }
+    } else {
       await activateSupportBtn.click();
+    }
+
+    if (btnVisible) {
+      console.log('[control-center] Activate button clicked, waiting for confirmation...');
       await page.waitForTimeout(2000);
-      const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$|^Ativar$/i }).or(page.locator('button:has-text("Activate")')).or(page.locator('button:has-text("Active")')).first();
+      const activeBtn = page.getByRole('button', { name: /^Activate$|^Active$|^Ativar$/i })
+        .or(page.locator('button:has-text("Activate")'))
+        .or(page.locator('button:has-text("Active")'))
+        .or(page.locator('button:has-text("OK")'))
+        .first();
       if (await activeBtn.isVisible().catch(() => false)) {
         await activeBtn.click();
       }

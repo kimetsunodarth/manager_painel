@@ -8,7 +8,7 @@
 #define PackageDir "package-iis"
 #endif
 #define MyAppName "Ananim Manager Painel"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.14"
 #define MyAppPublisher "Ananim"
 #define MyAppURL "https://github.com/"
 
@@ -44,8 +44,14 @@ Name: "configiis"; Description: "Configurar site no IIS ao final da instalacao (
 Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-; Apenas logs. config/ e data/ sao criados pelo app na primeira execucao
+; logs, data e config/ sao criados com permissoes para o App Pool IIS poder escrever
 Name: "{app}\logs"; Permissions: users-modify
+Name: "{app}\data"; Permissions: users-modify
+Name: "{app}\config"; Permissions: users-modify
+Name: "{app}\config\clients"; Permissions: users-modify
+Name: "{app}\config\hana-clients"; Permissions: users-modify
+Name: "{app}\config\sql-clients"; Permissions: users-modify
+Name: "{app}\config\control-center"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\Abrir Painel"; Filename: "{app}\Ananim-Abrir-Painel.exe"; Comment: "Abre o painel no navegador (http://localhost:8890/)"

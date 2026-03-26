@@ -17,6 +17,35 @@ function getStatusColor(s: string): string {
   return 'gray';
 }
 
+function formatServerName(name: string, host?: string | null): string {
+  if (!name || name === 'Não configurada') return name;
+  const isIp = host && /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+  const baseForExtract = (host && !isIp) ? host : name;
+  let clean = baseForExtract.replace(/^(SA-BRAZIL-1_|SA-BRAZIL-1-)/i, '').trim();
+  
+  // Tenta extrair CLIENTE de CLIENTEWEB, CLIENTEHDB, etc.
+  const match = clean.match(/^(.*?)(WEB|HDB|HANA|SQL|SERVER|SVR|B1)?$/i);
+  let client = clean;
+  if (match && match[2] && match[1]) {
+    client = match[1];
+  }
+
+  const upperClient = client.toUpperCase();
+  const upperHost = host ? host.toUpperCase() : '';
+
+  if (isIp) {
+    return `${upperClient} - ${name.toUpperCase()} (${host})`;
+  }
+
+  // Se o host existir e não for igual ao nome do cliente extraído (ex: host ROLANDHDB != ROLAND)
+  if (host && upperHost !== upperClient) {
+    return `${upperClient} - ${upperHost}`;
+  }
+
+  return upperClient;
+}
+
+
 export default function Servicos() {
   const [serviceList, setServiceList] = useState<ServiceItem[] | null>(null);
   const [sqlMode, setSqlMode] = useState(false);
@@ -32,10 +61,7 @@ export default function Servicos() {
   const [hanaProcesses, setHanaProcesses] = useState<HanaProcess[]>([]);
   const [hanaProcessesLoading, setHanaProcessesLoading] = useState(false);
   const [hanaProcessesError, setHanaProcessesError] = useState<string | null>(null);
-  const [controlCenterAvailable, setControlCenterAvailable] = useState(false);
-  const [controlCenterDisplayName, setControlCenterDisplayName] = useState<string | null>(null);
-  const [activateSupportLoading, setActivateSupportLoading] = useState(false);
-  /** Quando o usuário tem mais de um servidor (ex.: Águas Pratas SQL + Servidor Web), qual está selecionado. */
+/** Quando o usuário tem mais de um servidor (ex.: Águas Pratas SQL + Servidor Web), qual está selecionado. */
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
   const [availableServers, setAvailableServers] = useState<AvailableServer[]>([]);
   const isAdmin = (() => {
@@ -180,27 +206,24 @@ export default function Servicos() {
     fetchConnectionInfo();
   }, [sqlMode, selectedClientKey]);
 
-  const fetchControlCenterInfo = async () => {
-    try {
-      const data = await api.controlCenterInfo(effectiveClientKey);
-      setControlCenterAvailable(data.available);
-      setControlCenterDisplayName(data.displayName ?? null);
-    } catch {
-      setControlCenterAvailable(false);
-      setControlCenterDisplayName(null);
-    }
-  };
-
-  useEffect(() => {
-    fetchControlCenterInfo();
-  }, [effectiveClientKey]);
 
   useEffect(() => {
     if (serviceList === null || listError) return;
     fetchHealth();
-    const interval = setInterval(fetchHealth, 30000);
-    return () => clearInterval(interval);
-  }, [serviceList, listError]);
+    const intervalHealth = setInterval(fetchHealth, 30000);
+    // Poll service list every 60s to catch new clients assigned by Admin without page refresh
+    const intervalList = setInterval(() => fetchServiceList(selectedClientKey), 60000);
+    return () => {
+      clearInterval(intervalHealth);
+      clearInterval(intervalList);
+    };
+  }, [serviceList, listError, selectedClientKey]);
+
+  const onUpdateStatus = () => {
+    fetchHealth();
+    fetchServiceList(selectedClientKey);
+    if (!sqlMode) fetchHanaProcesses();
+  };
 
   const onTestConnection = async () => {
     setTestMessage(null);
@@ -222,23 +245,6 @@ export default function Servicos() {
     }
   };
 
-  const onActivateSupport = async () => {
-    if (!window.confirm('Executar Ativar Support User no Control Center? O processo pode levar alguns minutos.')) return;
-    setActivateSupportLoading(true);
-    try {
-      const data = await api.activateSupport(effectiveClientKey);
-      if (data.ok) {
-        alert(data.message || 'Ativar Support executado com sucesso.');
-      } else {
-        alert(data.error || 'Falha ao executar Ativar Support.');
-      }
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      alert(err.response?.data?.error || err.message || 'Erro ao executar Ativar Support.');
-    } finally {
-      setActivateSupportLoading(false);
-    }
-  };
 
   const onExecute = async (serviceId: string, label: string) => {
     if (
@@ -288,7 +294,8 @@ export default function Servicos() {
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-xl font-semibold text-gray-800">
-          {sqlMode ? `Serviços (${sqlDisplayName || 'SQL'})` : 'SAP B1 Admin Panel'}
+          {sqlDisplayName ? `Servicos ${sqlDisplayName}` : selectedClientKey ? `Servicos ${selectedClientKey.toUpperCase()}` : 'Serviços'}
+          {(vmDisplayName || sqlDisplayName) && (vmDisplayName !== sqlDisplayName) && (vmDisplayName !== selectedClientKey) ? ` (${vmDisplayName || sqlDisplayName})` : ''}
         </h2>
         <span className="text-sm text-gray-500">
           {sqlMode ? 'Serviços e status na VM / Servidor' : 'Serviços e status na VM SUSE'}
@@ -302,7 +309,7 @@ export default function Servicos() {
           >
             {(availableServers || []).map((s) => (
               <option key={s.clientKey} value={s.clientKey}>
-                {s.displayName}
+                {formatServerName(s.displayName)}
               </option>
             ))}
           </select>
@@ -317,13 +324,12 @@ export default function Servicos() {
         )}
       </div>
 
-      {/* VM de banco conectada + Testar conexão + Atualizar status */}
+      {/* Informações da VM e Ações Rápidas */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-700">VM de banco conectada</p>
-          <p className="text-gray-900 font-mono truncate" title={vmDisplayName ?? vmHost ?? undefined}>
-            {vmDisplayName || vmHost || 'Não configurada'}
-            {vmDisplayName && vmHost && vmHost !== vmDisplayName ? ` (${vmHost})` : ''}
+          <p className="text-sm font-medium text-gray-700">Conectado em:</p>
+          <p className="text-gray-900 font-mono font-bold truncate" title={vmDisplayName ?? vmHost ?? undefined}>
+            {vmHost || vmDisplayName || 'Não configurada'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -337,24 +343,13 @@ export default function Servicos() {
           </button>
           <button
             type="button"
-            onClick={() => { fetchHealth(); if (!sqlMode) fetchHanaProcesses(); }}
+            onClick={onUpdateStatus}
             disabled={statusLoading}
             className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
             title="Consultar status dos serviços na VM"
           >
             {statusLoading ? 'Atualizando...' : 'Atualizar status'}
           </button>
-          {controlCenterAvailable && (
-            <button
-              type="button"
-              onClick={onActivateSupport}
-              disabled={activateSupportLoading}
-              className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
-              title={controlCenterDisplayName ? `Ativar Support (${controlCenterDisplayName})` : 'Ativar Support User no SAP Control Center'}
-            >
-              {activateSupportLoading ? 'Executando...' : 'Ativar Support'}
-            </button>
-          )}
           {testMessage && (
             <span className={`text-sm ${testMessage.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>
               {testMessage}

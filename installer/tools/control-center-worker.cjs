@@ -70,72 +70,95 @@ async function main() {
       let attempt = 0;
       let companiesReady = false;
 
-      while (attempt < 3 && !companiesReady) {
+      while (attempt < 5 && !companiesReady) {
         attempt++;
-        console.error(`[worker] Tentativa ${attempt}: Selecionando servidor...`);
-
-        // Checkbox do servidor (primeiro item da tabela de instâncias)
-        const serverCb = page.locator('table').filter({ hasText: 'Server Name' }).locator('input[type="checkbox"]').nth(1);
-        await serverCb.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
-        
-        if (await serverCb.isVisible().catch(() => false)) {
-          await serverCb.check().catch(() => {});
-          console.error(`[worker] Servidor marcado. Aguardando companies...`);
-          await page.waitForTimeout(8000); // SLD é lento
+        if (attempt > 1) {
+          console.error(`[worker] Tentativa ${attempt}: Recarregando página para tentar visualizar empresas...`);
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(10000);
         }
 
-        const companiesTable = page.locator('table').filter({ hasText: 'Company Name' });
+        console.error(`[worker] Selecionando servidor/instância (Tentativa ${attempt})...`);
+        // Procura por tabela que contenha "Server Name" ou "Database Instance" (SLD 10.0+)
+        const serverTable = page.locator('table').filter({ hasText: /Server Name|Database Instance/i });
+        const serverCb = serverTable.locator('input[type="checkbox"]').nth(1);
+        
+        await serverCb.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+        
+        if (await serverCb.isVisible().catch(() => false)) {
+          console.error(`[worker] Servidor encontrado. Marcando/Desmarcando...`);
+          await serverCb.uncheck().catch(() => {});
+          await page.waitForTimeout(2000);
+          await serverCb.check().catch(() => {});
+          console.error(`[worker] Aguardando carregamento das empresas (15s)...`);
+          await page.waitForTimeout(15000);
+        } else {
+          console.error(`[worker] Checkbox do servidor não encontrado. Verifique a URL ou permissões.`);
+        }
+
+        const companiesTable = page.locator('table').filter({ hasText: /Company Name|Empresa/i });
         const companyRows = await companiesTable.locator('tbody tr').count().catch(() => 0);
 
         if (companyRows > 0) {
           companiesReady = true;
-          console.error(`[worker] ${companyRows} empresas encontradas.`);
+          console.error(`[worker] ${companyRows} empresas carregadas com sucesso.`);
         } else {
-          console.error(`[worker] Empresas não carregaram. Retentando...`);
-          if (await serverCb.isVisible().catch(() => false)) await serverCb.uncheck().catch(() => {});
-          await page.reload({ waitUntil: 'domcontentloaded' });
-          await page.waitForTimeout(5000);
+          console.error(`[worker] As empresas ainda não apareceram na tentativa ${attempt}.`);
         }
       }
 
       if (!companiesReady) {
+        console.error(`[worker] Falha após 5 tentativas.`);
         await browser.close();
-        process.stdout.write(JSON.stringify({ ok: false, error: 'As empresas não carregaram no Control Center após retries.' }));
+        process.stdout.write(JSON.stringify({ ok: false, error: 'As empresas não carregaram no Control Center após retries. Verifique se o servidor de licenças está respondendo.' }));
         return;
       }
 
-      // Selecionar todas as empresas
-      const headerCb = page.locator('table').filter({ hasText: 'Company Name' }).locator('thead input[type="checkbox"]').first();
-      await headerCb.check().catch(() => {});
-      await page.waitForTimeout(2000);
+      // Selecionar a primeira empresa ou todas
+      console.error(`[worker] Selecionando empresa...`);
+      const companyTableMain = page.locator('table').filter({ hasText: /Company Name|Empresa/i });
+      const firstCompanyCb = companyTableMain.locator('tbody input[type="checkbox"]').first();
+      
+      if (await firstCompanyCb.isVisible().catch(() => false)) {
+        await firstCompanyCb.check().catch(() => {});
+        await page.waitForTimeout(2000);
+      } else {
+        console.error(`[worker] Checkbox da empresa não encontrado.`);
+      }
 
       // Clicar no botão Activate Support User
-      const mainBtn = page.locator('button').filter({ hasText: /^Activate Support User$/i }).first();
+      const mainBtn = page.locator('button, input[type="button"]').filter({ hasText: /Activate Support User|Activate Support|Ativar Suporte|Ativar Usuário Suporte/i }).first();
+      
       if (await mainBtn.isVisible().catch(() => false)) {
-        console.error(`[worker] Clicando no botão principal de ativação...`);
+        console.error(`[worker] Clicando em "Activate Support User"...`);
         await mainBtn.click();
-        await page.waitForTimeout(3000);
+        await page.waitForTimeout(4000);
 
-        const modalBtn = page.locator('button').filter({ hasText: /^Activate$/i }).first();
+        // Modal de confirmação (pode ter botões Yes/Sim ou Activate/Ativar)
+        const modalBtn = page.locator('button').filter({ hasText: /^Activate$|^Active$|^Ativar$|^Yes$|^Sim$/i }).first();
         if (await modalBtn.isVisible().catch(() => false)) {
-          console.error(`[worker] Confirmando no modal...`);
+          console.error(`[worker] Confirmando ativação no modal...`);
           await modalBtn.click();
-          await page.waitForTimeout(5000);
+          await page.waitForTimeout(8000);
+          console.error(`[worker] Processo concluído.`);
           await browser.close();
-          process.stdout.write(JSON.stringify({ ok: true, message: 'Sucesso: Support User ativado.' }));
+          process.stdout.write(JSON.stringify({ ok: true, message: 'Sucesso: Support User ativado no Control Center.' }));
           return;
+        } else {
+          console.error(`[worker] Modal de confirmação não apareceu.`);
         }
       }
 
       await browser.close();
-      process.stdout.write(JSON.stringify({ ok: false, error: 'Botão de ativação ou modal final não encontrado.' }));
+      process.stdout.write(JSON.stringify({ ok: false, error: 'O botão de ativação ou o diálogo final não foram encontrados após o carregamento.' }));
 
     } catch (err) {
+      console.error(`[worker] ERRO FATAL: ${err.message}`);
       try { await browser.close(); } catch {}
-      process.stdout.write(JSON.stringify({ ok: false, error: err.message || 'Erro durante automação' }));
+      process.stdout.write(JSON.stringify({ ok: false, error: err.message || 'Erro durante a execução do worker' }));
     }
   } catch (e) {
-    process.stdout.write(JSON.stringify({ ok: false, error: 'Falha crítica no worker' }));
+    process.stdout.write(JSON.stringify({ ok: false, error: 'Falha crítica de inicialização do worker' }));
   }
 }
 

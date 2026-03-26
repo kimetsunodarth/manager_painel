@@ -1,6 +1,6 @@
 {
   "clientKey": "roland-web",
-  "displayName": "ROLANDWEB",
+  "displayName": "Roland",
   "comment": "Servidor web Roland (Windows). Grupos Invent DFe, Invent NFe, Invent BankPlus, SAP B1iF. Ativar Support via controlCenterClients (Roland).",
   "envHostKey": "SSH_HANA_ROLAND_JUMP_HOST",
   "envUserKey": "SSH_HANA_ROLAND_JUMP_USER",
