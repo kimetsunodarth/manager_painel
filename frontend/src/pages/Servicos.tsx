@@ -95,11 +95,16 @@ export default function Servicos() {
     fetchingRef.current = true;
     try {
       setStatusLoading(true);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Health check timeout')), 30000)
-      );
-      const data = await Promise.race([api.health(effectiveClientKey), timeoutPromise]);
-      setStatus(data);
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Health check timeout')), 30000);
+      });
+      try {
+        const data = await Promise.race([api.health(effectiveClientKey), timeoutPromise]);
+        setStatus(data);
+      } finally {
+        clearTimeout(timeoutId!);
+      }
     } catch {
       setStatus(
         healthKeys.reduce((acc, k) => ({ ...acc, [k]: 'error' as const }), {} as ServicesHealth)
@@ -276,7 +281,9 @@ export default function Servicos() {
     setSelectedClientKey(clientKey);
     try {
       sessionStorage.setItem('servicos.selectedClientKey', clientKey);
-    } catch { /* ignora */ }
+    } catch (e) {
+      console.warn('[Servicos] Falha ao salvar clientKey no sessionStorage:', e);
+    }
     fetchServiceList(clientKey);
   };
 

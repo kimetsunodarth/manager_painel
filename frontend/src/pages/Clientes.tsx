@@ -58,9 +58,6 @@ const emptyForm: AdminClientCreateBody & { jumpPort?: number; hanaPort?: number;
 
 export default function Clientes() {
   const user = useUser();
-  if (user?.role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
 
   const [list, setList] = useState<AdminClientsList | null>(null);
   const [userList, setUserList] = useState<User[]>([]);
@@ -89,6 +86,10 @@ export default function Clientes() {
   const [huaweiEcsLoading, setHuaweiEcsLoading] = useState(false);
   const [selectedEcsIdForName, setSelectedEcsIdForName] = useState<string>('');
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   const load = async () => {
     setLoading(true);
