@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, getApiBaseUrl } from '../api/client';
+import { getErrorMessage } from '../utils/errorMessage';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(user));
       navigate('/');
     } catch (err: any) {
-      setError(err.message || 'Falha no login');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

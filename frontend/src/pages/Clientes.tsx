@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   adminClients,
@@ -87,6 +87,7 @@ export default function Clientes() {
   const [huaweiEcsLoading, setHuaweiEcsLoading] = useState(false);
   const [selectedEcsIdForName, setSelectedEcsIdForName] = useState<string>('');
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (user?.role !== 'admin') {
     return <Navigate to="/" replace />;
@@ -116,6 +117,12 @@ export default function Clientes() {
       setSearchParams({}, { replace: true });
       openEditServices(key);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
   }, []);
 
   /** Clientes HANA existentes (para reutilizar serviços/control center). */
@@ -299,7 +306,8 @@ export default function Clientes() {
     } catch (err) {
       const msg = getErrorMessage(err);
       setError(msg);
-      setTimeout(() => setError(''), 5000);
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => setError(''), 5000);
     } finally {
       setSubmitLoading(false);
     }

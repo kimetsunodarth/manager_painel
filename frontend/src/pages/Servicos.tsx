@@ -97,7 +97,7 @@ export default function Servicos() {
       setStatusLoading(true);
       let timeoutId: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Health check timeout')), 30000);
+        timeoutId = setTimeout(() => reject(new Error('Tempo limite do health check excedido')), 30000);
       });
       try {
         const data = await Promise.race([api.health(effectiveClientKey), timeoutPromise]);
@@ -405,7 +405,7 @@ export default function Servicos() {
                             ? '#ef4444'
                             : '#9ca3af',
                     }}
-                    title={s || 'Checking...'}
+                    title={s || 'Verificando...'}
                   />
                   <span className="text-xs text-gray-600">
                     {color === 'green' ? 'Ativo' : color === 'red' ? 'Inativo' : 'Verificando'}
