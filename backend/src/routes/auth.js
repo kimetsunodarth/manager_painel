@@ -28,6 +28,23 @@ const loginLimiter = rateLimit({
   },
 });
 
+const meLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+    if (typeof ip === 'string') {
+      ip = ip.split(',')[0].trim();
+      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
+      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
+    }
+    return ip;
+  },
+});
+
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -112,10 +129,10 @@ router.post('/logout', (req, res) => {
   res.json({ ok: true, message: 'Logout realizado com sucesso' });
 });
 
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', meLimiter, authMiddleware, (req, res) => {
   const user = userStore.getById(req.user.id);
   if (!user) {
-    return res.status(401).json({ error: 'Usuário não encontrado' });
+    return res.status(403).json({ error: 'Usuário não encontrado ou desativado' });
   }
   res.json({
     ok: true,

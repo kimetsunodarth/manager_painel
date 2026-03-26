@@ -11,17 +11,18 @@ export function getApiBaseUrl(): string {
 
 export async function api<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { skipGlobalErrorHandler?: boolean } = {}
 ): Promise<T> {
+  const { skipGlobalErrorHandler, ...fetchOptions } = options;
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   let res: Response;
   try {
-    options.credentials = 'include';
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    fetchOptions.credentials = 'include';
+    res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro de rede';
     const backendMsg = isSameOriginApi
@@ -29,7 +30,7 @@ export async function api<T>(
       : 'Backend inacessível. Verifique se está rodando e se a porta do proxy está correta (VITE_API_PORT).';
     throw new Error(msg.includes('Failed') || msg.includes('NetworkError') ? backendMsg : msg);
   }
-  if (res.status === 401) {
+  if (res.status === 401 && !skipGlobalErrorHandler) {
     localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Não autorizado');
@@ -131,17 +132,6 @@ export const services = {
   options: () => api<{ id: string; name: string }[]>('/services/options'),
   execute: (serviceId: string, clientKey?: string | null) =>
     api<{ ok: boolean; lastExecution: { at: string; status: string } }>(`/services/${serviceId}/execute`, {
-      method: 'POST',
-      body: JSON.stringify(clientKey && clientKey.trim() ? { clientKey: clientKey.trim() } : {}),
-    }),
-  /** Indica se o usuário tem acesso a Ativar Support (Control Center). Passa clientKey quando ROLANDHDB/ROLANDWEB para exibir o botão. */
-  controlCenterInfo: (clientKey?: string | null) =>
-    api<{ available: boolean; displayName?: string; error?: string }>(
-      clientKey ? `/services/control-center-info?clientKey=${encodeURIComponent(clientKey)}` : '/services/control-center-info'
-    ),
-  /** Executa Ativar Support User no SAP Control Center (SLD). Passa clientKey quando em ROLANDHDB/ROLANDWEB. */
-  activateSupport: (clientKey?: string | null) =>
-    api<{ ok: boolean; message?: string; error?: string }>('/services/activate-support', {
       method: 'POST',
       body: JSON.stringify(clientKey && clientKey.trim() ? { clientKey: clientKey.trim() } : {}),
     }),

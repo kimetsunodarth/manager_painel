@@ -20,15 +20,13 @@ function PrivateRoute({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (status === 'invalid') return;
-    api<{ ok: boolean }>('/auth/me')
+    api<{ ok: boolean }>('/auth/me', { skipGlobalErrorHandler: true })
       .then(() => setStatus('ok'))
       .catch(() => {
         localStorage.removeItem('user');
         setStatus('invalid');
       });
     // Run only once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (status === 'loading') return null;
