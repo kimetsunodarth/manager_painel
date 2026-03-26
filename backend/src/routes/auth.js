@@ -5,10 +5,10 @@ import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
 import { JWT_SECRET as getJwtSecret, authMiddleware } from '../middleware/auth.js';
 import { appendLog } from '../data/auditLog.js';
+import { EMAIL_REGEX, extractIp } from '../utils/validation.js';
 
 const router = Router();
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 const loginLimiter = rateLimit({
@@ -17,15 +17,7 @@ const loginLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
-    if (typeof ip === 'string') {
-      ip = ip.split(',')[0].trim();
-      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
-      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
-    }
-    return ip;
-  },
+  keyGenerator: (req) => extractIp(req),
 });
 
 const meLimiter = rateLimit({
@@ -34,15 +26,7 @@ const meLimiter = rateLimit({
   message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
-    if (typeof ip === 'string') {
-      ip = ip.split(',')[0].trim();
-      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
-      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
-    }
-    return ip;
-  },
+  keyGenerator: (req) => extractIp(req),
 });
 
 router.post('/login', loginLimiter, async (req, res) => {

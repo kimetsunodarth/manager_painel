@@ -47,6 +47,7 @@ import huaweiRoutes from './routes/huawei.js';
 import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
+import { extractIp } from './utils/validation.js';
 
 initDb();
 
@@ -106,15 +107,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/health',
-  keyGenerator: (req) => {
-    let ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
-    if (typeof ip === 'string') {
-      ip = ip.split(',')[0].trim();
-      if (ip.includes(']:')) ip = ip.replace(/^\[(.*)\]:\d+$/, '$1');
-      else if (ip.split(':').length === 2 && !ip.includes(']')) ip = ip.split(':')[0];
-    }
-    return ip;
-  },
+  keyGenerator: (req) => extractIp(req),
 });
 app.use('/api', apiLimiter);
 

@@ -3,11 +3,10 @@ import bcrypt from 'bcryptjs';
 import { userStore } from '../data/store.js';
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
 import { logAction } from '../middleware/auditLog.js';
+import { EMAIL_REGEX } from '../utils/validation.js';
 
 const router = Router();
 router.use(authMiddleware);
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES = ['admin', 'operator'];
 const MAX_NAME = 200;
 const MAX_EMAIL = 255;
