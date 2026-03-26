@@ -5,7 +5,6 @@ import { requirePermission } from '../middleware/auth.js';
 import { getProfileNames, getProfileCredentials } from '../config/configLoader.js';
 import { listBackups } from '../services/huawei-cbr.js';
 import { userStore } from '../data/store.js';
-import { listEcsForProject } from '../services/huawei-ecs.js';
 import { getEnrichedVisibleProjects } from './huawei.js';
 
 const router = Router();
@@ -119,7 +118,8 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
         // O Huawei CBR Vaults/Backups ficam atrelados ao Project ID master da conta (creds.project_id).
         // A API da Huawei precisa deste ID primário para resgatar os backups da conta.
         console.log(`[CBR] Buscando backups para ${clientName} (Profile: ${profile}, Project: ${projectId})`);
-        let backups = await listBackups(profile, { days, projectId, region: region || creds.region });
+        const projectIdForCbr = (projectId && String(projectId).trim()) || creds.project_id;
+        let backups = await listBackups(profile, { days, projectId: projectIdForCbr, region: region || creds.region });
         
         // Filtro de permissão por ID de ECS (se o operador tiver limites)
         // A chave no banco de usuários (visibleProjects / allowedHuaweiEcsIds) foi salva usando o ID do sub-projeto (projectId)!
@@ -141,7 +141,7 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
           backups,
         });
       } catch (e) {
-        console.error(`[CBR] Erro ao buscar para ${clientName}:`, e.message);
+        console.error(`[CBR] Erro ao buscar para ${clientName}:`, e);
         byClient.push({ profile, clientName, projectId, region, backups: [], error: e.message });
       }
     }
