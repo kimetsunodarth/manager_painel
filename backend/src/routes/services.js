@@ -205,7 +205,12 @@ router.post('/test-email', requirePermission('services:*'), async (req, res) => 
 router.get('/connection-info', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  let visibleProjects = [];
+  try {
+    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  } catch (e) {
+    console.error('[connection-info] Erro ao obter projetos visíveis:', e.message);
+  }
   const uWithProjects = u ? { ...u, visibleProjects } : u;
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyQuery);
   if (sqlClientKey) {
@@ -473,7 +478,12 @@ router.get('/hana-processes', requirePermission('services:*'), async (req, res) 
 router.get('/health', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  let visibleProjects = [];
+  try {
+    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  } catch (e) {
+    console.error('[health] Erro ao obter projetos visíveis:', e.message);
+  }
   const uWithProjects = u ? { ...u, visibleProjects } : u;
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyQuery);
   const results = {};
@@ -655,7 +665,12 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
   const { serviceId } = req.params;
   const u = userStore.getById(req.user?.id);
   const clientKeyBody = (req.body?.clientKey && String(req.body.clientKey).trim()) || null;
-  const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  let visibleProjects = [];
+  try {
+    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  } catch (e) {
+    console.error('[execute] Erro ao obter projetos visíveis:', e.message);
+  }
   const uWithProjects = u ? { ...u, visibleProjects } : u;
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyBody);
   const hanaClientKey = getEffectiveHanaClientKey(uWithProjects, clientKeyBody);
@@ -727,7 +742,7 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
         if (!conn) return res.status(400).json({ error: 'SSH do cliente (ROLANDWEB) não configurado' });
         result = await sshExecWithConfig(conn, cmd);
       } else if (isHanaService && hanaClientKey) {
-        console.log('[services/execute] Iniciando comando SSH para HANA [%s]: %s', hanaClientKey, COMMANDS[serviceId]);
+        if (process.env.DEBUG_SSH) console.log('[services/execute] Iniciando comando SSH para HANA [%s]: %s', hanaClientKey, COMMANDS[serviceId]);
         if (hasClientCredentials(hanaClientKey)) {
           const conn = hanaConnFromCredentials(getClientCredentials(hanaClientKey));
           if (!conn) return res.status(400).json({ error: 'Configuração do cliente HANA indisponível' });
@@ -736,10 +751,10 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
           result = await execHanaSsh(hanaClientKey, COMMANDS[serviceId]);
         }
       } else {
-        console.log('[services/execute] Iniciando comando SSH em VM padrao:', COMMANDS[serviceId]);
+        if (process.env.DEBUG_SSH) console.log('[services/execute] Iniciando comando SSH em VM padrao:', COMMANDS[serviceId]);
         result = await sshExec(COMMANDS[serviceId]);
       }
-      console.log('[services/execute] Resultado SSH:', result.code, 'stdout:', result.stdout, 'stderr:', result.stderr);
+      if (process.env.DEBUG_SSH) console.log('[services/execute] Resultado SSH:', result.code, 'stdout:', result.stdout, 'stderr:', result.stderr);
       const duration = ((Date.now() - start) / 1000).toFixed(2);
       const success = result.code === 0;
       const output = success ? result.stdout : result.stderr;
