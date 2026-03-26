@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { services as api, type ServicesHealth, type HanaProcess, type ServiceItem, type AvailableServer } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 const SAP_HEALTH_KEYS = ['hana', 'serviceLayer', 'sld', 'authentication', 'sql-server'] as const;
 const SAP_LABELS: Record<string, string> = {
@@ -64,12 +65,9 @@ export default function Servicos() {
 /** Quando o usuário tem mais de um servidor (ex.: Águas Pratas SQL + Servidor Web), qual está selecionado. */
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
   const [availableServers, setAvailableServers] = useState<AvailableServer[]>([]);
-  const isAdmin = (() => {
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
-      return u?.role === 'admin';
-    } catch { return false; }
-  })();
+  const currentUser = useUser();
+  const isAdmin = currentUser?.role === 'admin';
+  const fetchingRef = useRef(false);
 
   const healthKeys = sqlMode && serviceList?.length
     ? serviceList.map((s) => s.id)
@@ -93,9 +91,14 @@ export default function Servicos() {
   const effectiveClientKey = selectedClientKey || null;
 
   const fetchHealth = async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       setStatusLoading(true);
-      const data = await api.health(effectiveClientKey);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Health check timeout')), 30000)
+      );
+      const data = await Promise.race([api.health(effectiveClientKey), timeoutPromise]);
       setStatus(data);
     } catch {
       setStatus(
@@ -103,6 +106,7 @@ export default function Servicos() {
       );
     } finally {
       setStatusLoading(false);
+      fetchingRef.current = false;
     }
   };
 
@@ -144,7 +148,9 @@ export default function Servicos() {
         if (nextKey) {
           try {
             sessionStorage.setItem('servicos.selectedClientKey', nextKey);
-          } catch { /* ignora */ }
+          } catch (e) {
+            console.warn('[Servicos] Falha ao salvar clientKey no sessionStorage:', e);
+          }
         }
         // Garantir que a VM exibida seja a do cliente retornado pela lista
         if (nextKey) {

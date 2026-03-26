@@ -11,6 +11,7 @@ import {
   type HuaweiEcsServer,
 } from '../api/client';
 import type { User } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 const HUAWEI_PREFIX = 'huawei:';
 
@@ -56,8 +57,8 @@ const emptyForm: AdminClientCreateBody & { jumpPort?: number; hanaPort?: number;
 };
 
 export default function Clientes() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}') as User;
-  if (user.role !== 'admin') {
+  const user = useUser();
+  if (user?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
 

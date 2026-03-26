@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { licenses as api, type LicenseSummary, type AddonItem } from '../api/client';
-import type { User } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 const LABELS: Record<string, string> = {
   crm: 'CRM',
@@ -23,18 +23,8 @@ const BAR_COLORS: Record<string, string> = {
   totalLicencas: 'bg-purple-600',
 };
 
-function safeUser(): User {
-  try {
-    const raw = localStorage.getItem('user') || '{}';
-    const u = JSON.parse(raw) as User;
-    return u && typeof u === 'object' ? u : ({} as User);
-  } catch {
-    return {} as User;
-  }
-}
-
 export default function Licencas() {
-  const user = safeUser();
+  const user = useUser();
   const isAdmin = user?.role === 'admin';
 
   const [summary, setSummary] = useState<LicenseSummary | null>(null);

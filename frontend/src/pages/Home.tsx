@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { huawei, users as usersApi, type HuaweiProject, type HuaweiEcsServer, type User, type DiscoveryAccount, type DiscoveredProject, type ScheduleVm } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 const HUAWEI_CACHE_KEY = 'huawei_projects_cache';
 
@@ -102,8 +103,8 @@ function formatMinutes(minutes: number | undefined): string {
 }
 
 export default function Home() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}') as User;
-  const isAdmin = user.role === 'admin';
+  const user = useUser();
+  const isAdmin = user?.role === 'admin';
 
   const [huaweiProjects, setHuaweiProjects] = useState<HuaweiProject[] | null>(() => {
     try {
