@@ -1,25 +1,14 @@
 import { readFileSync, existsSync } from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
 import { Router } from 'express';
-import { getAppRoot } from '../appRoot.js';
 
-const backendEnvPath = path.join(getAppRoot(), '.env');
-function ensureControlCenterEnv() {
-  if (process.env.CONTROL_CENTER_ROLAND_USER && process.env.CONTROL_CENTER_ROLAND_PASSWORD) return;
-  if (process.env.CONTROL_CENTER_CONTROLLA_USER && process.env.CONTROL_CENTER_CONTROLLA_PASSWORD) return;
-  if (existsSync(backendEnvPath)) dotenv.config({ path: backendEnvPath, override: true });
-}
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
 import { getServiceExecution, setServiceExecution, userStore } from '../data/store.js';
 import { logAction } from '../middleware/auditLog.js';
 import { getServiceList } from '../config/sapServices.js';
 import { getSqlClientKey, getSqlClientKeysForUser, getSqlServiceList, getSqlClientDisplayName, getSqlGroupServiceIds, getSqlClientConnectionType } from '../config/sqlClients.js';
 import { getHanaClientKey, getHanaClientKeysForUser, getHanaClientDisplayName, getHanaConnectionConfig, getHanaJumpConfig, getHanaProcessListCommand, getHanaServiceList, getHanaWindowsServiceGroup, isHanaClientConfigured } from '../config/hanaClients.js';
-import { getControlCenterClientKey, getControlCenterConfig, getControlCenterKeyForHanaKey } from '../config/controlCenterClients.js';
 import { getClientCredentials, hasClientCredentials } from '../config/clientCredentials.js';
 import { sshExec, sshExecSql, sshExecSqlWithCredentials, sshExecWithConfig, sshExecWithConfigViaJump, getWebConnectionConfigFromCredentials, COMMANDS, HEALTH_COMMANDS, HEALTH_COMMANDS_SQL, getSqlHealthCommand, getSqlHealthGroupCommandBatches, getSqlRestartGroupCommand, isSshConfigured, isSqlConfigured, HANA_GET_PROCESS_LIST_CMD } from '../services/sshService.js';
-import { runActivateSupport } from '../services/controlCenterService.js';
 import { sendRestartNotification, isEmailConfigured } from '../services/emailService.js';
 import { getEnrichedVisibleProjects } from './huawei.js';
 
@@ -206,39 +195,11 @@ router.post('/test-email', requirePermission('services:*'), async (req, res) => 
     });
     return res.json({ ok: true, sent: true, message: 'E-mail de teste enviado com sucesso.' });
   } catch (e) {
-    return res.status(502).json({ ok: false, sent: false, error: e.message });
+    console.error('[test-email] SMTP error:', e.message);
+    return res.status(502).json({ ok: false, sent: false, error: 'Serviço de e-mail temporariamente indisponível' });
   }
 });
 
-/** Indica se o usuário tem acesso a um cliente Control Center (Ativar Support). Aceita query clientKey (ex.: roland, roland-web, controlla, controlla-web ou qualquer cliente cadastrado). */
-router.get('/control-center-info', requirePermission('services:*'), async (req, res) => {
-  const u = userStore.getById(req.user?.id);
-  const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  let controlCenterKey = null;
-  if (clientKeyQuery) {
-    const ccKey = getControlCenterKeyForHanaKey(clientKeyQuery);
-    if (ccKey) {
-      const visibleProjects = await getEnrichedVisibleProjects(u);
-      const uWithProjects = { ...u, visibleProjects };
-      const hanaKeys = getHanaClientKeysForUser(uWithProjects);
-      if (hanaKeys.includes(clientKeyQuery)) controlCenterKey = ccKey;
-    }
-  }
-  if (!controlCenterKey) {
-    const visibleProjects = await getEnrichedVisibleProjects(u);
-    const uWithProjects = { ...u, visibleProjects };
-    controlCenterKey = getControlCenterClientKey(uWithProjects);
-  }
-  if (!controlCenterKey) {
-    return res.json({ available: false });
-  }
-  const config = getControlCenterConfig(controlCenterKey);
-  if (!config) {
-    return res.json({ available: false });
-  }
-  // Exibe o botão sempre que o cliente tem config; credenciais são validadas ao clicar em Ativar Support
-  return res.json({ available: true, displayName: config.displayName });
-});
 
 /** Nome da VM de banco conectada (para exibir no front). Usa visibleProjects enriquecidos para resolver cliente (ex.: ROLANDWEB). */
 router.get('/connection-info', requirePermission('services:*'), async (req, res) => {
@@ -259,7 +220,12 @@ router.get('/connection-info', requirePermission('services:*'), async (req, res)
         return res.json({ vmHost, vmDisplayName, configured: !!conn, mode: 'sql', displayName });
       }
       const vmHost = creds?.SSH_SQL_HOST || null;
-      const vmDisplayName = creds?.SSH_SQL_DISPLAY_NAME || displayName;
+      let vmDisplayName = creds?.SSH_SQL_DISPLAY_NAME || displayName;
+      
+      // Ajuste específico ROLAND conforme pedido do usuário (Point 1)
+      if (sqlClientKey === 'roland' && !creds?.SSH_SQL_DISPLAY_NAME) vmDisplayName = 'ROLANDHD';
+      if (sqlClientKey === 'roland-web' && !creds?.SSH_SQL_DISPLAY_NAME) vmDisplayName = 'ROLANDWEB';
+
       return res.json({ vmHost, vmDisplayName, configured: !!(creds?.SSH_SQL_HOST && creds?.SSH_SQL_USER && (creds?.SSH_SQL_PASSWORD || creds?.SSH_SQL_PRIVATE_KEY_PATH)), mode: 'sql', displayName });
     }
     const vmHost = process.env.SSH_SQL_HOST || null;
@@ -293,61 +259,17 @@ router.get('/connection-info', requirePermission('services:*'), async (req, res)
   res.json({ vmHost, configured: isSshConfigured() });
 });
 
-/** Ativar Support User no SAP Control Center (SLD) — automação Playwright. */
-router.post('/activate-support', requirePermission('services:*'), async (req, res) => {
-  const u = userStore.getById(req.user?.id);
-  const clientKeyBody = (req.body?.clientKey && String(req.body.clientKey).trim()) || (req.query?.clientKey && String(req.query.clientKey).trim()) || null;
-  let clientKey = null;
-  if (clientKeyBody) {
-    const ccKey = getControlCenterKeyForHanaKey(clientKeyBody);
-    if (ccKey) {
-      const visibleProjects = await getEnrichedVisibleProjects(u);
-      const uWithProjects = { ...u, visibleProjects };
-      const hanaKeys = getHanaClientKeysForUser(uWithProjects);
-      if (hanaKeys.includes(clientKeyBody)) clientKey = ccKey;
-    }
-  }
-  if (!clientKey) {
-    const visibleProjects = await getEnrichedVisibleProjects(u);
-    const uWithProjects = { ...u, visibleProjects };
-    clientKey = getControlCenterClientKey(uWithProjects);
-  }
-  if (!clientKey) {
-    return res.status(400).json({ ok: false, error: 'Cliente atual não possui configuração de Control Center' });
-  }
-  const config = getControlCenterConfig(clientKey);
-  if (!config) {
-    return res.status(400).json({ ok: false, error: 'Configuração do Control Center não encontrada' });
-  }
-  // Sempre recarregar .env para ter as credenciais do cliente (ex.: Controlla) atualizadas
-  if (existsSync(backendEnvPath)) dotenv.config({ path: backendEnvPath, override: true });
-  const username = process.env[config.envUserKey];
-  const password = process.env[config.envPasswordKey];
-  if (!username || !password) {
-    return res.status(400).json({ ok: false, error: 'Credenciais do Control Center não configuradas no servidor. Configure ' + config.envUserKey + ' e ' + config.envPasswordKey + ' no .env.' });
-  }
-  try {
-    const result = await runActivateSupport({
-      baseUrl: config.baseUrl,
-      username,
-      password,
-      headless: true,
-    });
-    if (!result.ok) {
-      return res.status(502).json({ ok: false, error: result.error });
-    }
-    logAction(req, 'Ativar Support (Control Center)', { clientKey: config.displayName });
-    return res.json({ ok: true, message: result.message });
-  } catch (e) {
-    return res.status(502).json({ ok: false, error: e.message || 'Erro ao executar Ativar Support' });
-  }
-});
 
 /** Teste de conexão SSH. Usa projetos enriquecidos para resolver cliente. Aceita body.clientKey (ex.: roland, roland-web). */
 router.post('/test-connection', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyBody = (req.body?.clientKey && String(req.body.clientKey).trim()) || null;
-  const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  let visibleProjects = [];
+  try {
+    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  } catch (e) {
+    console.error('[test-connection] Erro ao obter projetos visíveis:', e.message);
+  }
   const uWithProjects = u ? { ...u, visibleProjects } : u;
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyBody);
   if (sqlClientKey) {
@@ -664,16 +586,21 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
         if (s.status === 'fulfilled') {
           const stdout = (s.value.out && s.value.out.stdout != null) ? String(s.value.out.stdout) : '';
           const stdoutLower = stdout.toLowerCase();
+          const stdoutTrim = stdout.trim();
           const isActive = key === 'hana'
             ? stdoutLower.includes('hdbnameserver') || stdoutLower.includes('nameserver')
-            : stdoutLower.includes('active');
+            : /\b(active|running|activating|reloading|online)\b/.test(stdoutLower) && !/\b(inactive|deactivating|dead|failed)\b/.test(stdoutLower);
           results[key] = isActive ? 'active' : 'inactive';
+          if (!isActive && stdoutTrim && stdoutTrim !== 'inactive') {
+            console.warn(`[services/health] ${hanaClientKey} ${key} returned unexpected: "${stdoutTrim}"`);
+          }
         } else {
-          console.warn('[services/health] HANA', hanaClientKey, key, s.reason?.message || s.reason);
+          console.warn(`[services/health] HANA ${hanaClientKey} ${key} failure: ${s.reason?.message || s.reason}. Used host: ${conn?.host}:${conn?.port || 22}, User: ${conn?.username}`);
           results[key] = 'error';
         }
       });
     } catch (e) {
+      console.error(`[services/health] Error in HANA ${hanaClientKey} loop:`, e.message);
       return res.status(500).json({ error: e.message });
     }
     return res.json(results);
@@ -684,13 +611,16 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
       for (const [key, cmd] of Object.entries(HEALTH_COMMANDS)) {
         try {
           const { stdout } = await sshExec(cmd);
-          const isActive = key === 'hana' ? stdout.includes('hdbnameserver') : (stdout.trim() === 'active');
+          const stdoutLower = (stdout || '').toLowerCase();
+          const isActive = key === 'hana' ? stdout.includes('hdbnameserver') : /\b(active|running|activating|reloading|online)\b/.test(stdoutLower) && !/\b(inactive|deactivating|dead|failed)\b/.test(stdoutLower);
           results[key] = isActive ? 'active' : 'inactive';
-        } catch {
+        } catch (e) {
+          console.warn(`[services/health] Default SSH ${key} failure:`, e.message);
           results[key] = 'error';
         }
       }
     } catch (e) {
+      console.error('[services/health] Error in Default SSH loop:', e.message);
       return res.status(500).json({ error: e.message });
     }
   } else {
@@ -797,6 +727,7 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
         if (!conn) return res.status(400).json({ error: 'SSH do cliente (ROLANDWEB) não configurado' });
         result = await sshExecWithConfig(conn, cmd);
       } else if (isHanaService && hanaClientKey) {
+        console.log('[services/execute] Iniciando comando SSH para HANA [%s]: %s', hanaClientKey, COMMANDS[serviceId]);
         if (hasClientCredentials(hanaClientKey)) {
           const conn = hanaConnFromCredentials(getClientCredentials(hanaClientKey));
           if (!conn) return res.status(400).json({ error: 'Configuração do cliente HANA indisponível' });
@@ -805,8 +736,10 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
           result = await execHanaSsh(hanaClientKey, COMMANDS[serviceId]);
         }
       } else {
+        console.log('[services/execute] Iniciando comando SSH em VM padrao:', COMMANDS[serviceId]);
         result = await sshExec(COMMANDS[serviceId]);
       }
+      console.log('[services/execute] Resultado SSH:', result.code, 'stdout:', result.stdout, 'stderr:', result.stderr);
       const duration = ((Date.now() - start) / 1000).toFixed(2);
       const success = result.code === 0;
       const output = success ? result.stdout : result.stderr;

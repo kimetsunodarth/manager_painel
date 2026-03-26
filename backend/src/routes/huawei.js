@@ -113,17 +113,17 @@ export async function getEnrichedVisibleProjects(user) {
       const allowedIds = allowedByProject[projectKey(p.id, p.perfil)];
       const isAnanim = p.perfil && String(p.perfil).startsWith('ANANIMCLOUD_');
       const hasRestrictedEcs = Array.isArray(allowedIds) && allowedIds.length > 0;
-      if (!isAnanim || !hasRestrictedEcs) return { ...p, displayPerfil: null };
+      if (!isAnanim || !hasRestrictedEcs) return { ...p, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
       try {
         let servers = await listEcsForProject(p.id, p.region || undefined, p.perfil);
         const idSet = new Set(allowedIds);
         servers = servers.filter((s) => idSet.has(s.id));
         const clientName = getClientNameFromEcs(servers);
-        if (clientName) return { ...p, displayPerfil: `ANANIM_${clientName.toUpperCase().replace(/\s+/g, '_')}` };
+        if (clientName) return { ...p, enabled: p.enabled !== false, displayPerfil: `ANANIM_${clientName.toUpperCase().replace(/\s+/g, '_')}` };
       } catch (err) {
         console.warn('[getEnrichedVisibleProjects]', p.id, err.message);
       }
-      return { ...p, displayPerfil: null };
+      return { ...p, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
     })
   );
   return enriched;
@@ -137,6 +137,7 @@ export async function getEnrichedVisibleProjects(user) {
  */
 router.get('/projects', async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ error: 'Usuário não autenticado' });
     const u = userStore.getById(req.user.id);
     if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });
 
@@ -172,7 +173,7 @@ router.get('/projects', async (req, res) => {
     const enriched = await getEnrichedVisibleProjects(u);
     return res.json(enriched);
   } catch (e) {
-    const status = e.message?.includes('Configure') ? 400 : 502;
+    const status = e.message?.includes('Configure') ? 503 : 502;
     res.status(status).json({ error: e.message });
   }
 });
