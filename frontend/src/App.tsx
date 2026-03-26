@@ -1,4 +1,4 @@
-import { Component, ReactNode } from 'react';
+import { Component, ReactNode, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -12,10 +12,27 @@ import Documentos from './pages/Documentos';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
 import Logs from './pages/Logs';
+import { api } from './api/client';
 
 function PrivateRoute({ children }: { children: ReactNode }) {
-  const user = localStorage.getItem('user');
-  if (!user) return <Navigate to="/login" replace />;
+  const [status, setStatus] = useState<'loading' | 'ok' | 'invalid'>(() =>
+    localStorage.getItem('user') ? 'loading' : 'invalid'
+  );
+
+  useEffect(() => {
+    if (status === 'invalid') return;
+    api<{ ok: boolean }>('/auth/me')
+      .then(() => setStatus('ok'))
+      .catch(() => {
+        localStorage.removeItem('user');
+        setStatus('invalid');
+      });
+    // Run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (status === 'loading') return null;
+  if (status === 'invalid') return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 

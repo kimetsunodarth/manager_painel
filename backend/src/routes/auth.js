@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
-import { JWT_SECRET as getJwtSecret } from '../middleware/auth.js';
+import { JWT_SECRET as getJwtSecret, authMiddleware } from '../middleware/auth.js';
 import { appendLog } from '../data/auditLog.js';
 
 const router = Router();
@@ -110,6 +110,27 @@ router.post('/logout', (req, res) => {
     sameSite: 'strict',
   });
   res.json({ ok: true, message: 'Logout realizado com sucesso' });
+});
+
+router.get('/me', authMiddleware, (req, res) => {
+  const user = userStore.getById(req.user.id);
+  if (!user) {
+    return res.status(401).json({ error: 'Usuário não encontrado' });
+  }
+  res.json({
+    ok: true,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions,
+      allowedEcsIds: user.allowedEcsIds,
+      visibleProjects: user.visibleProjects || [],
+      allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {},
+      allowedServiceIds: user.allowedServiceIds || [],
+    },
+  });
 });
 
 export default router;
