@@ -38,9 +38,7 @@ export function authMiddleware(req, res, next) {
     req.user = decoded;
     next();
   } catch (e) {
-    if (e.message && e.message.includes('JWT_SECRET')) {
-      return res.status(503).json({ error: 'Configuração inválida: JWT_SECRET ausente. Configure config.enc ou .env na pasta do programa.' });
-    }
+    console.error('[auth] Token validation error:', e && e.message);
     return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 }

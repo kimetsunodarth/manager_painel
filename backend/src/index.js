@@ -16,12 +16,16 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   console.warn('[Ananim] JWT_SECRET ausente ou curto (< 32). Defina em config.enc (ou .env). Cwd=', process.cwd());
 }
 
-// Exe: criar config/ (e subpastas) e data/ na primeira execucao (nao vao no instalador)
+// Exe: criar config/ (e subpastas) e data/ na primeira execucao (o instalador cria; mas caso nao exista, tenta criar)
 if (typeof process.pkg !== 'undefined') {
   const cwd = process.cwd();
   for (const dir of ['config', 'config/clients', 'config/hana-clients', 'config/sql-clients', 'config/control-center', 'data']) {
     const full = join(cwd, dir);
-    if (!existsSync(full)) mkdirSync(full, { recursive: true });
+    if (!existsSync(full)) {
+      try { mkdirSync(full, { recursive: true }); } catch (e) {
+        console.warn('[Ananim] Nao foi possivel criar pasta', full, '- verifique permissoes do App Pool IIS:', e.message);
+      }
+    }
   }
 }
 
@@ -75,10 +79,19 @@ const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({ contentSecurityPolicy: false }));
 const corsOrigin = process.env.FRONTEND_ORIGIN;
 const corsOrigins = corsOrigin ? corsOrigin.split(',').map((o) => o.trim()).filter(Boolean) : [];
-// Em producao: usa FRONTEND_ORIGIN; se vazio, permite localhost (frontend IIS em 8890 + API local).
-const allowOrigin = isProduction
-  ? (corsOrigins.length ? corsOrigins : ['http://localhost', 'http://localhost:8890', 'http://127.0.0.1', 'http://127.0.0.1:8890'])
-  : true;
+// Em producao: usa FRONTEND_ORIGIN obrigatoriamente; se ausente, bloqueia todas origens cross-origin.
+// Em desenvolvimento: permite qualquer origem (true).
+let allowOrigin;
+if (isProduction) {
+  if (corsOrigins.length) {
+    allowOrigin = corsOrigins;
+  } else {
+    console.error('[Ananim] AVISO DE SEGURANÇA: FRONTEND_ORIGIN não definido em produção. Todas as requisições cross-origin serão bloqueadas. Defina FRONTEND_ORIGIN no config.enc ou .env.');
+    allowOrigin = false;
+  }
+} else {
+  allowOrigin = true;
+}
 app.use(cors({
   origin: allowOrigin,
   credentials: true,
