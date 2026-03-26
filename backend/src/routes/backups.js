@@ -5,6 +5,7 @@ import { requirePermission } from '../middleware/auth.js';
 import { getProfileNames, getProfileCredentials } from '../config/configLoader.js';
 import { listBackups } from '../services/huawei-cbr.js';
 import { userStore } from '../data/store.js';
+import { listEcsForProject } from '../services/huawei-ecs.js';
 import { getEnrichedVisibleProjects } from './huawei.js';
 
 const router = Router();
@@ -52,7 +53,12 @@ function getCbrTargets(u) {
         profile = profileNames.find((pn) => pn.toLowerCase().includes(search) || search.includes(pn.toLowerCase())) || null;
       }
       
-      const region = p.region || 'la-south-2';
+      // Ajuste de região: Ananim costuma ser sa-brazil-1
+      let region = p.region || 'la-south-2';
+      if (profile && (profile.startsWith('ANANIMCLOUD') || profile.includes('ANANIM')) && !p.region) {
+        region = 'sa-brazil-1';
+      }
+      
       const clientName = p.name || profile || projectId;
       
       if (projectId) {
@@ -110,24 +116,27 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
 
       try {
         const creds = getProfileCredentials(profile);
-        const projectIdForCbr = (projectId && String(projectId).trim()) || creds.project_id;
-        
-        console.log(`[CBR] Buscando backups para ${clientName} (Profile: ${profile}, Project: ${projectIdForCbr})`);
-        let backups = await listBackups(profile, { days, projectId: projectIdForCbr, region: region || creds.region });
+        // O Huawei CBR Vaults/Backups ficam atrelados ao Project ID master da conta (creds.project_id).
+        // A API da Huawei precisa deste ID primário para resgatar os backups da conta.
+        console.log(`[CBR] Buscando backups para ${clientName} (Profile: ${profile}, Project: ${projectId})`);
+        let backups = await listBackups(profile, { days, projectId, region: region || creds.region });
         
         // Filtro de permissão por ID de ECS (se o operador tiver limites)
-        const key = projectKey(projectIdForCbr, profile);
-        let allowedIds = allowedByProject[key] || allowedByProject[projectIdForCbr];
+        // A chave no banco de usuários (visibleProjects / allowedHuaweiEcsIds) foi salva usando o ID do sub-projeto (projectId)!
+        const key = projectKey(projectId, profile);
+        let allowedIds = allowedByProject[key] || allowedByProject[projectId];
         
-        if (u.role !== 'admin' && Array.isArray(allowedIds) && allowedIds.length > 0) {
-          const idSet = new Set(allowedIds);
-          backups = backups.filter((b) => b.resource_id && idSet.has(b.resource_id));
+        if (u.role !== 'admin') {
+          if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+            const idSet = new Set(allowedIds);
+            backups = backups.filter((b) => b.resource_id && idSet.has(b.resource_id));
+          }
         }
 
         byClient.push({
           profile,
           clientName,
-          projectId: projectIdForCbr,
+          projectId,
           region: region || creds.region,
           backups,
         });
