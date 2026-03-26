@@ -65,6 +65,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
 // Download: envia o arquivo se existir; senão 404
 router.get('/:id/download', (req, res) => {
+  if (!/^[a-zA-Z0-9_-]+$/.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
   const doc = getDocumentById(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
   const filePath = path.join(DOCUMENTS_FILES_DIR, doc.id);
