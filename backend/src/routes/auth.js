@@ -96,7 +96,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     });
   } catch (e) {
     if (e.message && e.message.includes('JWT_SECRET')) {
-      return res.status(503).json({ error: 'Configuração inválida: JWT_SECRET ausente. Configure config.enc ou .env na pasta do programa.' });
+      console.error('[auth] JWT_SECRET config error:', e.message);
+      return res.status(401).json({ error: 'Token inválido ou expirado' });
     }
     res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
