@@ -8,10 +8,13 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * Validates an email address.
  * @param {string} email
+ * @param {number} [maxLength=255] - Maximum allowed email length
  * @returns {boolean}
  */
-export function isValidEmail(email) {
-  return typeof email === 'string' && EMAIL_REGEX.test(email.trim());
+export function isValidEmail(email, maxLength = 255) {
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  return trimmed.length > 0 && trimmed.length <= maxLength && EMAIL_REGEX.test(trimmed);
 }
 
 /**

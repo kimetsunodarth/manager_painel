@@ -60,7 +60,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       userEmail: user.email,
       action: 'Login',
       details: { role: user.role },
-      ipAddress: req.ip || req.connection.remoteAddress,
+      ipAddress: extractIp(req),
       userAgent: req.headers['user-agent'],
       createdAt: new Date().toISOString(),
     });

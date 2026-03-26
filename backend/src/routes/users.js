@@ -3,19 +3,13 @@ import bcrypt from 'bcryptjs';
 import { userStore } from '../data/store.js';
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
 import { logAction } from '../middleware/auditLog.js';
-import { EMAIL_REGEX } from '../utils/validation.js';
+import { EMAIL_REGEX, isValidEmail } from '../utils/validation.js';
 
 const router = Router();
 router.use(authMiddleware);
 const ROLES = ['admin', 'operator'];
 const MAX_NAME = 200;
 const MAX_EMAIL = 255;
-
-function validateEmail(email) {
-  if (typeof email !== 'string') return false;
-  const e = email.trim();
-  return e.length > 0 && e.length <= MAX_EMAIL && EMAIL_REGEX.test(e);
-}
 
 function validateRole(role) {
   return typeof role === 'string' && ROLES.includes(role);
@@ -43,7 +37,7 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
     if (nameStr.length > MAX_NAME) {
       return res.status(400).json({ error: `Nome deve ter no máximo ${MAX_NAME} caracteres` });
     }
-    if (!validateEmail(emailStr)) {
+    if (!isValidEmail(emailStr, MAX_EMAIL)) {
       return res.status(400).json({ error: 'E-mail em formato inválido' });
     }
     if (passwordStr.length < 6) {
@@ -85,7 +79,7 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
     data.name = nameStr;
   }
   if (email !== undefined) {
-    if (!validateEmail(typeof email === 'string' ? email.trim() : '')) return res.status(400).json({ error: 'E-mail em formato inválido' });
+    if (!isValidEmail(typeof email === 'string' ? email.trim() : '', MAX_EMAIL)) return res.status(400).json({ error: 'E-mail em formato inválido' });
     const emailStr = typeof email === 'string' ? email.trim() : '';
     if (userStore.findByEmail(emailStr) && userStore.findByEmail(emailStr).id !== req.params.id) {
       return res.status(400).json({ error: 'E-mail já cadastrado' });

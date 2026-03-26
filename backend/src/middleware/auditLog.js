@@ -5,6 +5,7 @@
 
 import { userStore } from '../data/store.js';
 import { appendLog } from '../data/auditLog.js';
+import { extractIp } from '../utils/validation.js';
 
 export function logAction(req, action, details = null) {
   if (!req?.user?.id) return;
@@ -15,7 +16,7 @@ export function logAction(req, action, details = null) {
     userEmail: req.user.email ?? '',
     action,
     details: details && typeof details === 'object' ? details : { value: details },
-    ipAddress: req.ip || (req.connection && req.connection.remoteAddress) || null,
+    ipAddress: extractIp(req),
     userAgent: req.headers && req.headers['user-agent'] ? req.headers['user-agent'] : null,
     createdAt: new Date().toISOString(),
   });
