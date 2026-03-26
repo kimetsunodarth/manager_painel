@@ -12,6 +12,7 @@ import {
 } from '../api/client';
 import type { User } from '../api/client';
 import { useUser } from '../hooks/useUser';
+import { getErrorMessage } from '../utils/errorMessage';
 
 const HUAWEI_PREFIX = 'huawei:';
 
@@ -296,7 +297,9 @@ export default function Clientes() {
       setAssignToUserIds([]);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar cliente');
+      const msg = getErrorMessage(err);
+      setError(msg);
+      setTimeout(() => setError(''), 5000);
     } finally {
       setSubmitLoading(false);
     }

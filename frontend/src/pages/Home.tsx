@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { huawei, users as usersApi, type HuaweiProject, type HuaweiEcsServer, type User, type DiscoveryAccount, type DiscoveredProject, type ScheduleVm } from '../api/client';
 import { useUser } from '../hooks/useUser';
+import { getErrorMessage } from '../utils/errorMessage';
 
 const HUAWEI_CACHE_KEY = 'huawei_projects_cache';
 
@@ -214,7 +215,7 @@ export default function Home() {
       setSelectedProjects((prev) => prev.filter((p) => keySet.has(projectKey(p))));
       sessionStorage.setItem(HUAWEI_CACHE_KEY, JSON.stringify({ data, scope: huaweiScope, source: huaweiSource }));
     } catch (e: unknown) {
-      setHuaweiError(e instanceof Error ? e.message : 'Erro ao carregar projetos Huawei.');
+      setHuaweiError(getErrorMessage(e));
       setHuaweiProjects(null);
     } finally {
       setHuaweiLoading(false);
@@ -543,7 +544,7 @@ export default function Home() {
       setSelectedProject(null);
       setHuaweiEcs(null);
     } catch (e: unknown) {
-      setHuaweiError(e instanceof Error ? e.message : 'Falha ao limpar.');
+      setHuaweiError(getErrorMessage(e));
     } finally {
       setClearVisibleLoading(false);
     }

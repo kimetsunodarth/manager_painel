@@ -77,9 +77,11 @@ export default function Login() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-        <p className="text-gray-500 text-xs mt-4 text-center">
-          Demo: joao@example.com / admin123
-        </p>
+        {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
+          <p className="text-gray-500 text-xs mt-4 text-center">
+            Demo: joao@example.com / admin123
+          </p>
+        )}
       </div>
     </div>
   );

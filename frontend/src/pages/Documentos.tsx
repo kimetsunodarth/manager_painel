@@ -23,6 +23,7 @@ export default function Documentos() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchList = () => {
@@ -47,6 +48,11 @@ export default function Documentos() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    const MAX_SIZE = 52428800; // 50 MB
+    if (file.size > MAX_SIZE) {
+      setUploadError('Arquivo muito grande. O tamanho máximo permitido é 50 MB.');
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     try {
@@ -62,6 +68,7 @@ export default function Documentos() {
   };
 
   const onDownload = async (id: string, fileName: string) => {
+    setDownloading(id);
     try {
       const res = await fetch(`/api/documents/${id}/download`, {
         credentials: 'include',
@@ -80,6 +87,8 @@ export default function Documentos() {
     } catch (err: unknown) {
       const ex = err as { message?: string };
       setUploadError(ex.message || 'Erro ao baixar');
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -194,9 +203,10 @@ export default function Documentos() {
                     <button
                       type="button"
                       onClick={() => onDownload(row.id, row.arquivo)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+                      disabled={downloading === row.id}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                     >
-                      Download
+                      {downloading === row.id ? 'Baixando...' : 'Download'}
                     </button>
                     {isAdmin && (
                       <>

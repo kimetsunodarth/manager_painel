@@ -394,18 +394,23 @@ export default function Servicos() {
                 <span className={`font-semibold ${sqlMode ? '' : 'capitalize'}`}>
                   {labels[key] || key}
                 </span>
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{
-                    backgroundColor:
-                      color === 'green'
-                        ? '#22c55e'
-                        : color === 'red'
-                          ? '#ef4444'
-                          : '#9ca3af',
-                  }}
-                  title={s || 'Checking...'}
-                />
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor:
+                        color === 'green'
+                          ? '#22c55e'
+                          : color === 'red'
+                            ? '#ef4444'
+                            : '#9ca3af',
+                    }}
+                    title={s || 'Checking...'}
+                  />
+                  <span className="text-xs text-gray-600">
+                    {color === 'green' ? 'Ativo' : color === 'red' ? 'Inativo' : 'Verificando'}
+                  </span>
+                </span>
               </div>
               <p className="text-sm text-gray-500 mt-1" title={s === 'unconfigured' ? 'Configure as variáveis SSH no .env do backend (ex.: SSH_HANA_ROLAND_JUMP_* para ROLANDWEB, SSH_HANA_ROLAND_* para ROLANDHDB) e reinicie o backend.' : undefined}>
                 {statusLoading && !status[key] ? 'Verificando...' : s === 'unconfigured' ? 'Não configurado (SSH no .env do backend)' : s || '—'}
