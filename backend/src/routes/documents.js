@@ -60,6 +60,11 @@ router.delete('/:id', requireAdmin, (req, res) => {
   const doc = getDocumentById(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
   const filePath = path.join(DOCUMENTS_FILES_DIR, doc.id);
+  const resolved = path.resolve(filePath);
+  const docsDir = path.resolve(DOCUMENTS_FILES_DIR);
+  if (!resolved.startsWith(docsDir + path.sep) && resolved !== docsDir) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
   if (existsSync(filePath)) {
     try { unlinkSync(filePath); } catch (e) { console.warn('[Documents] Falha ao deletar arquivo:', filePath, e.message); }
   }
@@ -73,6 +78,11 @@ router.get('/:id/download', (req, res) => {
   const doc = getDocumentById(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Documento não encontrado' });
   const filePath = path.join(DOCUMENTS_FILES_DIR, doc.id);
+  const resolved = path.resolve(filePath);
+  const docsDir = path.resolve(DOCUMENTS_FILES_DIR);
+  if (!resolved.startsWith(docsDir + path.sep) && resolved !== docsDir) {
+    return res.status(400).json({ error: 'ID inválido' });
+  }
   if (!existsSync(filePath)) {
     return res.status(404).json({ error: 'Arquivo não encontrado no servidor' });
   }

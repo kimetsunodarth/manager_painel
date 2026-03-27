@@ -39,7 +39,7 @@ function getCbrTargets(u) {
     });
   } else {
     const visible = u.visibleProjects || [];
-    console.log(`[CBR] Resolvendo alvos para ${u.email}. Projetos visíveis (enriquecidos):`, visible.map(p => p.id));
+    if (process.env.DEBUG_CBR) console.log(`[CBR] Resolvendo alvos para ${u.email}. Projetos visíveis (enriquecidos):`, visible.map(p => p.id));
     
     visible.forEach((p) => {
       const projectId = p.id;
@@ -95,7 +95,7 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
     const uWithEnrichment = { ...u, visibleProjects };
     
     const targets = getCbrTargets(uWithEnrichment);
-    console.log(`[CBR] Alvos identificados para fetch:`, targets.map(t => `${t.profile || 'SEM_PERFIL'}:${t.projectId}`));
+    if (process.env.DEBUG_CBR) console.log(`[CBR] Alvos identificados para fetch:`, targets.map(t => `${t.profile || 'SEM_PERFIL'}:${t.projectId}`));
 
     let toFetch = targets;
     if (filterPerfil) {
@@ -117,7 +117,7 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
         const creds = getProfileCredentials(profile);
         // O Huawei CBR Vaults/Backups ficam atrelados ao Project ID master da conta (creds.project_id).
         // A API da Huawei precisa deste ID primário para resgatar os backups da conta.
-        console.log(`[CBR] Buscando backups para ${clientName} (Profile: ${profile}, Project: ${projectId})`);
+        if (process.env.DEBUG_CBR) console.log(`[CBR] Buscando backups para ${clientName} (Profile: ${profile}, Project: ${projectId})`);
         const projectIdForCbr = (projectId && String(projectId).trim()) || creds.project_id;
         let backups = await listBackups(profile, { days, projectId: projectIdForCbr, region: region || creds.region });
         

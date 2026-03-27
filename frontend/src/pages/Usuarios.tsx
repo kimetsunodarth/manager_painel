@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { users as api, environments, huawei, services as servicesApi, type User, type CreateUser, type HuaweiProject, type HuaweiEcsServer, PREFERRED_SERVICE_CLIENT_OPTIONS } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 function projectKey(p: HuaweiProject) {
   return p.perfil ? `${p.perfil}-${p.id}` : p.id;
@@ -35,8 +36,8 @@ const SAP_SERVICES_FALLBACK = [
 ];
 
 export default function Usuarios() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}') as User;
-  if (user.role !== 'admin') {
+  const user = useUser();
+  if (user?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
   const [list, setList] = useState<User[]>([]);

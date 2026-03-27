@@ -219,7 +219,7 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
     });
     res.json(enriched);
   } catch (e) {
-    const status = e.message.includes('Configure') || e.message.includes('Perfil') ? 400 : 502;
+    const status = e.message.includes('Configure') || e.message.includes('Perfil') ? 503 : 502;
     res.status(status).json({ error: e.message });
   }
 });
@@ -285,7 +285,7 @@ router.post('/projects/:projectId/ecs/:serverId/action', async (req, res) => {
 
     res.json({ ok: true, message: `Comando ${action} enviado para o ECS`, serverId });
   } catch (e) {
-    const status = e.message.includes('Configure') || e.message.includes('Perfil') ? 400 : 502;
+    const status = e.message.includes('Configure') || e.message.includes('Perfil') ? 503 : 502;
     res.status(status).json({ error: e.message });
   }
 });

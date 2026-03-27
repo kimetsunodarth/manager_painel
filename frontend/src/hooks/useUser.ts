@@ -15,7 +15,8 @@ export function useUser(): User | null {
     if (!parsed?.id || !parsed?.role || !parsed?.token) return null;
     if (!['admin', 'operator'].includes(parsed.role)) return null;
     return parsed as User;
-  } catch {
+  } catch (e) {
+    console.warn('[useUser] Failed to parse user from localStorage:', e);
     return null;
   }
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { documents as api, type DocumentItem } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 function getBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -15,8 +16,8 @@ function getBase64(file: File): Promise<string> {
 }
 
 export default function Documentos() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}') as { role?: string };
-  const isAdmin = user.role === 'admin';
+  const user = useUser();
+  const isAdmin = user?.role === 'admin';
 
   const [list, setList] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);

@@ -118,6 +118,8 @@ app.use('/api/ecs', ecsRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/licenses', licensesRoutes);
+// Override body size limit for document uploads (base64 encoding adds ~33% overhead)
+app.use('/api/documents', express.json({ limit: '70mb' }));
 app.use('/api/documents', documentsRoutes);
 app.use('/api/huawei', huaweiRoutes);
 app.use('/api/audit-logs', auditLogRoutes);

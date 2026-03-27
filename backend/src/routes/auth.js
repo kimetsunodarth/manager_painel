@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
 import { JWT_SECRET as getJwtSecret, authMiddleware } from '../middleware/auth.js';
 import { appendLog } from '../data/auditLog.js';
-import { EMAIL_REGEX, extractIp } from '../utils/validation.js';
+import { isValidEmail, extractIp } from '../utils/validation.js';
 
 const router = Router();
 
@@ -37,10 +37,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!emailStr || !passwordStr) {
       return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
     }
-    if (emailStr.length > 255) {
-      return res.status(400).json({ error: 'E-mail inválido' });
-    }
-    if (!EMAIL_REGEX.test(emailStr)) {
+    if (!isValidEmail(emailStr, 255)) {
       return res.status(400).json({ error: 'E-mail em formato inválido' });
     }
     if (passwordStr.length < 6) {
