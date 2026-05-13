@@ -67,6 +67,7 @@ export default function Servicos() {
   const [availableServers, setAvailableServers] = useState<AvailableServer[]>([]);
   const currentUser = useUser();
   const isAdmin = currentUser?.role === 'admin';
+  const clientKeyStorageKey = currentUser?.id ? `servicos.selectedClientKey.${currentUser.id}` : 'servicos.selectedClientKey';
   const fetchingRef = useRef(false);
 
   const healthKeys = sqlMode && serviceList?.length
@@ -152,7 +153,7 @@ export default function Servicos() {
         setSelectedClientKey(nextKey);
         if (nextKey) {
           try {
-            sessionStorage.setItem('servicos.selectedClientKey', nextKey);
+            sessionStorage.setItem(clientKeyStorageKey, nextKey);
           } catch (e) {
             console.warn('[Servicos] Falha ao salvar clientKey no sessionStorage:', e);
           }
@@ -205,13 +206,13 @@ export default function Servicos() {
   useEffect(() => {
     const savedKey = (() => {
       try {
-        return sessionStorage.getItem('servicos.selectedClientKey');
+        return sessionStorage.getItem(clientKeyStorageKey);
       } catch {
         return null;
       }
     })();
     fetchServiceList(savedKey || undefined);
-  }, []);
+  }, [clientKeyStorageKey]);
 
   useEffect(() => {
     fetchConnectionInfo();

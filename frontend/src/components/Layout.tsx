@@ -10,7 +10,7 @@ const menuItems = [
   { path: '/extensao-horario', label: 'Extensão de horário', icon: '⏱️', adminOnly: true },
   { path: '/documentos', label: 'Documentos', icon: '📁' },
   { path: '/clientes', label: 'Clientes', icon: '🏢', adminOnly: true },
-  { path: '/usuarios', label: 'Usuários', icon: '👥', adminOnly: true },
+  { path: '/usuarios', label: 'Usuários', icon: '👥', permission: 'users:*' },
   { path: '/logs', label: 'Log de auditoria', icon: '📜', adminOnly: true },
 ];
 
@@ -20,6 +20,13 @@ function safeUser() {
   } catch {
     return { name: 'Usuário', role: '' };
   }
+}
+
+function hasPermission(u: any, perm: string): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  const list = Array.isArray(u.permissions) ? u.permissions : [];
+  return list.includes(perm);
 }
 
 export default function Layout() {
@@ -71,7 +78,11 @@ export default function Layout() {
         </div>
         <nav className="flex-1 py-2">
           {menuItems
-            .filter((item) => !('adminOnly' in item && item.adminOnly) || user.role === 'admin')
+            .filter((item: any) => {
+              if (item.adminOnly) return user.role === 'admin';
+              if (item.permission) return hasPermission(user, item.permission);
+              return true;
+            })
             .map((item) => (
               <Link
                 key={item.path}

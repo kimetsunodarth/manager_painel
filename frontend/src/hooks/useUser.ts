@@ -1,9 +1,10 @@
 interface User {
   id: string | number;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'client';
   token: string;
   name?: string;
   email?: string;
+  permissions?: string[];
 }
 
 export function useUser(): User | null {
@@ -13,7 +14,7 @@ export function useUser(): User | null {
     const parsed = JSON.parse(raw);
     // Validate required fields
     if (!parsed?.id || !parsed?.role || !parsed?.token) return null;
-    if (!['admin', 'operator'].includes(parsed.role)) return null;
+    if (!['admin', 'operator', 'client'].includes(parsed.role)) return null;
     return parsed as User;
   } catch (e) {
     console.warn('[useUser] Failed to parse user from localStorage:', e);

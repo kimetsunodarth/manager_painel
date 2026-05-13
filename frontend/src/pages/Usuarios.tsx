@@ -37,7 +37,8 @@ const SAP_SERVICES_FALLBACK = [
 
 export default function Usuarios() {
   const user = useUser();
-  if (user?.role !== 'admin') {
+  const canManageUsers = user?.role === 'admin' || (Array.isArray(user?.permissions) && user?.permissions.includes('users:*'));
+  if (!canManageUsers) {
     return <Navigate to="/" replace />;
   }
   const [list, setList] = useState<User[]>([]);

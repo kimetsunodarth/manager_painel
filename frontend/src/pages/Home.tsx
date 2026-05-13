@@ -150,6 +150,9 @@ export default function Home() {
   const [addUserTargetId, setAddUserTargetId] = useState<string | null>(null);
   const [addUserLoading, setAddUserLoading] = useState(false);
   const [huaweiSearch, setHuaweiSearch] = useState('');
+  // Filtros rápidos (admin) — conta/perfil e projeto, como no portal antigo
+  const [adminPerfilFilter, setAdminPerfilFilter] = useState<string>('');
+  const [adminProjectFilterKey, setAdminProjectFilterKey] = useState<string>('');
   const [ecsClienteFilter, setEcsClienteFilter] = useState('');
   const [selectedEcsIds, setSelectedEcsIds] = useState<string[]>([]);
   const [showAssignEcsModal, setShowAssignEcsModal] = useState(false);
@@ -234,7 +237,7 @@ export default function Home() {
   const isProjectSelected = (p: HuaweiProject) => selectedProjects.some((x) => projectKey(x) === projectKey(p));
 
   const searchLower = huaweiSearch.trim().toLowerCase();
-  const filteredProjects =
+  const baseProjects =
     huaweiProjects && searchLower
       ? huaweiProjects.filter(
           (p) =>
@@ -245,6 +248,27 @@ export default function Home() {
             (p.region || '').toLowerCase().includes(searchLower)
         )
       : huaweiProjects ?? [];
+
+  const filteredProjects = baseProjects.filter((p) => {
+    if (isAdmin) {
+      if (adminPerfilFilter && (p.perfil || '') !== adminPerfilFilter) return false;
+      if (adminProjectFilterKey && projectKey(p) !== adminProjectFilterKey) return false;
+    }
+    return true;
+  });
+
+  const adminPerfis = isAdmin
+    ? Array.from(new Set((huaweiProjects || []).map((p) => p.perfil).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b))
+    : [];
+
+  const adminProjectsForPerfil = isAdmin
+    ? (huaweiProjects || []).filter((p) => !adminPerfilFilter || (p.perfil || '') === adminPerfilFilter)
+    : [];
+
+  const adminSelectedProject =
+    isAdmin && adminProjectFilterKey
+      ? (huaweiProjects || []).find((p) => projectKey(p) === adminProjectFilterKey) || null
+      : null;
 
   const openAddUserModal = async () => {
     setShowAddUserModal(true);
@@ -619,6 +643,54 @@ export default function Home() {
           {huaweiProjects && (
             <>
               <div className="mt-4 flex flex-wrap items-center gap-3">
+                {isAdmin && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Conta</span>
+                      <select
+                        value={adminPerfilFilter}
+                        onChange={(e) => { setAdminPerfilFilter(e.target.value); setAdminProjectFilterKey(''); }}
+                        className="ananim-input w-auto px-2 py-1.5 text-xs min-w-[180px]"
+                        disabled={adminPerfis.length === 0}
+                        title={huaweiSource === 'master' ? 'Troque a Fonte para “Todas as contas (perfis do config)” para habilitar filtro por conta.' : undefined}
+                      >
+                        <option value="">{adminPerfis.length ? 'Todas as contas' : 'Conta…'}</option>
+                        {adminPerfis.map((perfil) => (
+                          <option key={perfil} value={perfil}>{perfil}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Projeto</span>
+                      <select
+                        value={adminProjectFilterKey}
+                        onChange={(e) => setAdminProjectFilterKey(e.target.value)}
+                        className="ananim-input w-auto px-2 py-1.5 text-xs min-w-[220px]"
+                        disabled={adminProjectsForPerfil.length === 0}
+                      >
+                        <option value="">Todos os projetos</option>
+                        {adminProjectsForPerfil.map((p) => (
+                          <option key={projectKey(p)} value={projectKey(p)}>
+                            {(p.name || p.id) + (p.region ? ` • ${p.region}` : '')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-bold text-transparent uppercase tracking-wider select-none">_</span>
+                      <button
+                        type="button"
+                        className="ananim-btn-primary px-4 py-2 text-xs disabled:opacity-50"
+                        disabled={!adminSelectedProject}
+                        onClick={() => { if (adminSelectedProject) loadEcsForProject(adminSelectedProject); }}
+                      >
+                        Abrir
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <label className="text-sm font-medium text-gray-200">Buscar projetos:</label>
                 <input
                   type="search"
