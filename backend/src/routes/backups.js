@@ -127,7 +127,14 @@ router.get('/cbr', requirePermission('backups:list'), async (req, res) => {
         let allowedIds = allowedByProject[key] || allowedByProject[projectId];
         
         if (u.role !== 'admin') {
-          if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+          // Default-deny para clientes: só enxerga backups das ECS explicitamente atribuídas.
+          if (u.role === 'client') {
+            if (!Array.isArray(allowedIds) || allowedIds.length === 0) backups = [];
+            else {
+              const idSet = new Set(allowedIds);
+              backups = backups.filter((b) => b.resource_id && idSet.has(b.resource_id));
+            }
+          } else if (Array.isArray(allowedIds) && allowedIds.length > 0) {
             const idSet = new Set(allowedIds);
             backups = backups.filter((b) => b.resource_id && idSet.has(b.resource_id));
           }

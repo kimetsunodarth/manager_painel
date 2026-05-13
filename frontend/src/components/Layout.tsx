@@ -40,20 +40,24 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen bg-ananim-bg text-ananim-text flex">
       <aside
-        className={`bg-gray-800 text-white transition-all duration-200 ${
+        className={`bg-ananim-surface text-white border-r border-white/10 transition-all duration-200 ${
           sidebarOpen ? 'w-56' : 'w-16'
         } flex flex-col`}
       >
-        <div className="p-3 flex items-center justify-between border-b border-gray-700">
+        <div className="p-3 flex items-center justify-between border-b border-white/10">
           <Link to="/" className="flex items-center min-w-0 flex-1">
-            <img src="/ananim1.jpg" alt="Ananim" className={`object-contain ${sidebarOpen ? 'max-h-8 w-auto' : 'max-h-8 max-w-8 rounded'}`} />
+            <img
+              src="/ananim-logo.png"
+              alt="Ananim"
+              className={`object-contain ${sidebarOpen ? 'max-h-8 w-auto' : 'max-h-8 max-w-8 rounded'}`}
+            />
           </Link>
           <button
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 rounded hover:bg-gray-700"
+            className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
             aria-label="Menu"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -72,8 +76,8 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 hover:bg-gray-700 ${
-                  location.pathname === item.path ? 'bg-gray-700 border-l-4 border-blue-500' : ''
+                className={`flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.06] ${
+                  location.pathname === item.path ? 'bg-white/[0.06] border-l-4 border-ananim-accent' : ''
                 }`}
               >
                 <span className="text-lg">{item.icon}</span>
@@ -84,17 +88,17 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <header className="bg-ananim-surface/60 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/ananim1.jpg" alt="Ananim" className="h-8 w-auto object-contain" />
-            <h1 className="text-lg font-medium text-gray-800">Ananim Manager Painel</h1>
+            <img src="/ananim-mark.png" alt="Ananim" className="h-8 w-8 object-contain" />
+            <h1 className="text-lg font-medium font-display text-white">Ananim Manager Painel</h1>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-gray-600 text-sm">Bem vindo, {user.name || 'Usuário'}!</span>
+            <span className="text-gray-300 text-sm">Bem vindo, {user.name || 'Usuário'}!</span>
             <button
               type="button"
               onClick={handleLogout}
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-ananim-accent hover:underline"
             >
               Sair
             </button>

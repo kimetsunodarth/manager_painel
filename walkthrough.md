@@ -1,4 +1,4 @@
-# Walkthrough - External Schedule Monitoring (v1.2.0)
+# Walkthrough - External Schedule Monitoring (v1.2.x)
 
 Esta versão introduz o monitoramento automatizado para VMs com controle externo (como Cloud8), permitindo que o Painel calcule automaticamente as horas extras mesmo sem controlar o ligar/desligar.
 
@@ -24,7 +24,7 @@ Esta versão introduz o monitoramento automatizado para VMs com controle externo
 ## Instalador Gerado
 
 O novo instalador está disponível em:
-`C:\Projetos\Ananim_manager_painel\installer\Output\Ananim-Manager-Painel-IIS-Setup-1.2.0.exe`
+`C:\Projetos\Ananim_manager_painel\installer\Output\Ananim-Manager-Painel-IIS-Setup-1.2.14.exe`
 
 > [!TIP]
-> Ao instalar o v1.2.0, as VMs marcadas como "Externo" começarão a gerar logs de horas extras automaticamente sempre que estiverem ligadas fora do horário cadastrado.
+> Ao instalar a linha v1.2.x, as VMs marcadas como "Externo" começarão a gerar logs de horas extras automaticamente sempre que estiverem ligadas fora do horário cadastrado.

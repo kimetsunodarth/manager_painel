@@ -9,6 +9,7 @@
 #endif
 #define MyAppName "Ananim Manager Painel"
 #define MyAppVersion "1.2.14"
+#define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"
 #define MyAppURL "https://github.com/"
 
@@ -41,17 +42,23 @@ Name: "configiis"; Description: "Configurar site no IIS ao final da instalacao (
 
 [Files]
 ; Pacote gerado por build-package-iis.ps1: APENAS exe + public + lib + logs + scripts (NAO inclui config, data, iisnode, node_modules)
-Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Em upgrades, evitar sobrescrever config/dados do cliente.
+Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Excludes: "config\*;config.enc;.encryption_key;key.bin"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; Config e chaves só na primeira instalação (não sobrescrever em atualização).
+Source: ".\{#PackageDir}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist
+Source: ".\{#PackageDir}\config.enc"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+Source: ".\{#PackageDir}\.encryption_key"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
 
 [Dirs]
 ; logs, data e config/ sao criados com permissoes para o App Pool IIS poder escrever
-Name: "{app}\logs"; Permissions: users-modify
-Name: "{app}\data"; Permissions: users-modify
-Name: "{app}\config"; Permissions: users-modify
-Name: "{app}\config\clients"; Permissions: users-modify
-Name: "{app}\config\hana-clients"; Permissions: users-modify
-Name: "{app}\config\sql-clients"; Permissions: users-modify
-Name: "{app}\config\control-center"; Permissions: users-modify
+Name: "{app}\logs"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\data"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\config"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\config\clients"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\config\hana-clients"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\config\sql-clients"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\config\control-center"; Permissions: users-modify; Flags: uninsneveruninstall
 
 [Icons]
 Name: "{group}\Abrir Painel"; Filename: "{app}\Ananim-Abrir-Painel.exe"; Comment: "Abre o painel no navegador (http://localhost:8890/)"
@@ -64,6 +71,74 @@ Filename: "{app}\Configurar-IIS.bat"; Description: "Abrir configuracao do IIS (s
 [Code]
 const
   URL_REWRITE_MSI = 'https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi';
+
+var
+  UpdateModePage: TWizardPage;
+  RbUpdate: TNewRadioButton;
+  RbClean: TNewRadioButton;
+
+function GetInstalledUninstallString(): String;
+var
+  key, s: String;
+begin
+  // Inno Setup registra o uninstall em ...\Uninstall\<AppId>_is1
+  key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + '{#MyAppId}' + '}_is1';
+  if RegQueryStringValue(HKLM, key, 'UninstallString', s) then
+    Result := s
+  else if RegQueryStringValue(HKCU, key, 'UninstallString', s) then
+    Result := s
+  else
+    Result := '';
+end;
+
+function IsUpdateOnlySelected(): Boolean;
+begin
+  Result := (RbUpdate <> nil) and RbUpdate.Checked;
+end;
+
+procedure InitializeWizard();
+var
+  uninstallStr: String;
+begin
+  uninstallStr := GetInstalledUninstallString();
+  if uninstallStr = '' then exit;
+
+  // Página de modo de instalação quando já existe uma instalação.
+  UpdateModePage := CreateCustomPage(wpSelectDir, 'Modo de instalação', 'Escolha como deseja proceder com a instalação.');
+
+  RbUpdate := TNewRadioButton.Create(UpdateModePage);
+  RbUpdate.Parent := UpdateModePage.Surface;
+  RbUpdate.Left := ScaleX(0);
+  RbUpdate.Top := ScaleY(8);
+  RbUpdate.Width := UpdateModePage.SurfaceWidth;
+  RbUpdate.Caption := 'Atualizar (recomendado) — mantém config.enc, .encryption_key e dados em \data';
+  RbUpdate.Checked := True;
+
+  RbClean := TNewRadioButton.Create(UpdateModePage);
+  RbClean.Parent := UpdateModePage.Surface;
+  RbClean.Left := ScaleX(0);
+  RbClean.Top := RbUpdate.Top + ScaleY(26);
+  RbClean.Width := UpdateModePage.SurfaceWidth;
+  RbClean.Caption := 'Reinstalação limpa — remove a instalação anterior antes de instalar';
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  uninstallStr, params: String;
+  resultCode: Integer;
+begin
+  Result := '';
+  uninstallStr := GetInstalledUninstallString();
+  if uninstallStr = '' then exit;
+
+  // Atualização: não desinstala; apenas sobrescreve arquivos do pacote.
+  if IsUpdateOnlySelected() then exit;
+
+  // Reinstalação limpa: roda o uninstaller da versão anterior antes de copiar arquivos.
+  params := '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART';
+  if not Exec(uninstallStr, params, '', SW_HIDE, ewWaitUntilTerminated, resultCode) then
+    Result := 'Falha ao executar o desinstalador da versão anterior.';
+end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var

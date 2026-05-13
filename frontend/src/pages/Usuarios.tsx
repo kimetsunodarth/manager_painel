@@ -348,78 +348,81 @@ export default function Usuarios() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-800">Usuários e permissões</h2>
+        <h2 className="text-xl font-semibold font-display text-white">Usuários e permissões</h2>
         <button
           type="button"
           onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+          className="ananim-btn-primary"
         >
           {showForm ? 'Cancelar' : 'Adicionar usuário'}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Novo usuário</h3>
-          {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-          {success && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">{success}</div>}
+        <div className="ananim-card p-6 mb-6">
+          <h3 className="text-lg font-medium text-white mb-4">Novo usuário</h3>
+          {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{error}</div>}
+          {success && <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 rounded-lg text-sm">{success}</div>}
           <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Nome</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="ananim-input"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">E-mail</label>
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="ananim-input"
                   required
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Senha</label>
                 <input
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="ananim-input"
                   required
                   minLength={6}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Perfil</label>
                 <select
                   value={form.role}
                   onChange={(e) => {
                     const newRole = e.target.value;
-                    const newPerms = newRole === 'admin' 
+                    const newPerms = newRole === 'admin'
                       ? ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects']
-                      : ['backups:list'];
+                      : newRole === 'client'
+                        ? ['backups:list', 'services:*']
+                        : ['backups:list'];
                     setForm((f) => ({ ...f, role: newRole, permissions: newPerms }));
                   }}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="ananim-input"
                 >
                   <option value="operator">Operador</option>
+                  <option value="client">Cliente</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>
             </div>
 
             {form.role !== 'admin' && (
-              <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Permissões Especiais</label>
+              <div className="bg-white/[0.03] p-3 rounded-lg border border-white/10">
+                <label className="block text-sm font-medium text-gray-200 mb-2">Permissões Especiais</label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.permissions?.includes('ecs:*') ?? false} onChange={() => togglePermission('ecs:*')} className="rounded border-gray-300"/>
@@ -442,23 +445,23 @@ export default function Usuarios() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-200 mb-2">
                 Projetos Huawei (visão ao logar)
               </label>
               <p className="text-xs text-gray-500 mb-2">
                 Selecione os projetos que este usuário poderá ver na Home ao logar.
               </p>
               {huaweiProjectsLoading ? (
-                <p className="text-sm text-gray-500">Carregando projetos...</p>
+                <p className="text-sm text-gray-400">Carregando projetos...</p>
               ) : huaweiProjects.length === 0 ? (
-                <p className="text-sm text-gray-500">Nenhum projeto carregado. Carregue os projetos na Home primeiro ou tente novamente.</p>
+                <p className="text-sm text-gray-400">Nenhum projeto carregado. Carregue os projetos na Home primeiro ou tente novamente.</p>
               ) : (
                 <>
                   <div className="flex gap-2 mb-2">
                     <button
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, visibleProjects: [...huaweiProjects] }))}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-sm text-ananim-accent hover:text-white font-medium"
                     >
                       Selecionar todos
                     </button>
@@ -466,12 +469,12 @@ export default function Usuarios() {
                     <button
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, visibleProjects: [] }))}
-                      className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                      className="text-sm text-gray-300 hover:text-white font-medium"
                     >
                       Desmarcar todos
                     </button>
                   </div>
-                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 flex flex-wrap gap-2">
+                  <div className="max-h-40 overflow-y-auto border border-white/10 rounded-lg p-2 flex flex-wrap gap-2 bg-white/[0.02]">
                     {huaweiProjects.map((p) => (
                       <label key={projectKey(p)} className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -489,7 +492,7 @@ export default function Usuarios() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
+              <label className="block text-sm font-medium text-gray-200 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
               {form.visibleProjects.map(p => {
                 const key = projectKey(p);
                 const ecsList = projectEcsMap[key] || [];
@@ -504,7 +507,7 @@ export default function Usuarios() {
                 };
                 return (
                   <div key={key} className="mb-2">
-                    <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
+                    <p className="text-xs font-semibold text-gray-300 border-b border-white/10 pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
                     <div className="flex flex-wrap gap-2">
                       {ecsList.length === 0 && <span className="text-xs text-gray-400">Carregando ECS...</span>}
                       {ecsList.map(ecs => (
@@ -520,10 +523,10 @@ export default function Usuarios() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-200 mb-2">
                 ECS permitidos (start/stop/restart)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-gray-400 mb-2">
                 Selecione os ambientes/ECS que este usuário pode iniciar, parar ou reiniciar.
               </p>
               {envs.length > 0 && (
@@ -531,7 +534,7 @@ export default function Usuarios() {
                   <button
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, allowedEcsIds: envs.map((e) => e.id) }))}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-sm text-ananim-accent hover:text-white font-medium"
                   >
                     Selecionar todos
                   </button>
@@ -539,7 +542,7 @@ export default function Usuarios() {
                   <button
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, allowedEcsIds: [] }))}
-                    className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                    className="text-sm text-gray-300 hover:text-white font-medium"
                   >
                     Desmarcar todos
                   </button>
@@ -560,17 +563,17 @@ export default function Usuarios() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-200 mb-2">
                 Serviços SAP/HANA (restart)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-gray-400 mb-2">
                 Selecione os serviços que este operador pode executar na tela Serviços (reiniciar Banco Hana, EDS, Service Layer, SLD).
               </p>
               <div className="flex gap-2 mb-2">
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, allowedServiceIds: sapServiceOptions.map((s) => s.id) }))}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-sm text-ananim-accent hover:text-white font-medium"
                 >
                   Selecionar todos
                 </button>
@@ -578,7 +581,7 @@ export default function Usuarios() {
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, allowedServiceIds: [] }))}
-                  className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                  className="text-sm text-gray-300 hover:text-white font-medium"
                 >
                   Desmarcar todos
                 </button>
@@ -600,14 +603,14 @@ export default function Usuarios() {
             <div className="flex gap-2">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700"
+                className="ananim-btn-primary"
               >
                 Criar usuário
               </button>
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm font-medium hover:bg-gray-300"
+                className="ananim-btn-ghost"
               >
                 Cancelar
               </button>
@@ -616,26 +619,26 @@ export default function Usuarios() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <h3 className="text-lg font-medium text-gray-800 p-4 border-b border-gray-100">
+      <div className="ananim-card overflow-hidden">
+        <h3 className="text-lg font-medium text-white p-4 border-b border-white/10">
           Usuários cadastrados
         </h3>
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Carregando...</div>
+          <div className="p-8 text-center text-gray-400">Carregando...</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-white/[0.04] border-b border-white/10">
               <tr>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Nome</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">E-mail</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Perfil</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Permissões ECS</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Ações</th>
+                <th className="text-left py-2 px-4 font-semibold text-gray-200">Nome</th>
+                <th className="text-left py-2 px-4 font-semibold text-gray-200">E-mail</th>
+                <th className="text-left py-2 px-4 font-semibold text-gray-200">Perfil</th>
+                <th className="text-left py-2 px-4 font-semibold text-gray-200">Permissões ECS</th>
+                <th className="text-left py-2 px-4 font-semibold text-gray-200">Ações</th>
               </tr>
             </thead>
             <tbody>
               {list.map((u) => (
-                <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={u.id} className="border-b border-white/10 hover:bg-white/[0.03]">
                   <td className="py-3 px-4">{u.name}</td>
                   <td className="py-3 px-4">{u.email}</td>
                   <td className="py-3 px-4 capitalize">{u.role}</td>
@@ -648,7 +651,7 @@ export default function Usuarios() {
                         type="button"
                         onClick={() => openEdit(u)}
                         disabled={!!actionLoading}
-                        className="text-blue-600 hover:text-blue-800 font-medium text-xs disabled:opacity-50"
+                        className="text-ananim-accent hover:text-white font-medium text-xs disabled:opacity-50"
                         title="Editar usuário"
                       >
                         Editar
@@ -681,16 +684,16 @@ export default function Usuarios() {
 
       {resetUserId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-medium text-gray-800 mb-2">Redefinir senha</h3>
-            <p className="text-sm text-gray-600 mb-3">Informe a nova senha (mín. 6 caracteres).</p>
-            {error && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+          <div className="ananim-card p-6 max-w-sm w-full shadow-lg shadow-black/30">
+            <h3 className="text-lg font-medium text-white mb-2">Redefinir senha</h3>
+            <p className="text-sm text-gray-300 mb-3">Informe a nova senha (mín. 6 caracteres).</p>
+            {error && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{error}</div>}
             <input
               type="password"
               value={resetPassword}
               onChange={(e) => setResetPassword(e.target.value)}
               placeholder="Nova senha"
-              className="w-full border border-gray-300 rounded px-3 py-2 mb-4"
+              className="ananim-input mb-4"
               minLength={6}
               autoFocus
             />
@@ -698,14 +701,14 @@ export default function Usuarios() {
               <button
                 type="button"
                 onClick={() => { setResetUserId(null); setResetPassword(''); setError(''); }}
-                className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="ananim-btn-ghost"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleResetPassword}
-                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                className="ananim-btn-primary"
               >
                 Salvar
               </button>
@@ -716,68 +719,71 @@ export default function Usuarios() {
 
       {editingUserId && editForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-xl w-full my-8">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">Editar usuário</h3>
-            {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">{success}</div>}
+          <div className="ananim-card p-6 max-w-xl w-full my-8 shadow-lg shadow-black/30">
+            <h3 className="text-lg font-medium text-white mb-4">Editar usuário</h3>
+            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{error}</div>}
+            {success && <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 rounded-lg text-sm">{success}</div>}
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Nome</label>
                   <input
                     type="text"
                     value={editForm.name}
                     onChange={(e) => setEditForm((f) => f ? { ...f, name: e.target.value } : f)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="ananim-input"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">E-mail</label>
                   <input
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm((f) => f ? { ...f, email: e.target.value } : f)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="ananim-input"
                     required
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Perfil</label>
                   <select
                     value={editForm.role}
                     onChange={(e) => {
                       const newRole = e.target.value;
                       if (newRole === 'admin') {
                         setEditForm((f) => f ? { ...f, role: newRole, permissions: ['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects'] } : f);
+                      } else if (newRole === 'client') {
+                        setEditForm((f) => f ? { ...f, role: newRole, permissions: ['backups:list', 'services:*'] } : f);
                       } else {
-                        setEditForm((f) => f ? { ...f, role: newRole } : f);
+                        setEditForm((f) => f ? { ...f, role: newRole, permissions: ['backups:list'] } : f);
                       }
                     }}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="ananim-input"
                   >
                     <option value="operator">Operador</option>
+                    <option value="client">Cliente</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nova senha (opcional)</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Nova senha (opcional)</label>
                   <input
                     type="password"
                     value={editForm.password}
                     onChange={(e) => setEditForm((f) => f ? { ...f, password: e.target.value } : f)}
                     placeholder="Deixe em branco para não alterar"
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="ananim-input"
                     minLength={6}
                   />
                 </div>
               </div>
 
               {editForm.role !== 'admin' && (
-                <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Permissões Especiais</label>
+                <div className="bg-white/[0.03] p-3 rounded-lg border border-white/10">
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Permissões Especiais</label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={editForm.permissions?.includes('ecs:*') ?? false} onChange={() => toggleEditPermission('ecs:*')} className="rounded border-gray-300"/>
@@ -800,18 +806,18 @@ export default function Usuarios() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Projetos Huawei (visão ao logar)</label>
+                <label className="block text-sm font-medium text-gray-200 mb-2">Projetos Huawei (visão ao logar)</label>
                 {huaweiProjectsLoading ? (
-                  <p className="text-sm text-gray-500">Carregando projetos...</p>
+                  <p className="text-sm text-gray-400">Carregando projetos...</p>
                 ) : huaweiProjects.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nenhum projeto carregado.</p>
+                  <p className="text-sm text-gray-400">Nenhum projeto carregado.</p>
                 ) : (
                   <>
                     <div className="flex gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => setEditForm((f) => f ? { ...f, visibleProjects: [...huaweiProjects] } : f)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-sm text-ananim-accent hover:text-white font-medium"
                       >
                         Selecionar todos
                       </button>
@@ -819,12 +825,12 @@ export default function Usuarios() {
                       <button
                         type="button"
                         onClick={() => setEditForm((f) => f ? { ...f, visibleProjects: [] } : f)}
-                        className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                        className="text-sm text-gray-300 hover:text-white font-medium"
                       >
                         Desmarcar todos
                       </button>
                     </div>
-                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded p-2 flex flex-wrap gap-2">
+                    <div className="max-h-40 overflow-y-auto border border-white/10 rounded-lg p-2 flex flex-wrap gap-2 bg-white/[0.02]">
                       {huaweiProjects.map((p) => (
                         <label key={projectKey(p)} className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -841,7 +847,7 @@ export default function Usuarios() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
+                <label className="block text-sm font-medium text-gray-200 mt-4 mb-2">ECS permitidas Huawei (Projetos selecionados)</label>
                 {(editForm.visibleProjects || []).map(p => {
                   const key = projectKey(p);
                   const ecsList = projectEcsMap[key] || [];
@@ -857,7 +863,7 @@ export default function Usuarios() {
                   };
                   return (
                     <div key={key} className="mb-2">
-                      <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
+                      <p className="text-xs font-semibold text-gray-300 border-b border-white/10 pb-1 mb-1">{displayPerfil(p.perfil)} — {p.name || p.id}</p>
                       <div className="flex flex-wrap gap-2">
                         {ecsList.length === 0 && <span className="text-xs text-gray-400">Carregando ECS...</span>}
                         {ecsList.map(ecs => (
@@ -872,14 +878,14 @@ export default function Usuarios() {
                 })}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ECS permitidos</label>
+                <label className="block text-sm font-medium text-gray-200 mb-2">ECS permitidos</label>
                 {envs.length > 0 && (
                   <>
                     <div className="flex gap-2 mb-2">
                       <button
                         type="button"
                         onClick={() => setEditForm((f) => f ? { ...f, allowedEcsIds: envs.map((e) => e.id) } : f)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-sm text-ananim-accent hover:text-white font-medium"
                       >
                         Selecionar todos
                       </button>
@@ -887,7 +893,7 @@ export default function Usuarios() {
                       <button
                         type="button"
                         onClick={() => setEditForm((f) => f ? { ...f, allowedEcsIds: [] } : f)}
-                        className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                        className="text-sm text-gray-300 hover:text-white font-medium"
                       >
                         Desmarcar todos
                       </button>
@@ -909,12 +915,12 @@ export default function Usuarios() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Serviços SAP/HANA (restart)</label>
+                <label className="block text-sm font-medium text-gray-200 mb-2">Serviços SAP/HANA (restart)</label>
                 <div className="flex gap-2 mb-2">
                   <button
                     type="button"
                     onClick={() => setEditForm((f) => f ? { ...f, allowedServiceIds: sapServiceOptions.map((s) => s.id) } : f)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-sm text-ananim-accent hover:text-white font-medium"
                   >
                     Selecionar todos
                   </button>
@@ -922,7 +928,7 @@ export default function Usuarios() {
                   <button
                     type="button"
                     onClick={() => setEditForm((f) => f ? { ...f, allowedServiceIds: [] } : f)}
-                    className="text-sm text-gray-600 hover:text-gray-800 font-medium"
+                    className="text-sm text-gray-300 hover:text-white font-medium"
                   >
                     Desmarcar todos
                   </button>
@@ -942,12 +948,12 @@ export default function Usuarios() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente preferido na aba Serviços</label>
-                <p className="text-xs text-gray-500 mb-1">Quando o usuário tem vários projetos (ex.: Roland e CLOUDHDB), define qual cliente exibir em Serviços. Deixe em automático para usar a ordem dos projetos.</p>
+                <label className="block text-sm font-medium text-gray-200 mb-1">Cliente preferido na aba Serviços</label>
+                <p className="text-xs text-gray-400 mb-1">Quando o usuário tem vários projetos (ex.: Roland e CLOUDHDB), define qual cliente exibir em Serviços. Deixe em automático para usar a ordem dos projetos.</p>
                 <select
                   value={editForm.preferredServiceClientKey}
                   onChange={(e) => setEditForm((f) => f ? { ...f, preferredServiceClientKey: e.target.value } : f)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                  className="ananim-input text-sm"
                 >
                   {PREFERRED_SERVICE_CLIENT_OPTIONS.map((opt) => (
                     <option key={opt.value || 'auto'} value={opt.value}>{opt.label}</option>
@@ -958,14 +964,14 @@ export default function Usuarios() {
                 <button
                   type="button"
                   onClick={() => { setEditingUserId(null); setEditForm(null); setError(''); setSuccess(''); }}
-                  className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium"
+                  className="ananim-btn-ghost font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={editLoading}
-                  className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium disabled:opacity-50"
+                  className="ananim-btn-primary font-medium disabled:opacity-60"
                 >
                   {editLoading ? 'Salvando...' : 'Salvar'}
                 </button>

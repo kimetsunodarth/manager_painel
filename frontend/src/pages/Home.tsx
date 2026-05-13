@@ -553,36 +553,36 @@ export default function Home() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <img src="/ananim1.jpg" alt="Ananim" className="h-10 w-auto object-contain" />
-        <h2 className="text-xl font-semibold text-gray-800">Página inicial</h2>
+        <img src="/ananim-mark.png" alt="Ananim" className="h-10 w-10 object-contain" />
+        <h2 className="text-xl font-semibold font-display text-white">Página inicial</h2>
       </div>
 
       {(isAdmin || huaweiProjects !== null) && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <h3 className="text-lg font-medium text-gray-800 mb-2">
+        <div className="ananim-card p-4 mb-6">
+          <h3 className="text-lg font-medium text-white mb-2">
             {isAdmin ? 'Projetos Huawei (API real) — apenas administradores' : 'Meus projetos Huawei'}
           </h3>
           {isAdmin && (
-            <p className="text-sm text-gray-500 mb-3">
-              Use <code className="bg-gray-100 px-1 rounded">config.enc</code> + <code className="bg-gray-100 px-1 rounded">.encryption_key</code> (CBR) ou <code className="bg-gray-100 px-1 rounded">.env</code>. Perfis: NOME_ACCESS_KEY, NOME_SECRET_KEY, NOME_PROJECT_ID, NOME_REGION.
+            <p className="text-sm text-gray-300 mb-3">
+              Use <code className="bg-white/[0.06] px-1 rounded">config.enc</code> + <code className="bg-white/[0.06] px-1 rounded">.encryption_key</code> (CBR) ou <code className="bg-white/[0.06] px-1 rounded">.env</code>. Perfis: NOME_ACCESS_KEY, NOME_SECRET_KEY, NOME_PROJECT_ID, NOME_REGION.
             </p>
           )}
           {isAdmin && (
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            <label className="text-sm text-gray-600">Fonte:</label>
+            <label className="text-sm text-gray-300">Fonte:</label>
             <select
               value={huaweiSource}
               onChange={(e) => setHuaweiSource(e.target.value as 'master' | 'all_perfis')}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+              className="ananim-input w-auto px-2 py-1.5 text-sm"
             >
               <option value="all_perfis">Todas as contas (perfis do config)</option>
               <option value="master">Uma conta (master)</option>
             </select>
-            <label className="text-sm text-gray-600">Listar:</label>
+            <label className="text-sm text-gray-300">Listar:</label>
             <select
               value={huaweiScope}
               onChange={(e) => setHuaweiScope(e.target.value as 'region' | 'all')}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+              className="ananim-input w-auto px-2 py-1.5 text-sm"
             >
               <option value="region">Apenas região de cada conta</option>
               <option value="all">Todos os projetos de cada conta</option>
@@ -591,14 +591,14 @@ export default function Home() {
               type="button"
               onClick={loadHuaweiProjects}
               disabled={huaweiLoading}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="ananim-btn-primary px-4 py-2 disabled:opacity-60"
             >
               {huaweiLoading ? 'Carregando...' : 'Carregar projetos Huawei'}
             </button>
             <button
               type="button"
               onClick={openDiscoverModal}
-              className="bg-purple-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-purple-700"
+              className="ananim-btn bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/25 px-4 py-2"
             >
               Descobrir Projetos Automaticamente
             </button>
@@ -606,7 +606,7 @@ export default function Home() {
               type="button"
               onClick={clearVisibleProjects}
               disabled={clearVisibleLoading}
-              className="bg-gray-500 text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-600 disabled:opacity-50"
+              className="ananim-btn-ghost px-4 py-2 disabled:opacity-60"
               title="Limpa a lista fixa visível para buscar novamente com a nova implementação"
             >
               {clearVisibleLoading ? 'Limpando...' : 'Limpar projetos visíveis'}
@@ -619,35 +619,35 @@ export default function Home() {
           {huaweiProjects && (
             <>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <label className="text-sm font-medium text-gray-700">Buscar projetos:</label>
+                <label className="text-sm font-medium text-gray-200">Buscar projetos:</label>
                 <input
                   type="search"
                   value={huaweiSearch}
                   onChange={(e) => setHuaweiSearch(e.target.value)}
                   placeholder="Perfil, projeto, região..."
-                  className="flex-1 min-w-[200px] max-w-sm border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="ananim-input flex-1 min-w-[200px] max-w-sm text-sm"
                 />
                 {huaweiSearch.trim() && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-400">
                     {filteredProjects.length} de {huaweiProjects.length} projeto(s)
                   </span>
                 )}
               </div>
-              <div className="mt-4 overflow-x-auto border border-gray-200 rounded">
+              <div className="mt-4 overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-white/[0.04] border-b border-white/10">
                     <tr>
-                      {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-700"> </th>}
-                      <th className="text-left py-2 px-3 font-semibold text-gray-700">Perfil</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-700">Projeto</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-700">Região</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-700">Status</th>
+                      {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
+                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredProjects.length === 0 ? (
                       <tr>
-                        <td colSpan={isAdmin ? 5 : 4} className="py-6 px-3 text-center text-gray-500">
+                        <td colSpan={isAdmin ? 5 : 4} className="py-6 px-3 text-center text-gray-400">
                           {huaweiSearch.trim() ? 'Nenhum projeto encontrado para esta busca.' : 'Nenhum projeto carregado.'}
                         </td>
                       </tr>
@@ -656,7 +656,7 @@ export default function Home() {
                       <tr
                         key={projectKey(p)}
                         onClick={() => loadEcsForProject(p)}
-                        className={`border-b border-gray-100 cursor-pointer hover:bg-blue-50 ${selectedProject?.id === p.id && selectedProject?.perfil === p.perfil ? 'bg-blue-100' : ''}`}
+                        className={`border-b border-white/10 cursor-pointer hover:bg-white/[0.03] ${selectedProject?.id === p.id && selectedProject?.perfil === p.perfil ? 'bg-ananim-accent/10' : ''}`}
                       >
                         {isAdmin && (
                         <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -670,7 +670,7 @@ export default function Home() {
                         )}
                         <td className="py-2 px-3 font-medium">{displayPerfil(p.perfil)}</td>
                         <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
-                        <td className="py-2 px-3 text-gray-600">{p.region || '—'}</td>
+                        <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
                         <td className="py-2 px-3">{p.enabled ? 'Ativo' : 'Desativado'}</td>
                       </tr>
                     ))
@@ -679,7 +679,7 @@ export default function Home() {
                 </table>
               </div>
               {isAdmin && (
-                <p className="mt-2 text-xs text-gray-500">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
+                <p className="mt-2 text-xs text-gray-400">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
               )}
 
               {isAdmin && selectedProjects.length > 0 && (
@@ -687,57 +687,57 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={openAddUserModal}
-                    className="bg-amber-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-amber-700"
+                    className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 px-4 py-2"
                   >
                     Adicionar usuário à visão
                   </button>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-400">
                     {selectedProjects.length} projeto(s) selecionado(s) — escolha o usuário que poderá ver estes projetos ao logar.
                   </span>
                 </div>
               )}
 
               {isAdmin && selectedProjects.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="text-base font-medium text-gray-800 mb-2">Projetos selecionados</h4>
-                  <div className="overflow-x-auto border border-gray-200 rounded">
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <h4 className="text-base font-medium text-white mb-2">Projetos selecionados</h4>
+                  <div className="overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
+                      <thead className="bg-white/[0.04] border-b border-white/10">
                         <tr>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Perfil</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Projeto</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Região</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Status do Ambiente</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Ações</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Status do Ambiente</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedProjects.map((p) => (
-                          <tr key={projectKey(p)} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={projectKey(p)} className="border-b border-white/10 hover:bg-white/[0.03]">
                             <td className="py-2 px-3 font-medium">{p.displayPerfil ?? displayPerfil(p.perfil)}</td>
                             <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
-                            <td className="py-2 px-3 text-gray-600">{p.region || '—'}</td>
+                            <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
                             <td className="py-2 px-3 capitalize">{p.enabled !== false ? 'Ativo' : 'Desativado'}</td>
                             <td className="py-2 px-3">
                               <span className="inline-flex gap-1 items-center">
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
-                                  className="p-1 rounded hover:bg-gray-200"
+                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
                                   title="Ver ECS"
                                 >
                                   📋
                                 </button>
                                 <Link
                                   to="/programacao"
-                                  className="p-1 rounded hover:bg-gray-200"
+                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
                                   title="Programação"
                                 >
                                   📅
                                 </Link>
                                 <button
                                   type="button"
-                                  className="p-1 rounded hover:bg-gray-200"
+                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
                                   title="Atualizar"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
                                 >
@@ -754,17 +754,17 @@ export default function Home() {
               )}
 
               {selectedProject && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="text-base font-medium text-gray-800 mb-2">
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <h4 className="text-base font-medium text-white mb-2">
                     ECS do projeto: {ecsProjectTitle(selectedProject, huaweiEcs)}
                     {huaweiEcs?.[0]?.schedule?.start != null && huaweiEcs[0].schedule?.end != null && (
-                      <span className="ml-2 text-sm font-normal text-gray-500">
+                      <span className="ml-2 text-sm font-normal text-gray-400">
                         (Horário geral: {huaweiEcs[0].schedule.start}–{huaweiEcs[0].schedule.end})
                       </span>
                     )}
                   </h4>
                   {schedulesVmForProject.length > 0 && (
-                    <p className="text-sm text-gray-600 mb-2">
+                    <p className="text-sm text-gray-300 mb-2">
                       Agendamentos por VM (igual à página Programação):{' '}
                       {schedulesVmForProject
                         .map(
@@ -775,27 +775,27 @@ export default function Home() {
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <label className="text-sm font-medium text-gray-700">Filtrar por cliente (como CBR):</label>
+                    <label className="text-sm font-medium text-gray-200">Filtrar por cliente (como CBR):</label>
                     <input
                       type="search"
                       value={ecsClienteFilter}
                       onChange={(e) => setEcsClienteFilter(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadEcsForProject(selectedProject)}
                       placeholder="centro_custo, metadata.cliente ou nome da ECS"
-                      className="flex-1 min-w-[180px] max-w-sm border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="ananim-input flex-1 min-w-[180px] max-w-sm text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => loadEcsForProject(selectedProject)}
                       disabled={huaweiEcsLoading}
-                      className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                      className="ananim-btn-primary px-3 py-2"
                     >
                       Buscar ECS
                     </button>
                     <button
                       type="button"
                       onClick={openCancelScheduleModal}
-                      className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-amber-700"
+                      className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 px-3 py-2"
                       title="Cancelar programação (start ou stop) para um dia específico"
                     >
                       Cancelar programação
@@ -805,14 +805,14 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={openScheduleModal}
-                          className="bg-gray-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gray-700"
+                          className="ananim-btn-ghost px-3 py-2"
                           title="Horário em que as VMs deste projeto ficam ligadas (marcador de horas a mais)"
                         >
                           Definir programação
                         </button>
                     {huaweiEcs?.[0]?.schedule?.start && huaweiEcs[0].schedule?.end && (
                           skipNextStop ? (
-                            <span className="px-3 py-2 rounded text-sm font-medium bg-green-100 text-green-800" title="O próximo stop programado foi cancelado">
+                            <span className="px-3 py-2 rounded text-sm font-medium bg-emerald-500/10 text-emerald-200 border border-emerald-500/20" title="O próximo stop programado foi cancelado">
                               Stop cancelado (prorrogação)
                             </span>
                           ) : (
@@ -820,7 +820,7 @@ export default function Home() {
                               type="button"
                               onClick={onCancelStop}
                               disabled={cancelStopLoading}
-                              className="bg-green-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                              className="ananim-btn bg-emerald-500/10 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/15 px-3 py-2 disabled:opacity-50"
                               title="Cancela o próximo stop programado (extensão de horário)"
                             >
                               {cancelStopLoading ? '...' : 'Cancelar stop'}
@@ -829,11 +829,11 @@ export default function Home() {
                         )}
                         {selectedEcsIds.length > 0 && (
                           <>
-                            <span className="text-xs text-gray-500">{selectedEcsIds.length} ECS selecionada(s)</span>
+                            <span className="text-xs text-gray-400">{selectedEcsIds.length} ECS selecionada(s)</span>
                             <button
                               type="button"
                               onClick={openAssignEcsModal}
-                              className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-amber-700"
+                              className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 px-3 py-2"
                             >
                               Atribuir ECS ao usuário
                             </button>
@@ -842,28 +842,28 @@ export default function Home() {
                       </>
                     )}
                   </div>
-                  {huaweiEcsLoading && <p className="text-sm text-gray-500">Carregando ECS...</p>}
+                  {huaweiEcsLoading && <p className="text-sm text-gray-400">Carregando ECS...</p>}
                   {huaweiEcsError && <p className="text-sm text-red-600">{huaweiEcsError}</p>}
                   {huaweiEcs && !huaweiEcsLoading && (
-                    <div className="overflow-x-auto border border-gray-200 rounded">
+                    <div className="overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
+                        <thead className="bg-white/[0.04] border-b border-white/10">
                           <tr>
-                            {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-700"> </th>}
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Nome</th>
-                            {isAdmin && <th className="text-left py-2 px-3 font-semibold text-gray-700">ID</th>}
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Cliente (metadata)</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Status</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Flavor</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Disco(s)</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">IPs</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700" title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Ações</th>
+                            {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Nome</th>
+                            {isAdmin && <th className="text-left py-2 px-3 font-semibold text-gray-200">ID</th>}
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Cliente (metadata)</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Flavor</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Disco(s)</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">IPs</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200" title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {huaweiEcs.length === 0 ? (
-                            <tr><td colSpan={isAdmin ? 10 : 8} className="py-4 px-3 text-gray-500 text-center">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
+                            <tr><td colSpan={isAdmin ? 10 : 8} className="py-4 px-3 text-gray-400 text-center">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
                           ) : (
                             huaweiEcs.map((s) => {
                               const ips = s.addresses
@@ -872,7 +872,7 @@ export default function Home() {
                               const metaCliente = s.metadata?.centro_custo || s.metadata?.centrodecusto || s.metadata?.cost_center || s.metadata?.cliente || s.metadata?.client || '—';
                               const loading = huaweiEcsActionLoading !== null;
                               return (
-                                <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                <tr key={s.id} className="border-b border-white/10 hover:bg-white/[0.03]">
                                   {isAdmin && (
                                     <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                                       <input
@@ -886,12 +886,12 @@ export default function Home() {
                                   )}
                                   <td className="py-2 px-3 font-medium">{s.name || s.id}</td>
                                   {isAdmin && <td className="py-2 px-3 font-mono text-xs">{s.id}</td>}
-                                  <td className="py-2 px-3 text-gray-600">{metaCliente}</td>
+                                  <td className="py-2 px-3 text-gray-300">{metaCliente}</td>
                                   <td className="py-2 px-3">{s.status}</td>
-                                  <td className="py-2 px-3 text-gray-600">{formatFlavor(s.flavor)}</td>
-                                  <td className="py-2 px-3 text-gray-600">{formatDiskSize(s)}</td>
-                                  <td className="py-2 px-3 text-gray-600">{ips || '—'}</td>
-                                  <td className="py-2 px-3 text-gray-700 font-medium" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
+                                  <td className="py-2 px-3 text-gray-300">{formatFlavor(s.flavor)}</td>
+                                  <td className="py-2 px-3 text-gray-300">{formatDiskSize(s)}</td>
+                                  <td className="py-2 px-3 text-gray-300">{ips || '—'}</td>
+                                  <td className="py-2 px-3 text-gray-200 font-medium" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
                                     {formatMinutes(s.extraHours ? Math.round(Number(s.extraHours) * 60) : undefined)}
                                   </td>
                                   <td className="py-2 px-3">
@@ -900,7 +900,7 @@ export default function Home() {
                                         type="button"
                                         onClick={() => onHuaweiEcsAction(s.id, 'start', s.name)}
                                         disabled={loading}
-                                        className="px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium hover:bg-green-200 disabled:opacity-50"
+                                        className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-200 border border-emerald-500/20 text-xs font-medium hover:bg-emerald-500/15 disabled:opacity-50"
                                         title="Ligar ECS"
                                       >
                                         Ligar
@@ -909,7 +909,7 @@ export default function Home() {
                                         type="button"
                                         onClick={() => onHuaweiEcsAction(s.id, 'stop', s.name)}
                                         disabled={loading}
-                                        className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium hover:bg-amber-200 disabled:opacity-50"
+                                        className="px-2 py-1 rounded bg-amber-500/10 text-amber-200 border border-amber-500/20 text-xs font-medium hover:bg-amber-500/15 disabled:opacity-50"
                                         title="Parar ECS"
                                       >
                                         Stop
@@ -918,7 +918,7 @@ export default function Home() {
                                         type="button"
                                         onClick={() => onHuaweiEcsAction(s.id, 'restart', s.name)}
                                         disabled={loading}
-                                        className="px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium hover:bg-blue-200 disabled:opacity-50"
+                                        className="px-2 py-1 rounded bg-ananim-accent/10 text-ananim-accent border border-ananim-accent/20 text-xs font-medium hover:bg-ananim-accent/15 disabled:opacity-50"
                                         title="Reiniciar ECS"
                                       >
                                         Restart
@@ -939,29 +939,29 @@ export default function Home() {
           )}
           {showScheduleModal && selectedProject && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !scheduleSaving && setShowScheduleModal(false)}>
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Programação das VMs</h3>
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-medium text-white mb-2">Programação das VMs</h3>
+                <p className="text-sm text-gray-300 mb-3">
                   Horário em que as VMs deste projeto ficam ligadas. Fora desse intervalo, o marcador &quot;Horas a mais&quot; acumula.
                 </p>
-                {scheduleError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{scheduleError}</div>}
+                {scheduleError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{scheduleError}</div>}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Início (HH:mm)</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Início (HH:mm)</label>
                     <input
                       type="time"
                       value={scheduleStart}
                       onChange={(e) => setScheduleStart(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="ananim-input"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fim (HH:mm)</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Fim (HH:mm)</label>
                     <input
                       type="time"
                       value={scheduleEnd}
                       onChange={(e) => setScheduleEnd(e.target.value)}
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="ananim-input"
                     />
                   </div>
                 </div>
@@ -969,7 +969,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => !scheduleSaving && setShowScheduleModal(false)}
-                    className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="ananim-btn-ghost"
                   >
                     Cancelar
                   </button>
@@ -977,7 +977,7 @@ export default function Home() {
                     type="button"
                     onClick={clearSchedule}
                     disabled={scheduleSaving}
-                    className="px-4 py-2 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                    className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 disabled:opacity-50"
                   >
                     Limpar
                   </button>
@@ -985,7 +985,7 @@ export default function Home() {
                     type="button"
                     onClick={saveSchedule}
                     disabled={scheduleSaving}
-                    className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="ananim-btn-primary disabled:opacity-60"
                   >
                     {scheduleSaving ? 'Salvando...' : 'Salvar'}
                   </button>
@@ -996,27 +996,27 @@ export default function Home() {
 
           {showCancelScheduleModal && selectedProject && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowCancelScheduleModal(false)}>
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Cancelar programação para um dia</h3>
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="ananim-card p-6 max-w-lg w-full max-h-[90vh] flex flex-col shadow-lg shadow-black/30" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-medium text-white mb-2">Cancelar programação para um dia</h3>
+                <p className="text-sm text-gray-300 mb-3">
                   No dia escolhido o agendamento não será executado. No dia seguinte a programação oficial volta a valer.
                 </p>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Data</label>
                   <input
                     type="date"
                     value={cancelScheduleDate}
                     onChange={(e) => setCancelScheduleDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="ananim-input"
                   />
                 </div>
-                {cancelScheduleLoading && <p className="text-sm text-gray-500 mb-2">Carregando agendamentos...</p>}
+                {cancelScheduleLoading && <p className="text-sm text-gray-400 mb-2">Carregando agendamentos...</p>}
                 {!cancelScheduleLoading && cancelScheduleList.length === 0 && (
-                  <p className="text-sm text-gray-500 mb-3">Nenhum agendamento por VM neste projeto. Crie em Programação.</p>
+                  <p className="text-sm text-gray-400 mb-3">Nenhum agendamento por VM neste projeto. Crie em Programação.</p>
                 )}
                 {!cancelScheduleLoading && cancelScheduleList.length > 0 && (
-                  <div className="flex-1 overflow-y-auto border border-gray-200 rounded mb-4">
-                    <ul className="divide-y divide-gray-100">
+                  <div className="flex-1 overflow-y-auto border border-white/10 rounded-lg mb-4 bg-white/[0.02]">
+                    <ul className="divide-y divide-white/10">
                       {cancelScheduleList.map((s) => {
                         const timeStr = `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`;
                         const key = `${s.id}-${s.action}`;
@@ -1029,7 +1029,7 @@ export default function Home() {
                               type="button"
                               onClick={() => doCancelForDate(s)}
                               disabled={cancelScheduleSaving === key}
-                              className="text-sm px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                              className="text-sm px-2 py-1 rounded bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 disabled:opacity-50"
                             >
                               {cancelScheduleSaving === key ? '...' : 'Cancelar para este dia'}
                             </button>
@@ -1043,7 +1043,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setShowCancelScheduleModal(false)}
-                    className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="ananim-btn-ghost"
                   >
                     Fechar
                   </button>
@@ -1054,23 +1054,23 @@ export default function Home() {
 
           {showAddUserModal && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Adicionar usuário à visão</h3>
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30">
+                <h3 className="text-lg font-medium text-white mb-2">Adicionar usuário à visão</h3>
+                <p className="text-sm text-gray-300 mb-3">
                   O usuário selecionado poderá ver estes {selectedProjects.length} projeto(s) sempre que logar.
                 </p>
-                {huaweiEcsError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{huaweiEcsError}</div>}
-                <div className="mb-4 max-h-48 overflow-y-auto border border-gray-200 rounded">
+                {huaweiEcsError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{huaweiEcsError}</div>}
+                <div className="mb-4 max-h-48 overflow-y-auto border border-white/10 rounded-lg bg-white/[0.02]">
                   {usersList.length === 0 ? (
-                    <p className="p-3 text-sm text-gray-500">Nenhum usuário encontrado.</p>
+                    <p className="p-3 text-sm text-gray-400">Nenhum usuário encontrado.</p>
                   ) : (
-                    <ul className="divide-y divide-gray-100">
+                    <ul className="divide-y divide-white/10">
                       {usersList.map((u) => (
                         <li key={u.id}>
                           <button
                             type="button"
                             onClick={() => setAddUserTargetId(addUserTargetId === u.id ? null : u.id)}
-                            className={`w-full text-left px-3 py-2 text-sm ${addUserTargetId === u.id ? 'bg-blue-100 font-medium' : 'hover:bg-gray-50'}`}
+                            className={`w-full text-left px-3 py-2 text-sm ${addUserTargetId === u.id ? 'bg-ananim-accent/10 font-medium' : 'hover:bg-white/[0.03]'}`}
                           >
                             {u.name} — {u.email}
                           </button>
@@ -1083,7 +1083,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => { setShowAddUserModal(false); setAddUserTargetId(null); setHuaweiEcsError(null); }}
-                    className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="ananim-btn-ghost"
                   >
                     Cancelar
                   </button>
@@ -1091,7 +1091,7 @@ export default function Home() {
                     type="button"
                     onClick={confirmAddUserVisibility}
                     disabled={!addUserTargetId || addUserLoading}
-                    className="px-4 py-2 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                    className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 disabled:opacity-50"
                   >
                     {addUserLoading ? 'Salvando...' : 'Conceder visão'}
                   </button>
@@ -1102,23 +1102,23 @@ export default function Home() {
 
           {showAssignEcsModal && selectedProject && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Atribuir ECS ao usuário</h3>
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30">
+                <h3 className="text-lg font-medium text-white mb-2">Atribuir ECS ao usuário</h3>
+                <p className="text-sm text-gray-300 mb-3">
                   O usuário selecionado verá apenas estas {selectedEcsIds.length} ECS neste projeto ({ecsProjectTitle(selectedProject, huaweiEcs)}) e poderá fazer start/stop/restart nelas.
                 </p>
-                {huaweiEcsError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{huaweiEcsError}</div>}
-                <div className="mb-4 max-h-48 overflow-y-auto border border-gray-200 rounded">
+                {huaweiEcsError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{huaweiEcsError}</div>}
+                <div className="mb-4 max-h-48 overflow-y-auto border border-white/10 rounded-lg bg-white/[0.02]">
                   {usersList.length === 0 ? (
-                    <p className="p-3 text-sm text-gray-500">Nenhum usuário encontrado.</p>
+                    <p className="p-3 text-sm text-gray-400">Nenhum usuário encontrado.</p>
                   ) : (
-                    <ul className="divide-y divide-gray-100">
+                    <ul className="divide-y divide-white/10">
                       {usersList.map((u) => (
                         <li key={u.id}>
                           <button
                             type="button"
                             onClick={() => setAssignEcsTargetId(assignEcsTargetId === u.id ? null : u.id)}
-                            className={`w-full text-left px-3 py-2 text-sm ${assignEcsTargetId === u.id ? 'bg-blue-100 font-medium' : 'hover:bg-gray-50'}`}
+                            className={`w-full text-left px-3 py-2 text-sm ${assignEcsTargetId === u.id ? 'bg-ananim-accent/10 font-medium' : 'hover:bg-white/[0.03]'}`}
                           >
                             {u.name} — {u.email}
                           </button>
@@ -1131,7 +1131,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => { setShowAssignEcsModal(false); setAssignEcsTargetId(null); setHuaweiEcsError(null); }}
-                    className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    className="ananim-btn-ghost"
                   >
                     Cancelar
                   </button>
@@ -1139,7 +1139,7 @@ export default function Home() {
                     type="button"
                     onClick={confirmAssignEcsToUser}
                     disabled={!assignEcsTargetId || assignEcsLoading}
-                    className="px-4 py-2 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                    className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 disabled:opacity-50"
                   >
                     {assignEcsLoading ? 'Salvando...' : 'Atribuir ECS'}
                   </button>
@@ -1150,20 +1150,20 @@ export default function Home() {
 
           {showDiscoverModal && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full max-h-[90vh] flex flex-col">
+              <div className="ananim-card p-6 max-w-2xl w-full max-h-[90vh] flex flex-col shadow-lg shadow-black/30">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-800">
+                  <h3 className="text-lg font-medium text-white">
                     {discoverStep === 'account' ? 'Selecionar Conta para Descoberta' : `Projetos Descobertos para: ${discoverSelectedAccount?.toLowerCase() || ''}`}
                   </h3>
-                  <button type="button" onClick={() => { setShowDiscoverModal(false); setDiscoverStep('account'); }} className="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
+                  <button type="button" onClick={() => { setShowDiscoverModal(false); setDiscoverStep('account'); }} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
                 </div>
-                {discoverError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{discoverError}</div>}
+                {discoverError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{discoverError}</div>}
                 {discoverStep === 'account' && (
                   <>
-                    <p className="text-sm text-gray-600 mb-3">Selecione a conta para descobrir projetos:</p>
+                    <p className="text-sm text-gray-300 mb-3">Selecione a conta para descobrir projetos:</p>
                     <div className="flex flex-col gap-2 mb-4 max-h-48 overflow-y-auto">
                       {discoveryAccounts.map((acc) => (
-                        <label key={acc.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${!acc.available ? 'opacity-60' : ''}`}>
+                        <label key={acc.id} className={`flex items-center gap-2 p-2 rounded-lg border border-white/10 bg-white/[0.02] cursor-pointer ${!acc.available ? 'opacity-60' : ''}`}>
                           <input
                             type="radio"
                             name="discoverAccount"
@@ -1172,32 +1172,32 @@ export default function Home() {
                             disabled={!acc.available}
                           />
                           <span className="text-sm">{acc.label}</span>
-                          {acc.projectId && <span className="text-xs text-gray-500">(Região: {acc.region}, Project ID: {acc.projectId.slice(0, 8)}…)</span>}
+                          {acc.projectId && <span className="text-xs text-gray-400">(Região: {acc.region}, Project ID: {acc.projectId.slice(0, 8)}…)</span>}
                         </label>
                       ))}
                     </div>
                     <div className="flex gap-2 justify-end">
-                      <button type="button" onClick={() => { setShowDiscoverModal(false); }} className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
-                      <button type="button" onClick={runDiscoverProjects} disabled={!discoverSelectedAccount || discoverLoading} className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">{discoverLoading ? 'Descobrindo...' : 'Descobrir'}</button>
+                      <button type="button" onClick={() => { setShowDiscoverModal(false); }} className="ananim-btn-ghost">Cancelar</button>
+                      <button type="button" onClick={runDiscoverProjects} disabled={!discoverSelectedAccount || discoverLoading} className="ananim-btn bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/25 disabled:opacity-50 px-4 py-2">{discoverLoading ? 'Descobrindo...' : 'Descobrir'}</button>
                     </div>
                   </>
                 )}
                 {discoverStep === 'projects' && (
                   <>
-                    <div className="flex-1 overflow-auto border border-gray-200 rounded mb-4">
+                    <div className="flex-1 overflow-auto border border-white/10 rounded-lg mb-4 bg-white/[0.02]">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
+                        <thead className="bg-white/[0.04] border-b border-white/10 sticky top-0">
                           <tr>
-                            <th className="text-left py-2 px-2 w-10">Adicionar</th>
-                            <th className="text-left py-2 px-3">Nome do Perfil</th>
-                            <th className="text-left py-2 px-3">Project ID</th>
-                            <th className="text-left py-2 px-3">Região</th>
-                            <th className="text-left py-2 px-3">Status</th>
+                            <th className="text-left py-2 px-2 w-10 text-gray-200 font-semibold">Adicionar</th>
+                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Nome do Perfil</th>
+                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Project ID</th>
+                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Região</th>
+                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {discoveredProjects.map((p) => (
-                            <tr key={p.id} className={p.status === 'novo' ? 'bg-green-50' : ''}>
+                            <tr key={p.id} className={p.status === 'novo' ? 'bg-emerald-500/10' : ''}>
                               <td className="py-1 px-2">
                                 <input type="checkbox" checked={discoverSelectedIds.has(p.id)} onChange={() => toggleDiscoverSelect(p.id)} />
                               </td>
@@ -1211,10 +1211,10 @@ export default function Home() {
                       </table>
                     </div>
                     <div className="flex flex-wrap gap-2 justify-end">
-                      <button type="button" onClick={selectAllDiscover} className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Selecionar Todos</button>
-                      <button type="button" onClick={deselectAllDiscover} className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700">Desmarcar Todos</button>
-                      <button type="button" onClick={() => { setDiscoverStep('account'); }} className="px-3 py-1.5 rounded border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">Cancelar</button>
-                      <button type="button" onClick={applyDiscoverProjects} disabled={discoverApplyLoading} className="px-3 py-1.5 rounded bg-green-600 text-white text-sm hover:bg-green-700 disabled:opacity-50">{discoverApplyLoading ? 'Aplicando...' : 'Aplicar Mudanças'}</button>
+                      <button type="button" onClick={selectAllDiscover} className="ananim-btn bg-ananim-accent/10 text-ananim-accent border border-ananim-accent/30 hover:bg-ananim-accent/15 px-3 py-1.5 text-sm">Selecionar Todos</button>
+                      <button type="button" onClick={deselectAllDiscover} className="ananim-btn bg-red-500/10 text-red-200 border border-red-500/30 hover:bg-red-500/15 px-3 py-1.5 text-sm">Desmarcar Todos</button>
+                      <button type="button" onClick={() => { setDiscoverStep('account'); }} className="ananim-btn-ghost px-3 py-1.5 text-sm">Cancelar</button>
+                      <button type="button" onClick={applyDiscoverProjects} disabled={discoverApplyLoading} className="ananim-btn bg-emerald-500/10 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/15 disabled:opacity-50 px-3 py-1.5 text-sm">{discoverApplyLoading ? 'Aplicando...' : 'Aplicar Mudanças'}</button>
                     </div>
                   </>
                 )}

@@ -100,7 +100,7 @@ async function runOne(schedule) {
 }
 
 /**
- * Monitoramento automático de status (v1.2.0).
+ * Monitoramento automático de status (v1.2.14).
  * Percorre as VMs agendadas, verifica se estão ligadas fora do horário e gerencia sessões de extra hours.
  */
 export async function monitorStatus() {

@@ -687,10 +687,17 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
   if (!s) return res.status(404).json({ error: 'Serviço não encontrado' });
   if (u?.role !== 'admin' && s.action === 'executar') {
     const allowed = u?.allowedServiceIds || [];
-    const sqlAllowed = sqlClientKey && getSqlServiceList(sqlClientKey).some((x) => x.id === serviceId);
-    const hanaAllowed = hanaClientKey && getHanaServiceList(hanaClientKey).some((x) => x.id === serviceId);
-    if (!sqlAllowed && !hanaAllowed && !allowed.includes(serviceId)) {
-      return res.status(403).json({ error: 'Sem permissão para executar este serviço SAP/HANA' });
+    // Default-deny para clientes: só executa serviços explicitamente atribuídos.
+    if (u?.role === 'client') {
+      if (!allowed.includes(serviceId)) {
+        return res.status(403).json({ error: 'Sem permissão para executar este serviço' });
+      }
+    } else {
+      const sqlAllowed = sqlClientKey && getSqlServiceList(sqlClientKey).some((x) => x.id === serviceId);
+      const hanaAllowed = hanaClientKey && getHanaServiceList(hanaClientKey).some((x) => x.id === serviceId);
+      if (!sqlAllowed && !hanaAllowed && !allowed.includes(serviceId)) {
+        return res.status(403).json({ error: 'Sem permissão para executar este serviço SAP/HANA' });
+      }
     }
   }
   const isSqlGroup = sqlClientKey && getSqlGroupServiceIds(sqlClientKey, serviceId).length > 0;

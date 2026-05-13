@@ -1,0 +1,17 @@
+{
+  "name": "ananim-manager-painel",
+  "private": true,
+  "version": "1.2.14",
+  "type": "module",
+  "scripts": {
+    "version:set": "node scripts/set-version.mjs",
+    "version:bump:patch": "node scripts/bump-version.mjs patch",
+    "version:bump:minor": "node scripts/bump-version.mjs minor",
+    "version:bump:major": "node scripts/bump-version.mjs major",
+    "docs:portal": "node gerar_doc_portal.js",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend:exe": "npm --prefix backend run build:exe",
+    "build:iis:package": "pwsh -NoProfile -ExecutionPolicy Bypass -File installer/build-package-iis.ps1",
+    "build:iis:installer": "pwsh -NoProfile -ExecutionPolicy Bypass -File installer/compile-installer-iis.ps1"
+  }
+}

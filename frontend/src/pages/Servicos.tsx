@@ -297,7 +297,7 @@ export default function Servicos() {
 
   if (serviceList === null) {
     return (
-      <div className="flex items-center justify-center p-8 text-gray-500">
+      <div className="flex items-center justify-center p-8 text-gray-400">
         Carregando serviços...
       </div>
     );
@@ -306,18 +306,18 @@ export default function Servicos() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-xl font-semibold text-gray-800">
+        <h2 className="text-xl font-semibold font-display text-white">
           {sqlDisplayName ? `Servicos ${sqlDisplayName}` : selectedClientKey ? `Servicos ${selectedClientKey.toUpperCase()}` : 'Serviços'}
           {(vmDisplayName || sqlDisplayName) && (vmDisplayName !== sqlDisplayName) && (vmDisplayName !== selectedClientKey) ? ` (${vmDisplayName || sqlDisplayName})` : ''}
         </h2>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-400">
           {sqlMode ? 'Serviços e status na VM / Servidor' : 'Serviços e status na VM SUSE'}
         </span>
         {(availableServers || []).length > 1 && (
           <select
             value={selectedClientKey ?? ''}
             onChange={(e) => onSelectServer(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="ananim-input w-auto py-1.5 text-sm"
             title="Trocar servidor"
           >
             {(availableServers || []).map((s) => (
@@ -330,7 +330,7 @@ export default function Servicos() {
         {isAdmin && effectiveClientKey && (
           <Link
             to={`/clientes?editServices=${encodeURIComponent(effectiveClientKey)}`}
-            className="text-blue-600 hover:underline text-sm"
+            className="text-ananim-accent hover:underline text-sm"
           >
             Editar serviços deste cliente
           </Link>
@@ -338,10 +338,10 @@ export default function Servicos() {
       </div>
 
       {/* Informações da VM e Ações Rápidas */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-4">
+      <div className="ananim-card p-4 mb-6 flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-700">Conectado em:</p>
-          <p className="text-gray-900 font-mono font-bold truncate" title={vmDisplayName ?? vmHost ?? undefined}>
+          <p className="text-sm font-medium text-gray-300">Conectado em:</p>
+          <p className="text-white font-mono font-bold truncate" title={vmDisplayName ?? vmHost ?? undefined}>
             {vmHost || vmDisplayName || 'Não configurada'}
           </p>
         </div>
@@ -350,7 +350,7 @@ export default function Servicos() {
             type="button"
             onClick={onTestConnection}
             disabled={testLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+            className="ananim-btn-primary"
           >
             {testLoading ? 'Testando...' : 'Testar conexão'}
           </button>
@@ -358,13 +358,13 @@ export default function Servicos() {
             type="button"
             onClick={onUpdateStatus}
             disabled={statusLoading}
-            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
+            className="ananim-btn-ghost"
             title="Consultar status dos serviços na VM"
           >
             {statusLoading ? 'Atualizando...' : 'Atualizar status'}
           </button>
           {testMessage && (
-            <span className={`text-sm ${testMessage.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>
+            <span className={`text-sm ${testMessage.includes('sucesso') ? 'text-emerald-300' : 'text-red-300'}`}>
               {testMessage}
             </span>
           )}
@@ -373,7 +373,7 @@ export default function Servicos() {
 
       {/* Status Grid + botão Validar em cada card */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-medium text-gray-800">Status dos serviços</h3>
+        <h3 className="text-lg font-medium text-white">Status dos serviços</h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         {statusKeysForDisplay.map((key) => {
@@ -388,7 +388,7 @@ export default function Servicos() {
           return (
             <div
               key={key}
-              className={`bg-white p-4 rounded shadow border-l-4 ${borderColor}`}
+              className={`ananim-card p-4 border-l-4 ${borderColor}`}
             >
               <div className="flex items-center justify-between">
                 <span className={`font-semibold ${sqlMode ? '' : 'capitalize'}`}>
@@ -407,12 +407,12 @@ export default function Servicos() {
                     }}
                     title={s || 'Verificando...'}
                   />
-                  <span className="text-xs text-gray-600">
+                  <span className="text-xs text-gray-300">
                     {color === 'green' ? 'Ativo' : color === 'red' ? 'Inativo' : 'Verificando'}
                   </span>
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-1" title={s === 'unconfigured' ? 'Configure as variáveis SSH no .env do backend (ex.: SSH_HANA_ROLAND_JUMP_* para ROLANDWEB, SSH_HANA_ROLAND_* para ROLANDHDB) e reinicie o backend.' : undefined}>
+              <p className="text-sm text-gray-400 mt-1" title={s === 'unconfigured' ? 'Configure as variáveis SSH no .env do backend (ex.: SSH_HANA_ROLAND_JUMP_* para ROLANDWEB, SSH_HANA_ROLAND_* para ROLANDHDB) e reinicie o backend.' : undefined}>
                 {statusLoading && !status[key] ? 'Verificando...' : s === 'unconfigured' ? 'Não configurado (SSH no .env do backend)' : s || '—'}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -420,7 +420,7 @@ export default function Servicos() {
                   type="button"
                   onClick={() => fetchHealth()}
                   disabled={statusLoading}
-                  className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                  className="text-xs text-ananim-accent hover:text-white disabled:opacity-50"
                 >
                   {statusLoading ? '…' : 'Validar status'}
                 </button>
@@ -431,8 +431,8 @@ export default function Servicos() {
                     disabled={!!executing}
                     className={`text-xs font-medium disabled:opacity-50 ${
                       key === 'hana'
-                        ? 'text-red-600 hover:text-red-800'
-                        : 'text-blue-600 hover:text-blue-800'
+                        ? 'text-red-300 hover:text-red-200'
+                        : 'text-ananim-accent hover:text-white'
                     }`}
                     title={`Reiniciar ${labels[key] || key}`}
                   >
@@ -447,48 +447,48 @@ export default function Servicos() {
 
       {/* Processos HANA — oculto no modo SQL (Alfa Agro) */}
       {!sqlMode && (
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-8">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-lg font-medium text-gray-800">Processos HANA</h3>
+      <div className="ananim-card overflow-hidden mb-8">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-lg font-medium text-white">Processos HANA</h3>
           <button
             type="button"
             onClick={fetchHanaProcesses}
             disabled={hanaProcessesLoading}
-            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 disabled:opacity-50 text-sm"
+            className="ananim-btn-ghost px-3 py-1.5"
           >
             {hanaProcessesLoading ? 'Atualizando...' : 'Atualizar processos'}
           </button>
         </div>
         {hanaProcessesError && hanaProcesses.length === 0 && (
-          <div className="px-4 py-2 text-sm text-amber-800 bg-amber-50 border-t border-amber-200">
+          <div className="px-4 py-2 text-sm text-amber-200 bg-amber-500/10 border-t border-amber-500/30">
             <p className="font-medium mb-1">Erro ao obter lista de processos</p>
             <pre className="whitespace-pre-wrap break-words font-mono text-xs mt-1">{hanaProcessesError}</pre>
           </div>
         )}
         {hanaProcesses.length === 0 && !hanaProcessesLoading && !hanaProcessesError && (
-          <p className="p-4 text-sm text-gray-500">Clique em &quot;Atualizar processos&quot; para carregar a lista.</p>
+          <p className="p-4 text-sm text-gray-400">Clique em &quot;Atualizar processos&quot; para carregar a lista.</p>
         )}
         {hanaProcesses.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-white/[0.04] border-b border-white/10">
                 <tr>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-700">Processo</th>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-700">Descrição</th>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-700">Status</th>
+                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Processo</th>
+                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Descrição</th>
+                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {hanaProcesses.map((p) => (
-                  <tr key={p.name} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={p.name} className="border-b border-white/10 hover:bg-white/[0.03]">
                     <td className="py-2 px-4 font-mono">{p.name}</td>
                     <td className="py-2 px-4">{p.description}</td>
                     <td className="py-2 px-4">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                           p.status === 'up'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-amber-100 text-amber-800'
+                            ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-200 border border-amber-500/20'
                         }`}
                       >
                         {p.status === 'up' ? 'Subiu' : 'Não subiu'}
@@ -504,7 +504,7 @@ export default function Servicos() {
       )}
 
       {/* Ações de Controle — dinâmico: SAP ou só serviços SQL (Alfa Agro) */}
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Ações de Controle</h3>
+      <h3 className="text-lg font-medium text-white mb-4">Ações de Controle</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {controlServices.map((svc) => (
           <button
@@ -514,10 +514,10 @@ export default function Servicos() {
             disabled={!!executing}
             className={`p-4 rounded border flex items-center justify-center gap-2 disabled:opacity-50 ${
               svc.id === 'hana'
-                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                ? 'bg-red-500/10 text-red-200 border-red-500/30 hover:bg-red-500/15'
                 : svc.id === 'all'
-                  ? 'bg-gray-800 text-white border-gray-700 hover:bg-black md:col-span-2'
-                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                  ? 'bg-white/[0.06] text-white border-white/10 hover:bg-white/[0.10] md:col-span-2'
+                  : 'bg-ananim-accent/10 text-ananim-accent border-ananim-accent/30 hover:bg-ananim-accent/15'
             } ${svc.id === 'all' ? 'md:col-span-2' : ''}`}
           >
             {executing === svc.id ? (

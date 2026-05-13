@@ -26,7 +26,7 @@ Visão geral do que é o projeto, o que faz e onde encontrar detalhes.
 |------|------------|
 | **Página inicial** | Lista de ambientes com filtros (IP, país, VLAN, cliente, parceiro, ERP). Ações: reiniciar ECS, ver detalhes/backups, licenças. |
 | **Serviços** | Lista de serviços por cliente (HANA, Web, Windows). Ações Executar/Listar; **Testar conexão** SSH; **Ativar Support User** (SAP Control Center/SLD) quando configurado. |
-| **Monitoramento Externo (v1.2.0)** | **Monitoramento Inteligente**: Sincroniza status de VMs gerenciadas por ferramentas externas (Cloud8) e registra horas extras automaticamente. |
+| **Monitoramento Externo (v1.2.x)** | **Monitoramento Inteligente**: Sincroniza status de VMs gerenciadas por ferramentas externas (Cloud8) e registra horas extras automaticamente. |
 | **Programação** (admin) | Agendamentos por VM (**Start**, **Stop** ou **Restart**) em horários definidos. Controle de execução interna ou monitoramento externo. |
 | **Extensão de horário** (admin) | Horas a mais por cancelamento da programação, por ligar VM manualmente ou por atividade detectada pelo **Monitor Externo**. |
 | **Detalhes / Backups** | Tabela paginada de snapshots/backups (CBR). Busca e exibição de tamanho. |
@@ -62,11 +62,13 @@ Código-fonte: **[github.com/kimetsunodarth/manager_painel](https://github.com/k
 
 | Documento | Conteúdo |
 |-----------|----------|
-| **README.md** | Guia rápido, tecnologias, instalação v1.2.0. |
+| **README.md** | Guia rápido, tecnologias, instalação v1.2.14. |
+| **RELEASING.md** | Guia de versionamento (SemVer) e release. |
+| **Ananim_Cloud_Portal_Documentacao.pdf** | PDF oficial do Portal do Cliente. |
 | **DOCUMENTACAO.md** | Detalhes técnicos, scripts, troubleshooting. |
 | **IIS-DEPLOY.md** | Guia passo a passo de implantação Windows Server. |
 | **walkthrough.md** | Relatório de mudanças por versão. |
 
 ---
 
-*Última atualização: 2026-03-14 (v1.2.0). Repositório: [GitHub](https://github.com/kimetsunodarth/manager_painel).*
+*Última atualização: 2026-05-13 (v1.2.14). Repositório: [GitHub](https://github.com/kimetsunodarth/manager_painel).*

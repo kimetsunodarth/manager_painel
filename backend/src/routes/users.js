@@ -7,7 +7,7 @@ import { EMAIL_REGEX, isValidEmail } from '../utils/validation.js';
 
 const router = Router();
 router.use(authMiddleware);
-const ROLES = ['admin', 'operator'];
+const ROLES = ['admin', 'operator', 'client'];
 const MAX_NAME = 200;
 const MAX_EMAIL = 255;
 
@@ -44,7 +44,7 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
       return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
     }
     if (role !== undefined && !validateRole(role)) {
-      return res.status(400).json({ error: 'Perfil deve ser admin ou operator' });
+      return res.status(400).json({ error: 'Perfil deve ser admin, operator ou client' });
     }
     if (userStore.findByEmail(emailStr)) {
       return res.status(400).json({ error: 'E-mail já cadastrado' });
@@ -87,7 +87,7 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
     data.email = emailStr;
   }
   if (role !== undefined) {
-    if (!validateRole(role)) return res.status(400).json({ error: 'Perfil deve ser admin ou operator' });
+    if (!validateRole(role)) return res.status(400).json({ error: 'Perfil deve ser admin, operator ou client' });
     data.role = role;
   }
   if (permissions !== undefined) data.permissions = Array.isArray(permissions) ? permissions : existing.permissions;

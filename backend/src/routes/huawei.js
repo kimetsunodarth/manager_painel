@@ -199,9 +199,18 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
     const allowedByProject = u?.allowedHuaweiEcsIds || {};
     const key = projectKey(projectId, perfil);
     const allowedIds = allowedByProject[key];
-    if (u?.role !== 'admin' && Array.isArray(allowedIds) && allowedIds.length > 0) {
-      const idSet = new Set(allowedIds);
-      servers = servers.filter((s) => idSet.has(s.id));
+    if (u?.role !== 'admin') {
+      // Default-deny para clientes: só enxerga ECS explicitamente atribuídas.
+      if (u?.role === 'client') {
+        if (!Array.isArray(allowedIds) || allowedIds.length === 0) servers = [];
+        else {
+          const idSet = new Set(allowedIds);
+          servers = servers.filter((s) => idSet.has(s.id));
+        }
+      } else if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+        const idSet = new Set(allowedIds);
+        servers = servers.filter((s) => idSet.has(s.id));
+      }
     }
     const pk = projectKey(projectId, perfil);
     const schedule = getSchedule(pk);
@@ -241,9 +250,16 @@ router.post('/projects/:projectId/ecs/:serverId/action', async (req, res) => {
     const allowedByProject = u?.allowedHuaweiEcsIds || {};
     const key = projectKey(projectId, perfil);
     const allowedIds = allowedByProject[key];
-    if (u?.role !== 'admin' && Array.isArray(allowedIds) && allowedIds.length > 0) {
-      if (!allowedIds.includes(serverId)) {
-        return res.status(403).json({ error: 'Sem permissão para este ECS neste projeto' });
+    if (u?.role !== 'admin') {
+      // Default-deny para clientes: só pode operar ECS explicitamente atribuídas.
+      if (u?.role === 'client') {
+        if (!Array.isArray(allowedIds) || allowedIds.length === 0 || !allowedIds.includes(serverId)) {
+          return res.status(403).json({ error: 'Sem permissão para este ECS neste projeto' });
+        }
+      } else if (Array.isArray(allowedIds) && allowedIds.length > 0) {
+        if (!allowedIds.includes(serverId)) {
+          return res.status(403).json({ error: 'Sem permissão para este ECS neste projeto' });
+        }
       }
     }
     const region = req.query.region || req.body?.region || undefined;
@@ -670,7 +686,7 @@ router.post('/discover-projects', requirePermission('huawei:projects'), async (r
  * POST /api/huawei/apply-visible-projects
  * Body: { projects: [{ id, name, region, perfil }] }. Adiciona os projetos à lista fixa visível do usuário (visibleProjects).
  */
-router.post('/apply-visible-projects', async (req, res) => {
+router.post('/apply-visible-projects', requirePermission('huawei:projects'), async (req, res) => {
   try {
     const list = req.body?.projects;
     if (!Array.isArray(list) || list.length === 0) {
@@ -696,7 +712,7 @@ router.post('/apply-visible-projects', async (req, res) => {
  * POST /api/huawei/clear-visible-projects
  * Limpa a lista fixa visível do usuário (visibleProjects) para buscar novamente com a nova implementação.
  */
-router.post('/clear-visible-projects', async (req, res) => {
+router.post('/clear-visible-projects', requirePermission('huawei:projects'), async (req, res) => {
   try {
     const u = userStore.getById(req.user?.id);
     if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });

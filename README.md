@@ -1,16 +1,16 @@
-# Ananim Manager Painel v1.2.0
+# Ananim Manager Painel v1.2.14
 
 > Orquestração Enterprise para Huawei Cloud e Ecossistema SAP Business One.
 
-![Versão](https://img.shields.io/badge/version-1.2.0-blue.svg)
+![Versão](https://img.shields.io/badge/version-1.2.14-blue.svg)
 ![Status](https://img.shields.io/badge/status-stable-green.svg)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
 
 O **Ananim Manager Painel** é uma solução avançada de cockpit centralizado para o gerenciamento de infraestrutura Huawei Cloud (ECS, CBR) e serviços SAP Business One (Service Layer, HANA, SLD). Projetado para alta performance e segurança, ele elimina a necessidade de múltiplas consoles, oferecendo uma interface unificada e segura.
 
-## 🚀 Novidades da v1.2.0: Monitoramento Externo
+## 🚀 Novidades da v1.2.x: Monitoramento Externo
 
-A versão **1.2.0** traz o revolucionário **Monitoramento Externo Inteligente**, permitindo integração com ferramentas terceiras (ex: Cloud8) sem conflitos de comando.
+A linha **1.2.x** traz o **Monitoramento Externo Inteligente**, permitindo integração com ferramentas terceiras (ex: Cloud8) sem conflitos de comando.
 
 - **Monitoramento Passivo**: O sistema detecta se a VM foi ligada externamente e sincroniza o status em tempo real.
 - **Auto-Cálculo de Extra Hours**: Registro automático de horas extras quando o sistema detecta atividade fora do horário programado.
@@ -34,7 +34,7 @@ A versão **1.2.0** traz o revolucionário **Monitoramento Externo Inteligente**
 
 ## 📦 Instalação (Windows / IIS)
 
-1. Baixe o instalador mais recente: `Ananim-Manager-Painel-IIS-Setup-1.2.0.exe`.
+1. Baixe o instalador mais recente: `Ananim-Manager-Painel-IIS-Setup-1.2.14.exe`.
 2. Execute o instalador e siga as instruções.
 3. Use o utilitário **Ananim-Configurar-IIS.exe** incluído para configurar automaticamente o site no IIS.
 4. Acesse via navegador no endereço configurado.
@@ -44,7 +44,9 @@ A versão **1.2.0** traz o revolucionário **Monitoramento Externo Inteligente**
 Para detalhes técnicos e guias de implantação, consulte:
 - [Guia de Implantação IIS](IIS-DEPLOY.md)
 - [Documentação Técnica Completa](DOCUMENTACAO.md)
-- [Relatório de Release v1.2.0](walkthrough.md)
+- [Relatório de Release (v1.2.x)](walkthrough.md)
+- [Guia de versionamento e release](RELEASING.md)
+- [Documentação em PDF (Portal)](Ananim_Cloud_Portal_Documentacao.pdf)
 
 ---
 *Developed by Ananim Team & Antigravity AI*

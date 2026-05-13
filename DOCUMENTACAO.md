@@ -1,4 +1,4 @@
-# Documentação — Ananim Manager Painel (v1.2.0)
+# Documentação — Ananim Manager Painel (v1.2.14)
 
 Este documento reúne configuração, scripts, localização de arquivos e deploy (desenvolvimento e produção).
 
@@ -122,6 +122,12 @@ Ananim_manager_painel/
 │   ├── compile-installer-iis.ps1
 │   ├── package-iis/         # Pacote (exe, public, lib, logs)
 │   └── Output/              # Ananim-Manager-Painel-IIS-Setup-1.0.0.exe
+├── VERSION                   # Fonte única da versão (SemVer)
+├── RELEASING.md              # Fluxo de versionamento/release
+├── Ananim_Cloud_Portal_Documentacao.pdf  # PDF oficial do portal
+├── gerar_doc_portal.js       # Gera o PDF acima (HTML→PDF)
+├── gerar_doc.py              # Gerador PDF (ReportLab) - referência/alternativa
+├── gerar_pdfs_retroativo.js  # PDFs retroativos (assinaturas/auditoria)
 ├── DOCUMENTACAO.md          # Este arquivo
 ├── README.md
 ├── IIS-DEPLOY.md
@@ -131,6 +137,19 @@ Ananim_manager_painel/
 ---
 
 ## 6. Build e instalador (produção IIS)
+
+## 6.1 Versionamento (SemVer) e Release
+
+O projeto usa `VERSION` como **fonte única** (SemVer `X.Y.Z`). Para atualizar:
+
+```bash
+node scripts/bump-version.mjs patch
+# ou
+node scripts/set-version.mjs 1.2.15
+```
+
+Isso sincroniza `backend/package.json`, `frontend/package.json` e `installer/installer-iis.iss`.
+Detalhes: `RELEASING.md`.
 
 ### Gerar pacote e instalador
 
@@ -152,6 +171,19 @@ Na **raiz** do projeto:
 ```
 
 O primeiro script faz build do frontend (Vite), build do backend (bundle + exe) e copia **Ananim-Manager-Painel-API.exe**, **public/** e **browsers/** para `installer/package-iis/`. O segundo gera o instalador em **installer/Output/**. Não refaz o rebuild do better-sqlite3 nem o config.enc.
+
+---
+
+## 8. Documentação em PDF (Portal)
+
+- PDF oficial: `Ananim_Cloud_Portal_Documentacao.pdf`
+- Regerar PDF:
+
+```bash
+node gerar_doc_portal.js
+```
+
+O gerador usa o logo em `Logos Ananim/` e lê a versão do projeto em `VERSION`.
 
 ### Estrutura após instalação (IIS)
 

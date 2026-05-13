@@ -92,54 +92,54 @@ export default function DetalhesBackups() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-        <h2 className="text-xl font-semibold text-gray-800">Detalhes / Backups</h2>
+        <h2 className="text-xl font-semibold font-display text-white">Detalhes / Backups</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <input
             type="search"
             placeholder="Pesquisar por recurso, nome do backup ou projeto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm w-72 max-w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="ananim-input w-72 max-w-full py-1.5 text-sm"
             aria-label="Pesquisar backups"
           />
           <button
             type="button"
             onClick={() => loadCbr()}
-            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+            className="ananim-btn-primary px-3 py-1.5"
           >
             Atualizar
           </button>
         </div>
       </div>
-      <p className="text-sm text-gray-600 mb-4">Backups da semana (últimos 7 dias), agrupados por recurso.</p>
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <p className="text-sm text-gray-300 mb-4">Backups da semana (últimos 7 dias), agrupados por recurso.</p>
+      <div className="ananim-card overflow-hidden">
           {cbrLoading ? (
-            <div className="p-8 text-center text-gray-500">Carregando CBR...</div>
+            <div className="p-8 text-center text-gray-400">Carregando CBR...</div>
           ) : resourceGroups.length > 0 ? (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-white/10">
               {resourceGroups.map((group) => (
                 <div key={group.resourceName} className="p-4">
-                  <h3 className="text-base font-semibold text-gray-800 mb-2">
+                  <h3 className="text-base font-semibold text-white mb-2">
                     {group.resourceName}
-                    <span className="text-sm font-normal text-gray-500 ml-2">({group.backups.length} backup{group.backups.length !== 1 ? 's' : ''})</span>
+                    <span className="text-sm font-normal text-gray-400 ml-2">({group.backups.length} backup{group.backups.length !== 1 ? 's' : ''})</span>
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
+                      <thead className="bg-white/[0.04] border-b border-white/10">
                         <tr>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Nome do backup</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Projeto</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Criado em</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Tipo</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Status</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-700">Tamanho</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Nome do backup</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Criado em</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Tipo</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Tamanho</th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.backups.map((b) => (
-                          <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={b.id} className="border-b border-white/10 hover:bg-white/[0.03]">
                             <td className="py-2 px-3">{b.name || b.id}</td>
-                            <td className="py-2 px-3 text-gray-600">{b.clientName}{b.region ? ` (${b.region})` : ''}</td>
+                            <td className="py-2 px-3 text-gray-300">{b.clientName}{b.region ? ` (${b.region})` : ''}</td>
                             <td className="py-2 px-3">{formatCbrDate(b.created_at)}</td>
                             <td className="py-2 px-3">{b.type}</td>
                             <td className="py-2 px-3">{b.status}</td>
@@ -153,9 +153,9 @@ export default function DetalhesBackups() {
               ))}
             </div>
           ) : cbrData && cbrData.byClient.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Nenhum cliente/projeto configurado ou sem backups na semana.</div>
+            <div className="p-8 text-center text-gray-400">Nenhum cliente/projeto configurado ou sem backups na semana.</div>
           ) : search.trim() ? (
-            <div className="p-8 text-center text-gray-500">Nenhum resultado para &quot;{search.trim()}&quot;.</div>
+            <div className="p-8 text-center text-gray-400">Nenhum resultado para &quot;{search.trim()}&quot;.</div>
           ) : null}
       </div>
     </div>

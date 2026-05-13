@@ -26,19 +26,24 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-md w-full max-w-sm p-8">
-        <div className="flex justify-center mb-4">
-          <img src="/ananim1.jpg" alt="Ananim" className="max-h-16 w-auto object-contain" />
+    <div className="min-h-screen bg-ananim-bg text-ananim-text flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 opacity-60 pointer-events-none">
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl bg-ananim-accent/20" />
+        <div className="absolute -bottom-24 -right-24 w-[30rem] h-[30rem] rounded-full blur-3xl bg-purple-500/10" />
+      </div>
+
+      <div className="relative ananim-card w-full max-w-sm p-8 shadow-lg shadow-black/30">
+        <div className="flex justify-center mb-5">
+          <img src="/ananim-logo.png" alt="Ananim" className="max-h-14 w-auto object-contain" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Ananim Manager Painel</h1>
-        <p className="text-gray-600 text-sm mb-6">Acesso ao painel Huawei / SAP B1</p>
+        <h1 className="text-2xl font-semibold font-display text-white mb-2">Ananim Manager Painel</h1>
+        <p className="text-gray-300 text-sm mb-6">Acesso ao painel Huawei / SAP B1</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded space-y-1">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-200 text-sm p-3 rounded-lg space-y-1">
               <p>{error}</p>
                   {(error.includes('inacessível') || error.includes('requisição')) && (
-                <p className="text-xs mt-1 text-red-600">
+                <p className="text-xs mt-1 text-red-200/80">
                   {getApiBaseUrl() ? (
                     <>Verifique se a API está acessível em <strong>{getApiBaseUrl()}</strong>. Veja CONFIG-README.txt na pasta de instalação.</>
                   ) : (
@@ -49,23 +54,23 @@ export default function Login() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+            <label className="block text-sm font-medium text-gray-200 mb-1">E-mail</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="ananim-input"
               required
               autoComplete="email"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+            <label className="block text-sm font-medium text-gray-200 mb-1">Senha</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="ananim-input"
               required
               autoComplete="current-password"
             />
@@ -73,13 +78,13 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="w-full ananim-btn-primary py-2"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
         {import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === 'true' && (
-          <p className="text-gray-500 text-xs mt-4 text-center">
+          <p className="text-gray-400 text-xs mt-4 text-center">
             Demo: joao@example.com / admin123
           </p>
         )}
