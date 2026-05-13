@@ -141,7 +141,9 @@ router.get('/projects', async (req, res) => {
     const u = userStore.getById(req.user.id);
     if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });
 
-    if (u.role === 'admin') {
+    const canListAll = u.role === 'admin' || (Array.isArray(u.permissions) && u.permissions.includes('huawei:projects'));
+
+    if (canListAll) {
       if (!u.permissions?.includes('huawei:projects')) {
         return res.status(403).json({ error: 'Sem permissão para listar projetos Huawei' });
       }

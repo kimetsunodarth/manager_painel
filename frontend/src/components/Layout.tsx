@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { auth } from '../api/client';
+import { useUser } from '../hooks/useUser';
 
 const menuItems = [
   { path: '/', label: 'Home', icon: '🏠' },
@@ -32,7 +33,7 @@ function hasPermission(u: any, perm: string): boolean {
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-  const user = safeUser();
+  const user = useUser() || safeUser();
   const appVersion = (import.meta as any).env?.VITE_APP_VERSION as string | undefined;
 
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ export default function Layout() {
         <nav className="flex-1 py-2">
           {menuItems
             .filter((item: any) => {
-              if (item.adminOnly) return user.role === 'admin';
+              if (item.adminOnly) return user?.role === 'admin';
               if (item.permission) return hasPermission(user, item.permission);
               return true;
             })
@@ -109,7 +110,10 @@ export default function Layout() {
              </h1>
            </div>
           <div className="flex items-center gap-4">
-            <span className="text-gray-300 text-sm">Bem vindo, {user.name || 'Usuário'}!</span>
+            <span className="text-gray-300 text-sm">
+              Bem vindo, {user.name || 'Usuário'}!
+              {user?.role ? <span className="ml-2 text-xs text-gray-500">({user.role})</span> : null}
+            </span>
             <button
               type="button"
               onClick={handleLogout}

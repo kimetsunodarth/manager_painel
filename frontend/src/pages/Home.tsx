@@ -105,7 +105,8 @@ function formatMinutes(minutes: number | undefined): string {
 
 export default function Home() {
   const user = useUser();
-  const isAdmin = user?.role === 'admin';
+  const canHuaweiAdmin = user?.role === 'admin' || (Array.isArray(user?.permissions) && user?.permissions.includes('huawei:projects'));
+  const isAdmin = canHuaweiAdmin;
 
   const [huaweiProjects, setHuaweiProjects] = useState<HuaweiProject[] | null>(() => {
     try {
@@ -642,8 +643,8 @@ export default function Home() {
           )}
           {huaweiProjects && (
             <>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                {isAdmin && (
+               <div className="mt-4 flex flex-wrap items-center gap-3">
+                {canHuaweiAdmin && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Conta</span>

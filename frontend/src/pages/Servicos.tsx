@@ -147,9 +147,11 @@ export default function Servicos() {
         setAvailableServers(servers);
         const fromBackend = 'clientKey' in data && typeof data.clientKey === 'string' ? data.clientKey : null;
         const nextKey =
-          clientKeyFromUser != null && clientKeyFromUser !== '' && servers.some((s) => s.clientKey === clientKeyFromUser)
-            ? clientKeyFromUser
-            : fromBackend || (servers.length ? servers[0].clientKey : null);
+          !isAdmin && fromBackend
+            ? fromBackend
+            : (clientKeyFromUser != null && clientKeyFromUser !== '' && servers.some((s) => s.clientKey === clientKeyFromUser))
+              ? clientKeyFromUser
+              : fromBackend || (servers.length ? servers[0].clientKey : null);
         setSelectedClientKey(nextKey);
         if (nextKey) {
           try {
