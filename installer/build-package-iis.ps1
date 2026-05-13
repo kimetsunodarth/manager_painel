@@ -22,6 +22,13 @@ if (-not (Test-Path "node_modules")) {
     npm install 2>&1 | Out-Null
 }
 $env:VITE_API_URL = $null
+$versionFile = Join-Path $rootDir "VERSION"
+if (Test-Path $versionFile) {
+    try {
+        $env:VITE_APP_VERSION = (Get-Content $versionFile -Raw).Trim()
+        Write-Host "Versao do app (VITE_APP_VERSION): $env:VITE_APP_VERSION" -ForegroundColor Gray
+    } catch { }
+}
 Write-Host "Build do frontend (API em /api)..."
 $ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
 try { & npm exec -- vite build 2>&1 | Out-Null } finally { $ErrorActionPreference = $ea }

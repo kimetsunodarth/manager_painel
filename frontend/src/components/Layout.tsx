@@ -33,6 +33,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const user = safeUser();
+  const appVersion = (import.meta as any).env?.VITE_APP_VERSION as string | undefined;
 
   const navigate = useNavigate();
 
@@ -100,10 +101,13 @@ export default function Layout() {
 
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-ananim-surface/60 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/ananim-mark.png" alt="Ananim" className="h-8 w-8 object-contain" />
-            <h1 className="text-lg font-medium font-display text-white">Ananim Manager Painel</h1>
-          </div>
+           <div className="flex items-center gap-3">
+             <img src="/ananim-mark.png" alt="Ananim" className="h-8 w-8 object-contain" />
+             <h1 className="text-lg font-medium font-display text-white">
+               Ananim Manager Painel
+               {appVersion ? <span className="ml-2 text-xs text-gray-400 font-sans">v{appVersion}</span> : null}
+             </h1>
+           </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-300 text-sm">Bem vindo, {user.name || 'Usuário'}!</span>
             <button

@@ -8,7 +8,7 @@
 #define PackageDir "package-iis"
 #endif
 #define MyAppName "Ananim Manager Painel"
-#define MyAppVersion "1.2.14"
+#define MyAppVersion "1.2.15"
 #define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"
 #define MyAppURL "https://github.com/"
@@ -43,7 +43,7 @@ Name: "configiis"; Description: "Configurar site no IIS ao final da instalacao (
 [Files]
 ; Pacote gerado por build-package-iis.ps1: APENAS exe + public + lib + logs + scripts (NAO inclui config, data, iisnode, node_modules)
 ; Em upgrades, evitar sobrescrever config/dados do cliente.
-Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Excludes: "config\*;config.enc;.encryption_key;key.bin"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Excludes: "config\*;config.enc;.encryption_key;key.bin"; Flags: ignoreversion recursesubdirs createallsubdirs overwritereadonly
 
 ; Config e chaves só na primeira instalação (não sobrescrever em atualização).
 Source: ".\{#PackageDir}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist

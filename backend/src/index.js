@@ -8,7 +8,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { getAppRoot } from './appRoot.js';
 
 try {
-  console.log('[Ananim] Iniciando... cwd=%s HTTP_PLATFORM_PORT=%s PORT=%s', process.cwd(), process.env.HTTP_PLATFORM_PORT, process.env.PORT);
+  console.log('[Ananim] Iniciando... v=%s cwd=%s HTTP_PLATFORM_PORT=%s PORT=%s', APP_VERSION, process.cwd(), process.env.HTTP_PLATFORM_PORT, process.env.PORT);
 } catch (e) {
   console.error('[Ananim] Erro ao logar inicio:', e && e.message);
 }
@@ -48,6 +48,7 @@ import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
 import { extractIp } from './utils/validation.js';
+import { APP_VERSION } from './version.js';
 
 initDb();
 
@@ -125,7 +126,7 @@ app.use('/api/huawei', huaweiRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminClientsRoutes);
 
-app.get('/api/health', (_, res) => res.json({ ok: true }));
+app.get('/api/health', (_, res) => res.json({ ok: true, version: APP_VERSION }));
 
 // Servir frontend (public): .exe usa cwd/public; IIS (HTTP_PLATFORM_PORT) idem; dev usa raiz do projeto (sem __dirname para evitar erro no bundle pkg)
 // Em IIS apontando para a pasta do projeto: se public/ não existir, usar frontend/dist (build do frontend na raiz)

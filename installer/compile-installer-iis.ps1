@@ -75,10 +75,13 @@ try {
 if ($exitCode -eq 0) {
   $outDir = Join-Path $scriptDir "Output"
   Write-Host "Instalador gerado em: $outDir" -ForegroundColor Green
-  Write-Host "  Instalador: Ananim-Manager-Painel-IIS-Setup-1.0.0.exe" -ForegroundColor Gray
+  $rootDir = Split-Path -Parent $scriptDir
+  $verFile = Join-Path $rootDir "VERSION"
+  $ver = "unknown"
+  if (Test-Path $verFile) { try { $ver = (Get-Content $verFile -Raw).Trim() } catch { } }
+  Write-Host "  Instalador: Ananim-Manager-Painel-IIS-Setup-$ver.exe" -ForegroundColor Gray
   Write-Host "  Exe GUI no pacote: Ananim-Abrir-Painel.exe, Ananim-Configurar-IIS.exe" -ForegroundColor Gray
   # Copiar config.enc e chave para a mesma pasta do exe Inno (para uso na instalacao)
-  $rootDir = Split-Path -Parent $scriptDir
   $backendDir = Join-Path $rootDir "backend"
   foreach ($name in @("config.enc", ".encryption_key", "key.bin")) {
     $src = Join-Path $backendDir $name

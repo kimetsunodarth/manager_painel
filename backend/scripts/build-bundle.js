@@ -5,10 +5,22 @@
 import * as esbuild from 'esbuild';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const out = path.join(root, 'dist', 'app.cjs');
+
+function readRootVersion() {
+  try {
+    const rootVersion = path.join(root, '..', 'VERSION');
+    return String(readFileSync(rootVersion, 'utf8') || '').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+const appVersion = readRootVersion() || '0.0.0';
 
 await esbuild.build({
   entryPoints: [path.join(root, 'src', 'index.js')],
@@ -16,6 +28,9 @@ await esbuild.build({
   platform: 'node',
   format: 'cjs',
   outfile: out,
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   external: [
     'better-sqlite3',
     'playwright',
