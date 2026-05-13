@@ -1,4 +1,5 @@
-# Atualiza apenas exe e frontend no package-iis (sem rebuild do better-sqlite3).
+# Atualiza apenas exe e frontend no package-iis.
+# IMPORTANTE: o .exe do pkg roda com Node 18; se o better-sqlite3 estiver com ABI diferente, o IIS dá 502.3.
 # Use depois de alterar backend ou frontend. Depois execute: .\installer\compile-installer-iis.ps1
 # Para build completo (incl. better-sqlite3 e config.enc): .\installer\build-package-iis.ps1
 
@@ -22,9 +23,26 @@ Copy-Item (Join-Path $frontend "dist\*") (Join-Path $packageIis "public") -Recur
 Write-Host "  OK: public/ atualizado" -ForegroundColor Green
 Pop-Location
 
-# 2) Backend (só bundle + exe; não rebuild better-sqlite3)
+# 2) Backend (bundle + exe; rebuild better-sqlite3 para Node 18)
 Push-Location $backend
 if (-not (Test-Path "node_modules")) { Write-Host "Instalando deps backend..."; npm install 2>&1 | Out-Null }
+Write-Host "Rebuild better-sqlite3 para Node 18 (ABI 108)..." -ForegroundColor Cyan
+$ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+$oldTarget = $env:npm_config_target
+$oldRuntime = $env:npm_config_runtime
+$oldDistUrl = $env:npm_config_disturl
+$oldArch = $env:npm_config_target_arch
+$env:npm_config_target = "18.5.0"
+$env:npm_config_runtime = "node"
+$env:npm_config_target_arch = "x64"
+$env:npm_config_disturl = "https://nodejs.org/download/release"
+try { npm rebuild better-sqlite3 --build-from-source 2>&1 | Out-Null } finally {
+  $ErrorActionPreference = $ea
+  $env:npm_config_target = $oldTarget
+  $env:npm_config_runtime = $oldRuntime
+  $env:npm_config_disturl = $oldDistUrl
+  $env:npm_config_target_arch = $oldArch
+}
 Write-Host "Build backend (bundle + exe)..."
 & npm run build:exe 2>&1 | Out-Null
 $exePath = Join-Path $backend "dist\Ananim-Manager-Painel-API.exe"

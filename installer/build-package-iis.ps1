@@ -49,20 +49,25 @@ if (-not (Test-Path "node_modules")) {
     npm install 2>&1 | Out-Null
 }
 
-# Write-Host "Rebuild better-sqlite3 para Node 18 (ABI 108)..."
-# $ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-# $oldTarget = $env:npm_config_target
-# $oldRuntime = $env:npm_config_runtime
-# $oldDistUrl = $env:npm_config_disturl
-# $env:npm_config_target = "18.5.0"
-# $env:npm_config_runtime = "node"
-# $env:npm_config_disturl = "https://nodejs.org/download/release"
-# try { npm rebuild better-sqlite3 --build-from-source 2>&1 | Out-Null } finally {
-#     $ErrorActionPreference = $ea
-#     $env:npm_config_target = $oldTarget
-#     $env:npm_config_runtime = $oldRuntime
-#     $env:npm_config_disturl = $oldDistUrl
-# }
+Write-Host "Rebuild better-sqlite3 para Node 18 (ABI 108) — necessario para o .exe (pkg) no IIS..." -ForegroundColor Cyan
+$ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+$oldTarget = $env:npm_config_target
+$oldRuntime = $env:npm_config_runtime
+$oldDistUrl = $env:npm_config_disturl
+$oldArch = $env:npm_config_target_arch
+$env:npm_config_target = "18.5.0"
+$env:npm_config_runtime = "node"
+$env:npm_config_target_arch = "x64"
+$env:npm_config_disturl = "https://nodejs.org/download/release"
+try {
+    npm rebuild better-sqlite3 --build-from-source 2>&1 | Out-Null
+} finally {
+    $ErrorActionPreference = $ea
+    $env:npm_config_target = $oldTarget
+    $env:npm_config_runtime = $oldRuntime
+    $env:npm_config_disturl = $oldDistUrl
+    $env:npm_config_target_arch = $oldArch
+}
 
 Write-Host "Build do backend (bundle + exe)..."
 $ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
