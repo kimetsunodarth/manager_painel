@@ -13,6 +13,9 @@ frontend/dist/
 backend/dist/
 *.log
 logs/
+installer/package-iis-tmp-*/
+installer/package-iis-tmp*/
+installer/package-iis-tmp-old*/
 .npm-cache-tmp/
 
 # Banco de dados interno (criado em runtime)
