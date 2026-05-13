@@ -52,6 +52,9 @@ export default function Programacao() {
   const cachedProjects = loadProjectsFromStorage();
   const cachedSelectedKey = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_SELECTED_KEY) : null;
   const [projects, setProjects] = useState<HuaweiProject[] | null>(cachedProjects);
+  const [projectsInUseKeys, setProjectsInUseKeys] = useState<Set<string>>(new Set());
+  const [onlyInUse, setOnlyInUse] = useState(true);
+  const [projectSearch, setProjectSearch] = useState('');
   const [selectedProject, setSelectedProject] = useState<HuaweiProject | null>(() => {
     if (!cachedProjects?.length || !cachedSelectedKey) return null;
     return cachedProjects.find((p) => projectKey(p) === cachedSelectedKey) ?? null;
@@ -84,6 +87,23 @@ export default function Programacao() {
     }
   };
 
+  const loadProjectsInUse = async () => {
+    try {
+      const data = await huawei.programacao();
+      const keys = new Set<string>();
+      // Nova programação por VM
+      for (const s of (data?.schedulesVm || [])) {
+        if (s?.projectKey) keys.add(String(s.projectKey));
+      }
+      // Programação antiga por projeto + flags
+      for (const k of Object.keys((data?.schedules || {}) as Record<string, unknown>)) keys.add(k);
+      for (const k of Object.keys((data?.skipNextStop || {}) as Record<string, unknown>)) keys.add(k);
+      setProjectsInUseKeys(keys);
+    } catch {
+      setProjectsInUseKeys(new Set());
+    }
+  };
+
   const loadSchedules = async (pk: string) => {
     try {
       const list = await huawei.schedulesVm.list(pk);
@@ -106,7 +126,7 @@ export default function Programacao() {
     setLoading(true);
     setError(null);
     try {
-      await loadProjects();
+      await Promise.all([loadProjects(), loadProjectsInUse()]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar.');
     } finally {
@@ -128,6 +148,15 @@ export default function Programacao() {
       setEcsList([]);
     }
   }, [selectedProject]);
+
+  const normalizedSearch = projectSearch.trim().toLowerCase();
+  const filteredProjects = (projects || []).filter((p) => {
+    const pk = projectKey(p);
+    if (onlyInUse && projectsInUseKeys.size > 0 && !projectsInUseKeys.has(pk)) return false;
+    if (!normalizedSearch) return true;
+    const label = `${p.perfil || ''} ${p.name || ''} ${p.id || ''} ${p.region || ''}`.toLowerCase();
+    return label.includes(normalizedSearch);
+  });
 
   const handleAddSchedule = async (body: ScheduleVmCreate) => {
     if (!selectedProject) return;
@@ -262,11 +291,37 @@ export default function Programacao() {
       {/* Seletor de projeto */}
       <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
         <h3 className="text-lg font-medium text-gray-800 mb-2">Projeto / Cliente</h3>
+        <div className="flex flex-wrap items-end gap-3 mb-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar</label>
+            <input
+              type="search"
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              placeholder="Conta/perfil, projeto, região..."
+              className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
+            <input
+              type="checkbox"
+              checked={onlyInUse}
+              onChange={(e) => setOnlyInUse(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Somente projetos em uso
+          </label>
+          {onlyInUse && projectsInUseKeys.size > 0 && (
+            <span className="text-xs text-gray-500">
+              {filteredProjects.length} projeto(s) em uso
+            </span>
+          )}
+        </div>
         <select
           value={selectedProject ? projectKey(selectedProject) : ''}
           onChange={(e) => {
             const pk = e.target.value;
-            const p = projects?.find((x) => projectKey(x) === pk) || null;
+            const p = (projects || []).find((x) => projectKey(x) === pk) || null;
             setSelectedProject(p);
             try {
               if (pk) sessionStorage.setItem(STORAGE_SELECTED_KEY, pk);
@@ -276,7 +331,7 @@ export default function Programacao() {
           className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm"
         >
           <option value="">Selecione um projeto...</option>
-          {projects?.map((p) => (
+          {filteredProjects.map((p) => (
             <option key={projectKey(p)} value={projectKey(p)}>
               {displayPerfil(p.perfil)} — {p.name || p.id}
             </option>
