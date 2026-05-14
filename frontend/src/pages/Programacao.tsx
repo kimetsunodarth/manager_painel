@@ -7,6 +7,7 @@ import {
   type ScheduleVm,
   type ScheduleVmCreate,
 } from '../api/client';
+import AccountProjectBar from '../components/AccountProjectBar';
 
 const DAYS_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STORAGE_PROJECTS_KEY = 'ananim_programacao_projects';
@@ -55,6 +56,8 @@ export default function Programacao() {
   const [projectsInUseKeys, setProjectsInUseKeys] = useState<Set<string>>(new Set());
   const [onlyInUse, setOnlyInUse] = useState(true);
   const [projectSearch, setProjectSearch] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState<string>('');
+  const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<HuaweiProject | null>(() => {
     if (!cachedProjects?.length || !cachedSelectedKey) return null;
     return cachedProjects.find((p) => projectKey(p) === cachedSelectedKey) ?? null;
@@ -153,10 +156,20 @@ export default function Programacao() {
   const filteredProjects = (projects || []).filter((p) => {
     const pk = projectKey(p);
     if (onlyInUse && projectsInUseKeys.size > 0 && !projectsInUseKeys.has(pk)) return false;
+    if (selectedAccount && (p.perfil || '') !== selectedAccount) return false;
     if (!normalizedSearch) return true;
     const label = `${p.perfil || ''} ${p.name || ''} ${p.id || ''} ${p.region || ''}`.toLowerCase();
     return label.includes(normalizedSearch);
   });
+
+  const accountOptions = Array.from(new Set((projects || []).map((p) => (p.perfil || '')).filter(Boolean) as string[]))
+    .map((perfil) => ({ id: perfil, name: perfil.toLowerCase() }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  const projectOptions = filteredProjects.map((p) => ({ id: projectKey(p), name: p.name || p.id }));
+
+  const selectedProjectFromBar =
+    selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
 
   const handleAddSchedule = async (body: ScheduleVmCreate) => {
     if (!selectedProject) return;
@@ -312,10 +325,30 @@ export default function Programacao() {
             Somente projetos em uso
           </label>
           {onlyInUse && projectsInUseKeys.size > 0 && (
-            <span className="text-xs text-gray-500">
-              {filteredProjects.length} projeto(s) em uso
-            </span>
+            <span className="text-xs text-gray-500">{filteredProjects.length} projeto(s) em uso</span>
           )}
+        </div>
+
+        <div className="rounded-2xl bg-black/5 border border-gray-200 p-3 mb-3">
+          <AccountProjectBar
+            accounts={accountOptions}
+            projects={projectOptions}
+            selectedAccount={selectedAccount}
+            selectedProject={selectedProjectKey}
+            onChangeAccount={(id) => {
+              setSelectedAccount(id);
+              setSelectedProjectKey('');
+            }}
+            onChangeProject={(id) => setSelectedProjectKey(id)}
+            onLoad={() => {
+              if (!selectedProjectFromBar) return;
+              setSelectedProject(selectedProjectFromBar);
+              try { sessionStorage.setItem(STORAGE_SELECTED_KEY, projectKey(selectedProjectFromBar)); } catch (_) {}
+            }}
+            loading={loading}
+            disabled={!selectedProjectFromBar}
+            requireProject
+          />
         </div>
         <select
           value={selectedProject ? projectKey(selectedProject) : ''}
