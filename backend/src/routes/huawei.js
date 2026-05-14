@@ -107,23 +107,50 @@ export async function getEnrichedVisibleProjects(user) {
   if (!user) return [];
   const visible = user.visibleProjects || [];
   if (user.role === 'admin') return visible;
+
+  // Alguns visibleProjects antigos podem ter sido gravados sem "perfil".
+  // Para a barra Conta/Projeto do frontend funcionar, tentamos resolver o perfil
+  // consultando os projetos via config.enc/.env (all_perfis) e casando por projectId.
+  let resolvedPerfilById = null;
+  const hasMissingPerfil = visible.some((p) => !p?.perfil && p?.id);
+  if (hasMissingPerfil) {
+    try {
+      const all = await listProjectsWithConfig({ scope: 'all', source: 'all_perfis' });
+      resolvedPerfilById = new Map();
+      for (const p of Array.isArray(all) ? all : []) {
+        if (p?.id && p?.perfil && !resolvedPerfilById.has(p.id)) {
+          resolvedPerfilById.set(p.id, p.perfil);
+        }
+      }
+    } catch (err) {
+      // Se não conseguir resolver (config ausente), seguimos sem preencher.
+      console.warn('[getEnrichedVisibleProjects] resolve perfil falhou:', err?.message || String(err));
+      resolvedPerfilById = null;
+    }
+  }
+
   const allowedByProject = user.allowedHuaweiEcsIds || {};
   const enriched = await Promise.all(
     visible.map(async (p) => {
-      const allowedIds = allowedByProject[projectKey(p.id, p.perfil)];
-      const isAnanim = p.perfil && String(p.perfil).startsWith('ANANIMCLOUD_');
+      const perfil = p?.perfil || (resolvedPerfilById ? resolvedPerfilById.get(p?.id) : null) || null;
+      const allowedIds = allowedByProject[projectKey(p.id, perfil)];
+      const isAnanim = perfil && String(perfil).startsWith('ANANIMCLOUD_');
       const hasRestrictedEcs = Array.isArray(allowedIds) && allowedIds.length > 0;
-      if (!isAnanim || !hasRestrictedEcs) return { ...p, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
+      if (!isAnanim || !hasRestrictedEcs) {
+        return { ...p, perfil, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
+      }
       try {
-        let servers = await listEcsForProject(p.id, p.region || undefined, p.perfil);
+        let servers = await listEcsForProject(p.id, p.region || undefined, perfil);
         const idSet = new Set(allowedIds);
         servers = servers.filter((s) => idSet.has(s.id));
         const clientName = getClientNameFromEcs(servers);
-        if (clientName) return { ...p, enabled: p.enabled !== false, displayPerfil: `ANANIM_${clientName.toUpperCase().replace(/\s+/g, '_')}` };
+        if (clientName) {
+          return { ...p, perfil, enabled: p.enabled !== false, displayPerfil: `ANANIM_${clientName.toUpperCase().replace(/\s+/g, '_')}` };
+        }
       } catch (err) {
         console.warn('[getEnrichedVisibleProjects]', p.id, err.message);
       }
-      return { ...p, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
+      return { ...p, perfil, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
     })
   );
   return enriched;
