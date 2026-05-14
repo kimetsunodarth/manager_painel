@@ -152,6 +152,7 @@ export default function Home() {
   const [addUserTargetId, setAddUserTargetId] = useState<string | null>(null);
   const [addUserLoading, setAddUserLoading] = useState(false);
   const [huaweiSearch, setHuaweiSearch] = useState('');
+  const [showProjectsList, setShowProjectsList] = useState(false);
   // Barra "Conta / Projeto" (modelo do portal antigo)
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
@@ -636,89 +637,104 @@ export default function Home() {
           {huaweiError && (
             <p className="mt-3 text-sm text-red-600">{huaweiError}</p>
           )}
-          {huaweiProjects && (
-            <>
+           {huaweiProjects && (
+             <>
                <div className="mt-4 flex flex-wrap items-center gap-3">
-                {canHuaweiAdmin && (
-                  <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
-                    <AccountProjectBar
-                      accounts={accountOptions}
-                      projects={projectOptions}
-                      selectedAccount={selectedAccount}
-                      selectedProject={selectedProjectKey}
-                      onChangeAccount={(id) => {
-                        setSelectedAccount(id);
-                        setSelectedProjectKey('');
-                      }}
-                      onChangeProject={(id) => setSelectedProjectKey(id)}
-                      onLoad={() => {
-                        if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
-                      }}
-                      loading={huaweiEcsLoading || huaweiLoading}
-                      disabled={!selectedProjectFromBar}
-                      requireProject
-                    />
-                  </div>
-                )}
-                <label className="text-sm font-medium text-gray-200">Buscar projetos:</label>
-                <input
-                  type="search"
-                  value={huaweiSearch}
-                  onChange={(e) => setHuaweiSearch(e.target.value)}
-                  placeholder="Perfil, projeto, região..."
-                  className="ananim-input flex-1 min-w-[200px] max-w-sm text-sm"
-                />
-                {huaweiSearch.trim() && (
-                  <span className="text-xs text-gray-400">
-                    {filteredProjects.length} de {huaweiProjects.length} projeto(s)
-                  </span>
-                )}
-              </div>
-              <div className="mt-4 overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
-                <table className="w-full text-sm">
-                  <thead className="bg-white/[0.04] border-b border-white/10">
-                    <tr>
-                      {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
-                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProjects.length === 0 ? (
+                 {canHuaweiAdmin ? (
+                   <div className="flex items-center gap-3 flex-wrap">
+                     <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
+                       <AccountProjectBar
+                         accounts={accountOptions}
+                         projects={projectOptions}
+                         selectedAccount={selectedAccount}
+                         selectedProject={selectedProjectKey}
+                         onChangeAccount={(id) => {
+                           setSelectedAccount(id);
+                           setSelectedProjectKey('');
+                         }}
+                         onChangeProject={(id) => setSelectedProjectKey(id)}
+                         onLoad={() => {
+                           if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
+                         }}
+                         loading={huaweiEcsLoading || huaweiLoading}
+                         disabled={!selectedProjectFromBar}
+                         requireProject
+                       />
+                     </div>
+                     <button
+                       type="button"
+                       className="ananim-btn-ghost px-4 py-2"
+                       onClick={() => setShowProjectsList((v) => !v)}
+                     >
+                       {showProjectsList ? 'Ocultar lista' : 'Ver lista de projetos'}
+                     </button>
+                   </div>
+                 ) : (
+                   <>
+                     <label className="text-sm font-medium text-gray-200">Buscar projetos:</label>
+                     <input
+                       type="search"
+                       value={huaweiSearch}
+                       onChange={(e) => setHuaweiSearch(e.target.value)}
+                       placeholder="Perfil, projeto, região..."
+                       className="ananim-input flex-1 min-w-[200px] max-w-sm text-sm"
+                     />
+                     {huaweiSearch.trim() && (
+                       <span className="text-xs text-gray-400">
+                         {filteredProjects.length} de {huaweiProjects.length} projeto(s)
+                       </span>
+                     )}
+                   </>
+                 )}
+               </div>
+
+              {(!canHuaweiAdmin || showProjectsList) && (
+                <div className="mt-4 overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/[0.04] border-b border-white/10">
                       <tr>
-                        <td colSpan={isAdmin ? 5 : 4} className="py-6 px-3 text-center text-gray-400">
-                          {huaweiSearch.trim() ? 'Nenhum projeto encontrado para esta busca.' : 'Nenhum projeto carregado.'}
-                        </td>
+                        {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
+                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
                       </tr>
-                    ) : (
-                    filteredProjects.map((p) => (
-                      <tr
-                        key={projectKey(p)}
-                        onClick={() => loadEcsForProject(p)}
-                        className={`border-b border-white/10 cursor-pointer hover:bg-white/[0.03] ${selectedProject?.id === p.id && selectedProject?.perfil === p.perfil ? 'bg-ananim-accent/10' : ''}`}
-                      >
-                        {isAdmin && (
-                        <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isProjectSelected(p)}
-                            onChange={() => toggleProjectSelection(p)}
-                            className="rounded border-gray-300"
-                          />
-                        </td>
-                        )}
-                        <td className="py-2 px-3 font-medium">{displayPerfil(p.perfil)}</td>
-                        <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
-                        <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
-                        <td className="py-2 px-3">{p.enabled ? 'Ativo' : 'Desativado'}</td>
-                      </tr>
-                    ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredProjects.length === 0 ? (
+                        <tr>
+                          <td colSpan={isAdmin ? 5 : 4} className="py-6 px-3 text-center text-gray-400">
+                            {huaweiSearch.trim() ? 'Nenhum projeto encontrado para esta busca.' : 'Nenhum projeto carregado.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredProjects.map((p) => (
+                          <tr
+                            key={projectKey(p)}
+                            onClick={() => loadEcsForProject(p)}
+                            className={`border-b border-white/10 cursor-pointer hover:bg-white/[0.03] ${selectedProject?.id === p.id && selectedProject?.perfil === p.perfil ? 'bg-ananim-accent/10' : ''}`}
+                          >
+                            {isAdmin && (
+                              <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isProjectSelected(p)}
+                                  onChange={() => toggleProjectSelection(p)}
+                                  className="rounded border-gray-300"
+                                />
+                              </td>
+                            )}
+                            <td className="py-2 px-3 font-medium">{displayPerfil(p.perfil)}</td>
+                            <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
+                            <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
+                            <td className="py-2 px-3">{p.enabled ? 'Ativo' : 'Desativado'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {isAdmin && (
                 <p className="mt-2 text-xs text-gray-400">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
               )}
