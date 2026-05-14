@@ -32,11 +32,23 @@ function projectDisplayName(p: HuaweiProject): string {
   const name = (p.name || '').trim();
   if (!name) return p.id;
   // Alguns projetos vêm no formato "regiao_sufixo". Exibir só o sufixo (cliente).
+  let base = name;
+  let regionPrefix: string | null = null;
   if (name.includes('_')) {
-    const suffix = name.split('_').slice(1).join('_').trim();
-    if (suffix) return suffix;
+    const [prefix, ...rest] = name.split('_');
+    const suffix = rest.join('_').trim();
+    if (suffix) base = suffix;
+    if (isRegionLikeProjectName(prefix)) regionPrefix = prefix.trim().toLowerCase();
   }
-  return name;
+
+  // RAMO_SISTEMAS: diferenciar SP/CH quando existem projetos com o mesmo "cliente".
+  const accountId = accountIdFromPerfil(p.perfil);
+  const region = (p.region || regionPrefix || '').toLowerCase();
+  if (accountId === 'RAMO_SISTEMAS') {
+    if (region === 'sa-brazil-1') return `${base} (SP)`;
+    if (region === 'la-south-2') return `${base} (CH)`;
+  }
+  return base;
 }
 
 const REGION_ROOT_NAMES = new Set([

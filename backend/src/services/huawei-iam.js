@@ -307,36 +307,40 @@ async function listProjectsFromAllProfiles(opts = {}) {
 
     const accountId = getAccountIdForProfile(perfil);
     const region = creds.region || 'la-south-2';
+    const discoveryAccount = accountId ? DISCOVERY_ACCOUNTS.find((a) => a.id === accountId) : null;
+    const regionsToList = discoveryAccount?.regions?.length ? discoveryAccount.regions : [region];
 
     try {
-      const projects = await listProjectsWithAKSK(
-        creds.ak,
-        creds.sk,
-        projectId,
-        filterByRegion ? region : null
-      );
-      for (const p of projects) {
-        const suggestedByAccount = accountId ? suggestedPerfilFromName(accountId, region, p.name) : null;
-        const suggestedByProfile = suggestedPerfilFromProfileAndProject(perfil, region, p.name);
-        const displayPerfil = suggestedByAccount || suggestedByProfile || perfil;
-        const entry = { ...p, perfil: displayPerfil };
-        const existing = byId.get(p.id);
-        if (existing) {
-          const existingIsMaster = masterProfiles.has(existing.perfil);
-          const newIsSuggested = displayPerfil !== perfil;
-          const existingHasAccountPrefix = !!getAccountIdFromDisplayPerfil(existing.perfil);
-          const newHasAccountPrefix = !!suggestedByAccount;
+      for (const r of regionsToList) {
+        const projects = await listProjectsWithAKSK(
+          creds.ak,
+          creds.sk,
+          projectId,
+          filterByRegion ? r : null
+        );
+        for (const p of projects) {
+          const suggestedByAccount = accountId ? suggestedPerfilFromName(accountId, r, p.name) : null;
+          const suggestedByProfile = suggestedPerfilFromProfileAndProject(perfil, r, p.name);
+          const displayPerfil = suggestedByAccount || suggestedByProfile || perfil;
+          const entry = { ...p, region: p.region || r, perfil: displayPerfil };
+          const existing = byId.get(p.id);
+          if (existing) {
+            const existingIsMaster = masterProfiles.has(existing.perfil);
+            const newIsSuggested = displayPerfil !== perfil;
+            const existingHasAccountPrefix = !!getAccountIdFromDisplayPerfil(existing.perfil);
+            const newHasAccountPrefix = !!suggestedByAccount;
 
-          // Prioridade:
-          // 1) Se a nova entrada veio de uma conta de descoberta (RAMO/MOOVE/RSDONE/ANANIMCLOUD), preferir ela.
-          // 2) Se a existente era master e a nova é sugerida (mais específica), substituir.
-          if (newHasAccountPrefix && !existingHasAccountPrefix) {
-            byId.set(p.id, entry);
-          } else if (existingIsMaster && newIsSuggested) {
+            // Prioridade:
+            // 1) Se a nova entrada veio de uma conta de descoberta (RAMO/MOOVE/RSDONE/ANANIMCLOUD), preferir ela.
+            // 2) Se a existente era master e a nova é sugerida (mais específica), substituir.
+            if (newHasAccountPrefix && !existingHasAccountPrefix) {
+              byId.set(p.id, entry);
+            } else if (existingIsMaster && newIsSuggested) {
+              byId.set(p.id, entry);
+            }
+          } else {
             byId.set(p.id, entry);
           }
-        } else {
-          byId.set(p.id, entry);
         }
       }
     } catch (_) {

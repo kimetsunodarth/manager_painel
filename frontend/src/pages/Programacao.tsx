@@ -80,11 +80,22 @@ function projectDisplayName(p: HuaweiProject): string {
   if (p.id === '079fd9f3ab8026fe2fcbc00192167cda') return 'Grupo Moove';
   const name = (p.name || '').trim();
   if (!name) return p.id;
+  let base = name;
+  let regionPrefix: string | null = null;
   if (name.includes('_')) {
-    const suffix = name.split('_').slice(1).join('_').trim();
-    if (suffix) return suffix;
+    const [prefix, ...rest] = name.split('_');
+    const suffix = rest.join('_').trim();
+    if (suffix) base = suffix;
+    if (isRegionLikeProjectName(prefix)) regionPrefix = prefix.trim().toLowerCase();
   }
-  return name;
+
+  const accountId = accountIdFromPerfil(p.perfil);
+  const region = ((p as any).region || regionPrefix || '').toLowerCase();
+  if (accountId === 'RAMO_SISTEMAS') {
+    if (region === 'sa-brazil-1') return `${base} (SP)`;
+    if (region === 'la-south-2') return `${base} (CH)`;
+  }
+  return base;
 }
 
 function formatTime(h: number, m: number): string {
