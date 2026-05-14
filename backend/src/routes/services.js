@@ -118,22 +118,31 @@ router.get('/', async (req, res) => {
         const displayName = effective.type === 'sql'
           ? getSqlClientDisplayName(effective.clientKey)
           : getHanaClientDisplayName(effective.clientKey);
-        const serverMap = new Map();
         const preferredKey = u.preferredServiceClientKey;
-        
+        const servers = [];
+
         for (const k of sqlKeys) {
           if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
           const dn = getSqlClientDisplayName(k);
-          if (!serverMap.has(dn)) serverMap.set(dn, { clientKey: k, displayName: dn });
+          servers.push({ clientKey: k, displayName: dn });
         }
         for (const k of hanaKeys) {
           if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
           const dn = getHanaClientDisplayName(k);
-          if (!serverMap.has(dn)) serverMap.set(dn, { clientKey: k, displayName: dn });
+          servers.push({ clientKey: k, displayName: dn });
         }
-        const servers = Array.from(serverMap.values());
+
+        // Se houver displayName duplicado (ex.: "Roland" e "Roland-web"), desambiguar no label.
+        const counts = new Map();
+        for (const s of servers) counts.set(s.displayName, (counts.get(s.displayName) || 0) + 1);
+        const disambiguated = servers.map((s) => {
+          const c = counts.get(s.displayName) || 0;
+          if (c <= 1) return s;
+          const isWeb = String(s.clientKey || '').toLowerCase().endsWith('-web');
+          return { ...s, displayName: `${s.displayName} (${isWeb ? 'Web' : 'HDB'})` };
+        });
         const payload = { list, mode: effective.type, displayName, clientKey: effective.clientKey };
-        if (servers.length > 1) payload.availableServers = servers;
+        if (disambiguated.length > 1) payload.availableServers = disambiguated;
         return res.json(payload);
       }
     }
