@@ -34,7 +34,9 @@ export default function Login() {
 
       <div className="relative ananim-card w-full max-w-sm p-8 shadow-lg shadow-black/30">
         <div className="flex justify-center mb-5">
-          <img src="/ananim-logo.png" alt="Ananim" className="max-h-14 w-auto object-contain" />
+          <div className="inline-flex items-center justify-center bg-white/95 rounded overflow-hidden h-14">
+            <img src="/ananim-logo.png" alt="Ananim" className="h-14 w-auto object-cover px-3" />
+          </div>
         </div>
         <h1 className="text-2xl font-semibold font-display text-white mb-2">Ananim Manager Painel</h1>
         <p className="text-gray-300 text-sm mb-6">Acesso ao painel Huawei / SAP B1</p>

@@ -57,11 +57,13 @@ export default function Layout() {
       >
         <div className="p-3 flex items-center justify-between border-b border-white/10">
           <Link to="/" className="flex items-center min-w-0 flex-1">
-            <img
-              src="/ananim-logo.png"
-              alt="Ananim"
-              className={`object-contain ${sidebarOpen ? 'max-h-8 w-auto' : 'max-h-8 max-w-8 rounded'}`}
-            />
+            <div className={`flex items-center justify-center ${sidebarOpen ? 'h-8' : 'h-8 w-8'} bg-white/95 rounded overflow-hidden`}>
+              <img
+                src="/ananim-logo.png"
+                alt="Ananim"
+                className={`h-full w-full object-cover ${sidebarOpen ? 'px-2' : ''}`}
+              />
+            </div>
           </Link>
           <button
             type="button"
@@ -103,7 +105,9 @@ export default function Layout() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-ananim-surface/60 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
            <div className="flex items-center gap-3">
-             <img src="/ananim-mark.png" alt="Ananim" className="h-8 w-8 object-contain" />
+             <div className="h-8 w-8 bg-white/95 rounded overflow-hidden flex items-center justify-center">
+               <img src="/ananim-mark.png" alt="Ananim" className="h-full w-full object-cover" />
+             </div>
              <h1 className="text-lg font-medium font-display text-white">
                Ananim Manager Painel
                {appVersion ? <span className="ml-2 text-xs text-gray-400 font-sans">v{appVersion}</span> : null}

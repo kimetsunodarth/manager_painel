@@ -235,6 +235,12 @@ export function getHanaClientKeysForUser(u) {
     for (const rule of allRules) {
       if (rule.test(p) && loadClientConfig(rule.key)) {
         keys.add(rule.key);
+        // Se existir um "servidor web/jump" para o mesmo cliente (ex.: roland-web),
+        // adiciona também para aparecer no dropdown da aba Serviços.
+        if (!String(rule.key).toLowerCase().endsWith('-web')) {
+          const webKey = `${rule.key}-web`;
+          if (loadClientConfig(webKey)) keys.add(webKey);
+        }
         break; // Match encontrado para este projeto, pula para o próximo projeto
       }
     }

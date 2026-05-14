@@ -626,7 +626,9 @@ export default function Home() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <img src="/ananim-mark.png" alt="Ananim" className="h-10 w-10 object-contain" />
+        <div className="h-10 w-10 bg-white/95 rounded overflow-hidden flex items-center justify-center">
+          <img src="/ananim-mark.png" alt="Ananim" className="h-full w-full object-cover" />
+        </div>
         <h2 className="text-xl font-semibold font-display text-white">Página inicial</h2>
       </div>
 
