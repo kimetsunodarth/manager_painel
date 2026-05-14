@@ -44,6 +44,8 @@ function projectDisplayName(p: HuaweiProject): string {
   // RAMO_SISTEMAS: diferenciar SP/CH quando existem projetos com o mesmo "cliente".
   const accountId = accountIdFromPerfil(p.perfil);
   const region = (p.region || regionPrefix || '').toLowerCase();
+  // MOOVE: em algumas contas o projeto vem apenas como "MOS"; padronizar exibição.
+  if (accountId === 'MOOVE_RAMOSISTEMAS' && base.toUpperCase() === 'MOS') return 'Grupo Moove';
   if (accountId === 'RAMO_SISTEMAS') {
     if (region === 'sa-brazil-1') return `${base} (SP)`;
     if (region === 'la-south-2') return `${base} (CH)`;

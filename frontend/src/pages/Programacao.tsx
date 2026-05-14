@@ -91,6 +91,7 @@ function projectDisplayName(p: HuaweiProject): string {
 
   const accountId = accountIdFromPerfil(p.perfil);
   const region = ((p as any).region || regionPrefix || '').toLowerCase();
+  if (accountId === 'MOOVE_RAMOSISTEMAS' && base.toUpperCase() === 'MOS') return 'Grupo Moove';
   if (accountId === 'RAMO_SISTEMAS') {
     if (region === 'sa-brazil-1') return `${base} (SP)`;
     if (region === 'la-south-2') return `${base} (CH)`;

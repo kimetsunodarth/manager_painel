@@ -70,7 +70,8 @@ function shouldTryNextRegion(err) {
     m.includes('not match with the project') ||
     m.includes('project name') ||
     m.includes('invalid region') ||
-    m.includes('the current region is')
+    m.includes('the current region is') ||
+    m.includes('forbidden')
   );
 }
 
