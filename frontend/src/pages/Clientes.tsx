@@ -59,6 +59,7 @@ const emptyForm: AdminClientCreateBody & { jumpPort?: number; hanaPort?: number;
 
 export default function Clientes() {
   const user = useUser();
+  const [clientSearch, setClientSearch] = useState('');
 
   const [list, setList] = useState<AdminClientsList | null>(null);
   const [userList, setUserList] = useState<User[]>([]);
@@ -92,6 +93,15 @@ export default function Clientes() {
   if (user?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
+
+  const normalizedClientSearch = clientSearch.trim().toLowerCase();
+  const filteredRegistry = list?.registry
+    ? list.registry.filter((r) => {
+        if (!normalizedClientSearch) return true;
+        const hay = `${r.displayName || ''} ${r.clientKey || ''}`.toLowerCase();
+        return hay.includes(normalizedClientSearch);
+      })
+    : [];
 
   const load = async () => {
     setLoading(true);
@@ -788,8 +798,24 @@ export default function Clientes() {
             {list.registry.length === 0 ? (
               <p className="text-gray-500 text-sm">Nenhum cliente no registry (adicione acima ou configure manualmente).</p>
             ) : (
-              <ul className="space-y-2 text-sm text-gray-700">
-                {list.registry.map((r) => (
+              <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar</label>
+                    <input
+                      type="search"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Nome ou clientKey..."
+                      className="w-full min-w-[240px] border border-gray-300 rounded px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {filteredRegistry.length} cliente(s)
+                  </span>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-700 mt-3">
+                {filteredRegistry.map((r) => (
                   <li key={r.clientKey} className="flex items-center gap-2 flex-wrap">
                     <span>
                       <strong>{r.displayName}</strong> — {r.clientKey}
@@ -823,7 +849,8 @@ export default function Clientes() {
                     </button>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </>
             )}
             {list.hanaKeys.length > 0 && (
               <p className="text-gray-500 text-xs mt-2">

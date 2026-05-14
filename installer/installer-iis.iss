@@ -9,7 +9,7 @@
 #endif
 #define MyAppName "Ananim Manager Painel"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.29"
+  #define MyAppVersion "1.2.30"
 #endif
 #define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"

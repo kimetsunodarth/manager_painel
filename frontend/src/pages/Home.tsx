@@ -156,26 +156,8 @@ export default function Home() {
   });
   const [huaweiLoading, setHuaweiLoading] = useState(false);
   const [huaweiError, setHuaweiError] = useState<string | null>(null);
-  const [huaweiScope, setHuaweiScope] = useState<'region' | 'all'>(() => {
-    try {
-      const raw = sessionStorage.getItem(HUAWEI_CACHE_KEY);
-      if (raw) {
-        const { scope } = JSON.parse(raw);
-        return scope === 'all' ? 'all' : 'region';
-      }
-    } catch (_) {}
-    return 'region';
-  });
-  const [huaweiSource, setHuaweiSource] = useState<'master' | 'all_perfis'>(() => {
-    try {
-      const raw = sessionStorage.getItem(HUAWEI_CACHE_KEY);
-      if (raw) {
-        const { source } = JSON.parse(raw);
-        return source === 'master' ? 'master' : 'all_perfis';
-      }
-    } catch (_) {}
-    return 'all_perfis';
-  });
+  const [huaweiScope] = useState<'region' | 'all'>('region');
+  const [huaweiSource] = useState<'master' | 'all_perfis'>('all_perfis');
   const [selectedProjects, setSelectedProjects] = useState<HuaweiProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<HuaweiProject | null>(null);
   const [huaweiEcs, setHuaweiEcs] = useState<HuaweiEcsServer[] | null>(null);
@@ -186,8 +168,7 @@ export default function Home() {
   const [usersList, setUsersList] = useState<User[]>([]);
   const [addUserTargetId, setAddUserTargetId] = useState<string | null>(null);
   const [addUserLoading, setAddUserLoading] = useState(false);
-  const [huaweiSearch] = useState('');
-  const [showProjectsList, setShowProjectsList] = useState(false);
+  // Busca/listagem removidas da Home (mantemos apenas Conta/Projeto).
   // Barra "Conta / Projeto" (modelo do portal antigo)
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
@@ -206,7 +187,7 @@ export default function Home() {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoverSelectedIds, setDiscoverSelectedIds] = useState<Set<string>>(new Set());
   const [discoverApplyLoading, setDiscoverApplyLoading] = useState(false);
-  const [clearVisibleLoading, setClearVisibleLoading] = useState(false);
+  // const [clearVisibleLoading, setClearVisibleLoading] = useState(false);
   // Programação (horário em que as VMs ficam ligadas) — admin
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleStart, setScheduleStart] = useState('');
@@ -272,31 +253,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, huaweiProjects, huaweiLoading]);
 
-  const toggleProjectSelection = (p: HuaweiProject) => {
-    const key = projectKey(p);
-    setSelectedProjects((prev) => {
-      const exists = prev.some((x) => projectKey(x) === key);
-      if (exists) return prev.filter((x) => projectKey(x) !== key);
-      return [...prev, p];
-    });
-  };
-
-  const isProjectSelected = (p: HuaweiProject) => selectedProjects.some((x) => projectKey(x) === projectKey(p));
-
-  const searchLower = huaweiSearch.trim().toLowerCase();
-  const baseProjects =
-    huaweiProjects && searchLower
-      ? huaweiProjects.filter(
-          (p) =>
-            (p.displayPerfil || '').toLowerCase().includes(searchLower) ||
-            (p.perfil || '').toLowerCase().includes(searchLower) ||
-            (p.name || '').toLowerCase().includes(searchLower) ||
-            (p.id || '').toLowerCase().includes(searchLower) ||
-            (p.region || '').toLowerCase().includes(searchLower)
-        )
-      : huaweiProjects ?? [];
-
-  const filteredProjects = baseProjects;
+  // Removidos: seleção por checkbox/listagem na Home.
 
   const accountOptionsRaw = Array.from(
     new Set((huaweiProjects || []).map((p) => accountIdFromPerfil(p.perfil)).filter(Boolean) as string[])
@@ -605,23 +562,7 @@ export default function Home() {
     }
   };
 
-  const clearVisibleProjects = async () => {
-    if (!window.confirm('Limpar lista de projetos visíveis? Você poderá buscar novamente com a nova implementação.')) return;
-    setClearVisibleLoading(true);
-    setHuaweiError(null);
-    try {
-      await huawei.clearVisibleProjects();
-      sessionStorage.removeItem(HUAWEI_CACHE_KEY);
-      setHuaweiProjects([]);
-      setSelectedProjects([]);
-      setSelectedProject(null);
-      setHuaweiEcs(null);
-    } catch (e: unknown) {
-      setHuaweiError(getErrorMessage(e));
-    } finally {
-      setClearVisibleLoading(false);
-    }
-  };
+  // Removido: limpar/listar projetos (mantemos apenas Descobrir + seletor Conta/Projeto).
 
   return (
     <div>
@@ -635,57 +576,17 @@ export default function Home() {
           <h3 className="text-lg font-medium text-white mb-2">
             {isAdmin ? 'Projetos Huawei (API real) — apenas administradores' : 'Meus projetos Huawei'}
           </h3>
-          {isAdmin && (
-            <p className="text-sm text-gray-300 mb-3">
-              Use <code className="bg-white/[0.06] px-1 rounded">config.enc</code> + <code className="bg-white/[0.06] px-1 rounded">.encryption_key</code> (CBR) ou <code className="bg-white/[0.06] px-1 rounded">.env</code>. Perfis: NOME_ACCESS_KEY, NOME_SECRET_KEY, NOME_PROJECT_ID, NOME_REGION.
-            </p>
-          )}
-          {isAdmin && (
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            <label className="text-sm text-gray-300">Fonte:</label>
-            <select
-              value={huaweiSource}
-              onChange={(e) => setHuaweiSource(e.target.value as 'master' | 'all_perfis')}
-              className="ananim-input w-auto px-2 py-1.5 text-sm"
-            >
-              <option value="all_perfis">Todas as contas (perfis do config)</option>
-              <option value="master">Uma conta (master)</option>
-            </select>
-            <label className="text-sm text-gray-300">Listar:</label>
-            <select
-              value={huaweiScope}
-              onChange={(e) => setHuaweiScope(e.target.value as 'region' | 'all')}
-              className="ananim-input w-auto px-2 py-1.5 text-sm"
-            >
-              <option value="region">Apenas região de cada conta</option>
-              <option value="all">Todos os projetos de cada conta</option>
-            </select>
-            <button
-              type="button"
-              onClick={loadHuaweiProjects}
-              disabled={huaweiLoading}
-              className="ananim-btn-primary px-4 py-2 disabled:opacity-60"
-            >
-              {huaweiLoading ? 'Carregando...' : 'Carregar projetos Huawei'}
-            </button>
-            <button
-              type="button"
-              onClick={openDiscoverModal}
-              className="ananim-btn bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/25 px-4 py-2"
-            >
-              Descobrir Projetos Automaticamente
-            </button>
-            <button
-              type="button"
-              onClick={clearVisibleProjects}
-              disabled={clearVisibleLoading}
-              className="ananim-btn-ghost px-4 py-2 disabled:opacity-60"
-              title="Limpa a lista fixa visível para buscar novamente com a nova implementação"
-            >
-              {clearVisibleLoading ? 'Limpando...' : 'Limpar projetos visíveis'}
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={openDiscoverModal}
+                className="ananim-btn bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/25 px-4 py-2"
+              >
+                Descobrir Projetos Automaticamente
+              </button>
+            )}
           </div>
-          )}
           {huaweiError && (
             <p className="mt-3 text-sm text-red-600">{huaweiError}</p>
           )}
@@ -711,63 +612,8 @@ export default function Home() {
                          requireProject
                        />
                    </div>
-                   <button
-                     type="button"
-                     className="ananim-btn-ghost px-4 py-2"
-                     onClick={() => setShowProjectsList((v) => !v)}
-                   >
-                     {showProjectsList ? 'Ocultar lista' : 'Ver lista de projetos'}
-                   </button>
                  </div>
                </div>
-
-              {showProjectsList && (
-                <div className="mt-4 overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
-                  <table className="w-full text-sm">
-                    <thead className="bg-white/[0.04] border-b border-white/10">
-                      <tr>
-                        {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
-                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredProjects.length === 0 ? (
-                        <tr>
-                          <td colSpan={isAdmin ? 5 : 4} className="py-6 px-3 text-center text-gray-400">
-                            {huaweiSearch.trim() ? 'Nenhum projeto encontrado para esta busca.' : 'Nenhum projeto carregado.'}
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredProjects.map((p) => (
-                          <tr
-                            key={projectKey(p)}
-                            onClick={() => loadEcsForProject(p)}
-                            className={`border-b border-white/10 cursor-pointer hover:bg-white/[0.03] ${selectedProject?.id === p.id && selectedProject?.perfil === p.perfil ? 'bg-ananim-accent/10' : ''}`}
-                          >
-                            {isAdmin && (
-                              <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  checked={isProjectSelected(p)}
-                                  onChange={() => toggleProjectSelection(p)}
-                                  className="rounded border-gray-300"
-                                />
-                              </td>
-                            )}
-                            <td className="py-2 px-3 font-medium">{displayPerfil(p.perfil)}</td>
-                            <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
-                            <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
-                            <td className="py-2 px-3">{p.enabled ? 'Ativo' : 'Desativado'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
               {isAdmin && (
                 <p className="mt-2 text-xs text-gray-400">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
               )}
