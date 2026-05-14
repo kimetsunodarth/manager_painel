@@ -49,6 +49,31 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
   return null;
 }
 
+const REGION_ROOT_NAMES = new Set([
+  'sa-brazil-1',
+  'la-south-2',
+  'af-south-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-southeast-3',
+  'cn-north-1',
+  'cn-north-4',
+  'cn-east-2',
+  'cn-east-3',
+  'cn-south-1',
+  'na-mexico-1',
+  'eu-west-0',
+  'eu-west-101',
+  'tr-west-1',
+  'ae-ad-1',
+  'my-kualalumpur-1',
+]);
+
+function isRegionRootProjectName(name: string | undefined | null): boolean {
+  const n = (name || '').trim().toLowerCase();
+  return !!n && REGION_ROOT_NAMES.has(n);
+}
+
 function formatTime(h: number, m: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
@@ -175,7 +200,9 @@ export default function Programacao() {
 
   const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
 
-  const projectOptions = projectsForAccount.map((p) => ({ id: projectKey(p), name: p.name || p.id }));
+  const projectOptions = projectsForAccount
+    .filter((p) => !isRegionRootProjectName(p.name))
+    .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;

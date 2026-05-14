@@ -27,6 +27,31 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
   return null;
 }
 
+const REGION_ROOT_NAMES = new Set([
+  'sa-brazil-1',
+  'la-south-2',
+  'af-south-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-southeast-3',
+  'cn-north-1',
+  'cn-north-4',
+  'cn-east-2',
+  'cn-east-3',
+  'cn-south-1',
+  'na-mexico-1',
+  'eu-west-0',
+  'eu-west-101',
+  'tr-west-1',
+  'ae-ad-1',
+  'my-kualalumpur-1',
+]);
+
+function isRegionRootProjectName(name: string | undefined | null): boolean {
+  const n = (name || '').trim().toLowerCase();
+  return !!n && REGION_ROOT_NAMES.has(n);
+}
+
 /** Nome do cliente a partir dos metadados da ECS (centro de custo, cliente, etc.). */
 function getClientNameFromMetadata(meta: Record<string, string> | undefined): string | null {
   if (!meta) return null;
@@ -264,19 +289,22 @@ export default function Home() {
 
   const filteredProjects = baseProjects;
 
-  const accountOptions = Array.from(
+  const accountOptionsRaw = Array.from(
     new Set((huaweiProjects || []).map((p) => accountIdFromPerfil(p.perfil)).filter(Boolean) as string[])
   )
     .map((id) => ({ id, name: id }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  const effectiveAccount = selectedAccount || (accountOptions[0]?.id || '');
+  // Se o backend não enviar "perfil" (ex.: visibleProjects antigos), ainda precisamos permitir selecionar o projeto.
+  const accountOptions = accountOptionsRaw.length > 0 ? accountOptionsRaw : [{ id: '__single__', name: 'minha conta' }];
+  const effectiveAccount = accountOptionsRaw.length > 0 ? (selectedAccount || accountOptions[0].id) : '__single__';
 
   const projectOptions = (huaweiProjects || [])
     .filter((p) => {
-      if (!effectiveAccount) return true;
+      if (effectiveAccount === '__single__') return true;
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
+    .filter((p) => !isRegionRootProjectName(p.name))
     .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =
@@ -663,9 +691,9 @@ export default function Home() {
                          selectedAccount={effectiveAccount}
                          selectedProject={selectedProjectKey}
                          onChangeAccount={(id) => {
-                         setSelectedAccount(id);
-                         setSelectedProjectKey('');
-                       }}
+                         setSelectedAccount(id === '__single__' ? '' : id);
+                          setSelectedProjectKey('');
+                        }}
                          onChangeProject={(id) => setSelectedProjectKey(id)}
                          onLoad={() => {
                            if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
