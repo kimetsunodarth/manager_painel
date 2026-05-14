@@ -1,7 +1,7 @@
 {
   "name": "ananim-manager-painel",
   "private": true,
-  "version": "1.2.32",
+  "version": "1.2.33",
   "type": "module",
   "scripts": {
     "version:set": "node scripts/set-version.mjs",

@@ -58,21 +58,54 @@ const REGION_ROOT_NAMES = new Set([
   'my-kualalumpur-1',
 ]);
 
-function isRegionRootProjectName(name: string | undefined | null): boolean {
+function isRegionLikeProjectName(name: string | undefined | null): boolean {
   const n = (name || '').trim().toLowerCase();
-  return !!n && REGION_ROOT_NAMES.has(n);
+  if (!n) return false;
+  if (REGION_ROOT_NAMES.has(n)) return true;
+  // Ex.: la-north-2, ap-southeast-1, eu-west-101
+  return /^[a-z]{2}-[a-z0-9-]+-\d+$/.test(n);
 }
 
 /** Nome do cliente a partir dos metadados da ECS (centro de custo, cliente, etc.). */
-function getClientNameFromMetadata(meta: Record<string, string> | undefined): string | null {
-  if (!meta) return null;
-  const raw =
-    meta.centro_custo ||
-    meta.centrodecusto ||
-    meta.cost_center ||
-    meta.cliente ||
-    meta.client ||
+function findInTags(tags: any): string | null {
+  if (!tags) return null;
+  // Huawei pode retornar tags como array de strings, array de {key,value} ou objeto.
+  if (Array.isArray(tags)) {
+    for (const t of tags) {
+      if (!t) continue;
+      if (typeof t === 'string') {
+        const [k, ...rest] = t.split('=');
+        const key = (k || '').trim().toLowerCase();
+        const value = rest.join('=').trim();
+        if (!value) continue;
+        if (['centro_custo', 'centrodecusto', 'cost_center', 'cliente', 'client'].includes(key)) return value;
+      } else if (typeof t === 'object') {
+        const key = String((t.key ?? t.k ?? '')).trim().toLowerCase();
+        const value = String((t.value ?? t.v ?? '')).trim();
+        if (!value) continue;
+        if (['centro_custo', 'centrodecusto', 'cost_center', 'cliente', 'client'].includes(key)) return value;
+      }
+    }
+  }
+  if (typeof tags === 'object') {
+    const cand =
+      (tags.centro_custo || tags.centrodecusto || tags.cost_center || tags.cliente || tags.client || '') as string;
+    const t = String(cand || '').trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+function getClientNameFromMetadata(meta: Record<string, string> | undefined, tags?: any): string | null {
+  const rawTag = findInTags(tags);
+  const rawMeta =
+    meta?.centro_custo ||
+    meta?.centrodecusto ||
+    meta?.cost_center ||
+    meta?.cliente ||
+    meta?.client ||
     '';
+  const raw = (rawTag || rawMeta || '').toString();
   const t = raw.trim();
   if (!t) return null;
   return t.replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -95,7 +128,7 @@ function commonPrefix(names: string[]): string {
 function getClientNameFromEcsList(ecsList: HuaweiEcsServer[] | null): string | null {
   if (!ecsList?.length) return null;
   for (const s of ecsList) {
-    const name = getClientNameFromMetadata(s.metadata);
+    const name = getClientNameFromMetadata(s.metadata, (s as any).tags);
     if (name) return name;
   }
   const names = ecsList.map((s) => s.name || s.id).filter(Boolean);
@@ -281,7 +314,7 @@ export default function Home() {
       if (effectiveAccount === '__single__') return true;
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
-    .filter((p) => !isRegionRootProjectName(p.name))
+    .filter((p) => !isRegionLikeProjectName(p.name))
     .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =

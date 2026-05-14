@@ -69,9 +69,11 @@ const REGION_ROOT_NAMES = new Set([
   'my-kualalumpur-1',
 ]);
 
-function isRegionRootProjectName(name: string | undefined | null): boolean {
+function isRegionLikeProjectName(name: string | undefined | null): boolean {
   const n = (name || '').trim().toLowerCase();
-  return !!n && REGION_ROOT_NAMES.has(n);
+  if (!n) return false;
+  if (REGION_ROOT_NAMES.has(n)) return true;
+  return /^[a-z]{2}-[a-z0-9-]+-\d+$/.test(n);
 }
 
 function formatTime(h: number, m: number): string {
@@ -201,7 +203,7 @@ export default function Programacao() {
   const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
 
   const projectOptions = projectsForAccount
-    .filter((p) => !isRegionRootProjectName(p.name))
+    .filter((p) => !isRegionLikeProjectName(p.name))
     .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =

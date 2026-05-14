@@ -250,6 +250,17 @@ function getAccountIdForProfile(profileName) {
   return a ? a.id : null;
 }
 
+/** Retorna id da conta para perfis sugeridos (ex.: MOOVE_SP_CLIENTE -> MOOVE). */
+function getAccountIdFromDisplayPerfil(displayPerfil) {
+  if (!displayPerfil) return null;
+  const p = String(displayPerfil).toUpperCase();
+  if (p.startsWith('ANANIMCLOUD')) return 'ANANIMCLOUD';
+  if (p.startsWith('RAMO_SP') || p.startsWith('RAMO_CH') || p.startsWith('RAMO_SISTEMAS')) return 'RAMO_SISTEMAS';
+  if (p.startsWith('MOOVE')) return 'MOOVE';
+  if (p.startsWith('RSDONE')) return 'RSDONE';
+  return null;
+}
+
 /**
  * Sugere perfil único por projeto a partir do nome do perfil config e do nome do projeto.
  * Ex.: RAMO_CH_3BS_SCIENTIFIC + la-south-2_BEFLY → RAMO_CH_BEFLY (evita perfil duplicado em todas as linhas).
@@ -313,7 +324,17 @@ async function listProjectsFromAllProfiles(opts = {}) {
         if (existing) {
           const existingIsMaster = masterProfiles.has(existing.perfil);
           const newIsSuggested = displayPerfil !== perfil;
-          if (existingIsMaster && newIsSuggested) byId.set(p.id, entry);
+          const existingHasAccountPrefix = !!getAccountIdFromDisplayPerfil(existing.perfil);
+          const newHasAccountPrefix = !!suggestedByAccount;
+
+          // Prioridade:
+          // 1) Se a nova entrada veio de uma conta de descoberta (RAMO/MOOVE/RSDONE/ANANIMCLOUD), preferir ela.
+          // 2) Se a existente era master e a nova é sugerida (mais específica), substituir.
+          if (newHasAccountPrefix && !existingHasAccountPrefix) {
+            byId.set(p.id, entry);
+          } else if (existingIsMaster && newIsSuggested) {
+            byId.set(p.id, entry);
+          }
         } else {
           byId.set(p.id, entry);
         }

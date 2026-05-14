@@ -70,6 +70,8 @@ export async function listEcsWithAKSK(ak, sk, projectId, region) {
     flavor: s.flavor ? { id: s.flavor.id, name: s.flavor.name, vcpus: s.flavor.vcpus, ram: s.flavor.ram } : null,
     addresses: s.addresses || {},
     metadata: s.metadata || {},
+    // Algumas APIs retornam tags diretamente no cloudserver detail; mantemos quando existir.
+    tags: s.tags || s.tag || s.tags_list || null,
   }));
 
   const withDisks = await Promise.all(
