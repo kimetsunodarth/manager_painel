@@ -661,7 +661,6 @@ export default function Home() {
                          if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
                        }}
                        loading={huaweiEcsLoading || huaweiLoading}
-                       disabled={!selectedProjectFromBar}
                        requireProject
                      />
                    </div>

@@ -54,8 +54,6 @@ export default function Programacao() {
   const cachedSelectedKey = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_SELECTED_KEY) : null;
   const [projects, setProjects] = useState<HuaweiProject[] | null>(cachedProjects);
   const [projectsInUseKeys, setProjectsInUseKeys] = useState<Set<string>>(new Set());
-  const [onlyInUse, setOnlyInUse] = useState(true);
-  const [projectSearch, setProjectSearch] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<HuaweiProject | null>(() => {
@@ -152,21 +150,22 @@ export default function Programacao() {
     }
   }, [selectedProject]);
 
-  const normalizedSearch = projectSearch.trim().toLowerCase();
-  const filteredProjects = (projects || []).filter((p) => {
+  // Em Programação, mostrar apenas projetos em uso (com agendamentos).
+  const projectsInUse = (projects || []).filter((p) => {
     const pk = projectKey(p);
-    if (onlyInUse && projectsInUseKeys.size > 0 && !projectsInUseKeys.has(pk)) return false;
-    if (selectedAccount && (p.perfil || '') !== selectedAccount) return false;
-    if (!normalizedSearch) return true;
-    const label = `${p.perfil || ''} ${p.name || ''} ${p.id || ''} ${p.region || ''}`.toLowerCase();
-    return label.includes(normalizedSearch);
+    if (projectsInUseKeys.size > 0 && !projectsInUseKeys.has(pk)) return false;
+    return true;
   });
 
-  const accountOptions = Array.from(new Set((projects || []).map((p) => (p.perfil || '')).filter(Boolean) as string[]))
-    .map((perfil) => ({ id: perfil, name: perfil.toLowerCase() }))
+  const accountOptions = Array.from(new Set(projectsInUse.map((p) => (p.perfil || '')).filter(Boolean) as string[]))
+    .map((perfil) => ({ id: perfil, name: perfil }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  const projectOptions = filteredProjects.map((p) => ({ id: projectKey(p), name: p.name || p.id }));
+  const projectsForAccount = selectedAccount
+    ? projectsInUse.filter((p) => (p.perfil || '') === selectedAccount)
+    : projectsInUse;
+
+  const projectOptions = projectsForAccount.map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
@@ -304,30 +303,9 @@ export default function Programacao() {
       {/* Seletor de projeto */}
       <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
         <h3 className="text-lg font-medium text-gray-800 mb-2">Projeto / Cliente</h3>
-        <div className="flex flex-wrap items-end gap-3 mb-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar</label>
-            <input
-              type="search"
-              value={projectSearch}
-              onChange={(e) => setProjectSearch(e.target.value)}
-              placeholder="Conta/perfil, projeto, região..."
-              className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
-            <input
-              type="checkbox"
-              checked={onlyInUse}
-              onChange={(e) => setOnlyInUse(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            Somente projetos em uso
-          </label>
-          {onlyInUse && projectsInUseKeys.size > 0 && (
-            <span className="text-xs text-gray-500">{filteredProjects.length} projeto(s) em uso</span>
-          )}
-        </div>
+        {projectsInUseKeys.size > 0 && (
+          <p className="text-xs text-gray-500 mb-3">{projectsInUse.length} projeto(s) em uso</p>
+        )}
 
         <div className="rounded-2xl bg-black/5 border border-gray-200 p-3 mb-3">
           <AccountProjectBar
@@ -346,30 +324,9 @@ export default function Programacao() {
               try { sessionStorage.setItem(STORAGE_SELECTED_KEY, projectKey(selectedProjectFromBar)); } catch (_) {}
             }}
             loading={loading}
-            disabled={!selectedProjectFromBar}
             requireProject
           />
         </div>
-        <select
-          value={selectedProject ? projectKey(selectedProject) : ''}
-          onChange={(e) => {
-            const pk = e.target.value;
-            const p = (projects || []).find((x) => projectKey(x) === pk) || null;
-            setSelectedProject(p);
-            try {
-              if (pk) sessionStorage.setItem(STORAGE_SELECTED_KEY, pk);
-              else sessionStorage.removeItem(STORAGE_SELECTED_KEY);
-            } catch (_) {}
-          }}
-          className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm"
-        >
-          <option value="">Selecione um projeto...</option>
-          {filteredProjects.map((p) => (
-            <option key={projectKey(p)} value={projectKey(p)}>
-              {displayPerfil(p.perfil)} — {p.name || p.id}
-            </option>
-          ))}
-        </select>
       </div>
 
       {selectedProject && (
