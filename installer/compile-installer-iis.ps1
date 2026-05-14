@@ -12,6 +12,12 @@ $exeInPackage = Join-Path $packageIis "Ananim-Manager-Painel-API.exe"
 $exeInTmp = Join-Path $packageIisTmp "Ananim-Manager-Painel-API.exe"
 $issPath = Join-Path $scriptDir "installer-iis.iss"
 $guiLaunchersDir = Join-Path $scriptDir "gui-launchers"
+$rootDir = Split-Path -Parent $scriptDir
+$verFile = Join-Path $rootDir "VERSION"
+$appVersion = "0.0.0"
+if (Test-Path $verFile) {
+  try { $appVersion = (Get-Content $verFile -Raw).Trim() } catch { }
+}
 
 $possiblePaths = @(
   "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
@@ -67,7 +73,7 @@ if ($csc -and (Test-Path $guiLaunchersDir)) {
 Write-Host "Compilando instalador Inno Setup (fonte: $sourceFolder)..." -ForegroundColor Cyan
 Push-Location $scriptDir
 try {
-  & $iscc "/DPackageDir=$sourceFolder" $issPath
+  & $iscc "/DPackageDir=$sourceFolder" "/DMyAppVersion=$appVersion" $issPath
   $exitCode = $LASTEXITCODE
 } finally {
   Pop-Location
@@ -75,11 +81,7 @@ try {
 if ($exitCode -eq 0) {
   $outDir = Join-Path $scriptDir "Output"
   Write-Host "Instalador gerado em: $outDir" -ForegroundColor Green
-  $rootDir = Split-Path -Parent $scriptDir
-  $verFile = Join-Path $rootDir "VERSION"
-  $ver = "unknown"
-  if (Test-Path $verFile) { try { $ver = (Get-Content $verFile -Raw).Trim() } catch { } }
-  Write-Host "  Instalador: Ananim-Manager-Painel-IIS-Setup-$ver.exe" -ForegroundColor Gray
+  Write-Host "  Instalador: Ananim-Manager-Painel-IIS-Setup-$appVersion.exe" -ForegroundColor Gray
   Write-Host "  Exe GUI no pacote: Ananim-Abrir-Painel.exe, Ananim-Configurar-IIS.exe" -ForegroundColor Gray
   # Copiar config.enc e chave para a mesma pasta do exe Inno (para uso na instalacao)
   $backendDir = Join-Path $rootDir "backend"

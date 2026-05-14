@@ -151,7 +151,7 @@ export default function Home() {
   const [usersList, setUsersList] = useState<User[]>([]);
   const [addUserTargetId, setAddUserTargetId] = useState<string | null>(null);
   const [addUserLoading, setAddUserLoading] = useState(false);
-  const [huaweiSearch, setHuaweiSearch] = useState('');
+  const [huaweiSearch] = useState('');
   const [showProjectsList, setShowProjectsList] = useState(false);
   // Barra "Conta / Projeto" (modelo do portal antigo)
   const [selectedAccount, setSelectedAccount] = useState<string>('');
@@ -254,14 +254,19 @@ export default function Home() {
 
   const filteredProjects = baseProjects;
 
-  const accountOptions = Array.from(
+  const accountOptionsRaw = Array.from(
     new Set((huaweiProjects || []).map((p) => (p.perfil || '')).filter(Boolean))
   )
     .map((perfil) => ({ id: perfil, name: perfil.toLowerCase() }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
+  // Para usuários não-admin, pode vir projeto sem "perfil". Ainda assim precisamos permitir seleção por projeto.
+  const accountOptions = accountOptionsRaw.length > 0 ? accountOptionsRaw : [{ id: '__single__', name: 'minha conta' }];
+
+  const effectiveAccount = accountOptionsRaw.length > 0 ? selectedAccount : '__single__';
+
   const projectOptions = (huaweiProjects || [])
-    .filter((p) => !selectedAccount || (p.perfil || '') === selectedAccount)
+    .filter((p) => accountOptionsRaw.length === 0 || !effectiveAccount || effectiveAccount === '__single__' || (p.perfil || '') === effectiveAccount)
     .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =
@@ -640,55 +645,37 @@ export default function Home() {
            {huaweiProjects && (
              <>
                <div className="mt-4 flex flex-wrap items-center gap-3">
-                 {canHuaweiAdmin ? (
-                   <div className="flex items-center gap-3 flex-wrap">
-                     <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
-                       <AccountProjectBar
-                         accounts={accountOptions}
-                         projects={projectOptions}
-                         selectedAccount={selectedAccount}
-                         selectedProject={selectedProjectKey}
-                         onChangeAccount={(id) => {
-                           setSelectedAccount(id);
-                           setSelectedProjectKey('');
-                         }}
-                         onChangeProject={(id) => setSelectedProjectKey(id)}
-                         onLoad={() => {
-                           if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
-                         }}
-                         loading={huaweiEcsLoading || huaweiLoading}
-                         disabled={!selectedProjectFromBar}
-                         requireProject
-                       />
-                     </div>
-                     <button
-                       type="button"
-                       className="ananim-btn-ghost px-4 py-2"
-                       onClick={() => setShowProjectsList((v) => !v)}
-                     >
-                       {showProjectsList ? 'Ocultar lista' : 'Ver lista de projetos'}
-                     </button>
-                   </div>
-                 ) : (
-                   <>
-                     <label className="text-sm font-medium text-gray-200">Buscar projetos:</label>
-                     <input
-                       type="search"
-                       value={huaweiSearch}
-                       onChange={(e) => setHuaweiSearch(e.target.value)}
-                       placeholder="Perfil, projeto, região..."
-                       className="ananim-input flex-1 min-w-[200px] max-w-sm text-sm"
+                 <div className="flex items-center gap-3 flex-wrap">
+                   <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
+                     <AccountProjectBar
+                       accounts={accountOptions}
+                       projects={projectOptions}
+                       selectedAccount={effectiveAccount}
+                       selectedProject={selectedProjectKey}
+                       onChangeAccount={(id) => {
+                         setSelectedAccount(id === '__single__' ? '' : id);
+                         setSelectedProjectKey('');
+                       }}
+                       onChangeProject={(id) => setSelectedProjectKey(id)}
+                       onLoad={() => {
+                         if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
+                       }}
+                       loading={huaweiEcsLoading || huaweiLoading}
+                       disabled={!selectedProjectFromBar}
+                       requireProject
                      />
-                     {huaweiSearch.trim() && (
-                       <span className="text-xs text-gray-400">
-                         {filteredProjects.length} de {huaweiProjects.length} projeto(s)
-                       </span>
-                     )}
-                   </>
-                 )}
+                   </div>
+                   <button
+                     type="button"
+                     className="ananim-btn-ghost px-4 py-2"
+                     onClick={() => setShowProjectsList((v) => !v)}
+                   >
+                     {showProjectsList ? 'Ocultar lista' : 'Ver lista de projetos'}
+                   </button>
+                 </div>
                </div>
 
-              {(!canHuaweiAdmin || showProjectsList) && (
+              {showProjectsList && (
                 <div className="mt-4 overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
                   <table className="w-full text-sm">
                     <thead className="bg-white/[0.04] border-b border-white/10">
