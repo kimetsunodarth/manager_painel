@@ -2,10 +2,32 @@
 // Gerador de documentação PDF — Ananim Cloud Portal
 // Usa puppeteer (já instalado) para renderizar HTML → PDF
 
-'use strict';
-const puppeteer = require('puppeteer');
-const path = require('path');
-const fs = require('fs');
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+
+function getBrowserLauncher() {
+  // Preferir Playwright (já baixado no projeto para o instalador IIS).
+  try {
+    const pw = require(path.join(__dirname, 'installer', 'playwright-runtime', 'node_modules', 'playwright'));
+    if (pw?.chromium) return { kind: 'playwright', chromium: pw.chromium };
+  } catch (_) {}
+
+  // Fallback: puppeteer (se estiver instalado no ambiente).
+  try {
+    const p = require('puppeteer');
+    if (p?.launch) return { kind: 'puppeteer', puppeteer: p };
+  } catch (_) {}
+
+  throw new Error(
+    'Nenhum navegador headless encontrado. Use ./installer/build-package-iis.ps1 (gera playwright-runtime) ou instale puppeteer.'
+  );
+}
 
 const OUT = path.join(__dirname, 'Ananim_Cloud_Portal_Documentacao.pdf');
 const VERSION_FILE = path.join(__dirname, 'VERSION');
@@ -1296,15 +1318,45 @@ node gerar_doc_portal.js
 // ── Gerar PDF ────────────────────────────────────────────────────────────────
 async function generate() {
   console.log('[Doc] Iniciando geração do PDF...');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const launcher = getBrowserLauncher();
+  const browser =
+    launcher.kind === 'playwright'
+      ? await launcher.chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+      : await launcher.puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        });
   try {
-    const page = await browser.newPage();
+    const page =
+      launcher.kind === 'playwright'
+        ? await (await browser.newContext()).newPage()
+        : await browser.newPage();
     const html = buildHtml();
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.pdf({
+    if (launcher.kind === 'playwright') {
+      await page.pdf({
+        path: OUT,
+        format: 'A4',
+        printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: `
+        <div style="font-family:Arial,sans-serif;font-size:8px;width:100%;padding:4px 15mm;
+                    background:#050913;color:#4d7fa8;border-bottom:1px solid #00C8E0;
+                    display:flex;justify-content:space-between;align-items:center;box-sizing:border-box">
+          <span style="color:#fff;font-weight:700">Ananim <span style="color:#00C8E0">Cloud</span> Portal</span>
+          <span>Documentação Técnica — v2.0</span>
+        </div>`,
+        footerTemplate: `
+        <div style="font-family:Arial,sans-serif;font-size:7px;width:100%;padding:3px 15mm;
+                    background:#050913;color:#4d7fa8;border-top:1px solid #00C8E0;
+                    display:flex;justify-content:space-between;align-items:center;box-sizing:border-box">
+          <span>Confidencial — Uso Interno</span>
+          <span style="color:#00C8E0">Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+        </div>`,
+        margin: { top: '22mm', bottom: '16mm', left: '0', right: '0' },
+      });
+    } else {
+      await page.pdf({
       path: OUT,
       format: 'A4',
       printBackground: true,
@@ -1324,7 +1376,8 @@ async function generate() {
           <span style="color:#00C8E0">Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
         </div>`,
       margin: { top: '22mm', bottom: '16mm', left: '0', right: '0' },
-    });
+      });
+    }
     console.log(`[Doc] PDF gerado com sucesso: ${OUT}`);
   } finally {
     await browser.close();

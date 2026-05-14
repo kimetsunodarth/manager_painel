@@ -1,4 +1,4 @@
-# Documentação — Ananim Manager Painel (v1.2.14)
+# Documentação — Ananim Manager Painel (v1.2.31)
 
 Este documento reúne configuração, scripts, localização de arquivos e deploy (desenvolvimento e produção).
 
@@ -7,6 +7,24 @@ Este documento reúne configuração, scripts, localização de arquivos e deplo
 **Segurança (validação e melhorias):** **backend/SECURITY.md**.
 
 ---
+
+## 0. Mudanças recentes (UI / Fluxo)
+
+### Home — Projetos Huawei
+
+- A Home exibe somente:
+  - **Descobrir Projetos Automaticamente** (apenas admin)
+  - **Barra Conta / Projeto / Carregar** para selecionar um projeto e listar ECS do projeto.
+- A listagem/tabela completa de projetos e botões de “limpar/listar fonte” foram removidos da Home para simplificar o fluxo.
+
+### Clientes — melhorias de usabilidade
+
+- **Busca** por nome ou `clientKey` na lista de “Clientes cadastrados”.
+- Campo **clientKey** (slug) com:
+  - sugestão automática a partir do Nome do cliente,
+  - normalização (minúsculas + hífens),
+  - aviso de duplicidade antes de enviar.
+- Após criar o cliente, botão **“Testar conexão agora”** (atalho para validar SSH/JUMP via API, sem sair da tela).
 
 ## 1. Configuração: .env vs config.enc + chave
 

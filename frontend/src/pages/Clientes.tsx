@@ -4,6 +4,7 @@ import {
   adminClients,
   users,
   huawei,
+  services as servicesApi,
   type AdminClientsList,
   type AdminClientCreateBody,
   type AdminClientCreateResult,
@@ -60,6 +61,9 @@ const emptyForm: AdminClientCreateBody & { jumpPort?: number; hanaPort?: number;
 export default function Clientes() {
   const user = useUser();
   const [clientSearch, setClientSearch] = useState('');
+  const [clientKeyTouched, setClientKeyTouched] = useState(false);
+  const [testConnLoading, setTestConnLoading] = useState(false);
+  const [testConnMsg, setTestConnMsg] = useState<string | null>(null);
 
   const [list, setList] = useState<AdminClientsList | null>(null);
   const [userList, setUserList] = useState<User[]>([]);
@@ -102,6 +106,24 @@ export default function Clientes() {
         return hay.includes(normalizedClientSearch);
       })
     : [];
+
+  const normalizeClientKey = (value: string): string => {
+    const v = (value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+    return v;
+  };
+
+  const isDuplicateClientKey = (key: string): boolean => {
+    const k = normalizeClientKey(key);
+    if (!k) return false;
+    return !!list?.registry?.some((r) => String(r.clientKey || '').toLowerCase() === k);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -280,6 +302,7 @@ export default function Clientes() {
     e.preventDefault();
     setError('');
     setResult(null);
+    setTestConnMsg(null);
     setSubmitLoading(true);
     try {
       const body: AdminClientCreateBody = {
@@ -293,7 +316,16 @@ export default function Clientes() {
         hanaPassword: form.hanaPassword,
         hanaPort: form.hanaPort ?? 22,
       };
-      if (form.clientKey?.trim()) body.clientKey = form.clientKey.trim().toLowerCase();
+      const normalizedKey = normalizeClientKey(form.clientKey || '');
+      if (normalizedKey) body.clientKey = normalizedKey;
+
+      // Validação no front (evita roundtrip e erro silencioso)
+      if (!body.displayName) {
+        throw new Error('Nome do cliente é obrigatório.');
+      }
+      if (normalizedKey && isDuplicateClientKey(normalizedKey)) {
+        throw new Error(`Já existe um cliente com a chave "${normalizedKey}". Use outra chave.`);
+      }
       if (form.controlCenterUrl?.trim()) {
         body.controlCenterUrl = form.controlCenterUrl.trim();
         body.controlCenterUser = form.controlCenterUser?.trim() ?? '';
@@ -310,6 +342,7 @@ export default function Clientes() {
       }
       const data = await adminClients.create(body);
       setResult(data);
+      setClientKeyTouched(false);
       setForm({ ...emptyForm, hanaServices: defaultHanaServices, webServices: defaultWebServices, windowsServiceGroupsText: '' });
       setAssignToUserIds([]);
       load();
@@ -326,6 +359,21 @@ export default function Clientes() {
   const copySnippet = () => {
     if (!result?.envSnippet) return;
     navigator.clipboard.writeText(result.envSnippet);
+  };
+
+  const testConnectionNow = async () => {
+    const key = result?.clientKey;
+    if (!key) return;
+    setTestConnLoading(true);
+    setTestConnMsg(null);
+    try {
+      const r = await servicesApi.testConnection(key);
+      setTestConnMsg(r.ok ? (r.message || 'Conexão OK.') : (r.error || 'Falha ao conectar.'));
+    } catch (e) {
+      setTestConnMsg(e instanceof Error ? e.message : 'Falha ao testar conexão.');
+    } finally {
+      setTestConnLoading(false);
+    }
   };
 
   const openEditServices = async (clientKey: string) => {
@@ -516,7 +564,19 @@ export default function Clientes() {
             <input
               type="text"
               value={form.displayName}
-              onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value;
+                setForm((f) => {
+                  const next: any = { ...f, displayName: v };
+                  // Se o usuário não editou manualmente a key, mantemos a key sempre "boazinha"
+                  // (mesma regra do backend: minúsculas + hífens).
+                  if (!clientKeyTouched) {
+                    const suggested = normalizeClientKey(v);
+                    next.clientKey = suggested;
+                  }
+                  return next;
+                });
+              }}
               className="w-full border border-gray-300 rounded px-3 py-2"
               placeholder="Ex.: Meu Cliente"
               required
@@ -527,10 +587,25 @@ export default function Clientes() {
             <input
               type="text"
               value={form.clientKey ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, clientKey: e.target.value }))}
+              onChange={(e) => {
+                setClientKeyTouched(true);
+                setForm((f) => ({ ...f, clientKey: e.target.value }));
+              }}
+              onBlur={() => {
+                setForm((f) => ({ ...f, clientKey: normalizeClientKey(f.clientKey || '') }));
+              }}
               className="w-full border border-gray-300 rounded px-3 py-2"
               placeholder="Ex.: meu-cliente (minúsculas, hífens)"
             />
+            {form.clientKey?.trim() ? (
+              <p className={`mt-1 text-xs ${isDuplicateClientKey(form.clientKey) ? 'text-red-600' : 'text-gray-500'}`}>
+                {isDuplicateClientKey(form.clientKey)
+                  ? `Já existe um cliente com a chave "${normalizeClientKey(form.clientKey)}".`
+                  : `Será salvo como: ${normalizeClientKey(form.clientKey)}`}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-500">Se deixar vazio, a chave é gerada automaticamente a partir do nome.</p>
+            )}
           </div>
         </div>
 
@@ -773,6 +848,21 @@ export default function Clientes() {
               </p>
             </div>
           )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={testConnectionNow}
+              disabled={testConnLoading}
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {testConnLoading ? 'Testando...' : 'Testar conexão agora'}
+            </button>
+            {testConnMsg && (
+              <span className={`text-sm ${testConnMsg.toLowerCase().includes('ok') ? 'text-emerald-700' : 'text-red-600'}`}>
+                {testConnMsg}
+              </span>
+            )}
+          </div>
           <div className="flex items-center justify-between gap-2">
             <label className="block text-sm font-medium text-gray-700">{result.configEncUpdated ? 'Bloco que foi gravado no config.enc (referência)' : 'Copie o bloco abaixo para o backend/.env'}</label>
             <button
