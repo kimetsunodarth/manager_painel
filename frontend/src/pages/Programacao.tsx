@@ -76,6 +76,17 @@ function isRegionLikeProjectName(name: string | undefined | null): boolean {
   return /^[a-z]{2}-[a-z0-9-]+-\d+$/.test(n);
 }
 
+function projectDisplayName(p: HuaweiProject): string {
+  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda') return 'Grupo Moove';
+  const name = (p.name || '').trim();
+  if (!name) return p.id;
+  if (name.includes('_')) {
+    const suffix = name.split('_').slice(1).join('_').trim();
+    if (suffix) return suffix;
+  }
+  return name;
+}
+
 function formatTime(h: number, m: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
@@ -203,8 +214,8 @@ export default function Programacao() {
   const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
 
   const projectOptions = projectsForAccount
-    .filter((p) => !isRegionLikeProjectName(p.name))
-    .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
+    .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
+    .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
@@ -368,11 +379,11 @@ export default function Programacao() {
         </div>
       </div>
 
-      {selectedProject && (
+          {selectedProject && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-800">
-              {displayPerfil(selectedProject.perfil)} — {selectedProject.name || selectedProject.id}
+              {displayPerfil(selectedProject.perfil)} — {projectDisplayName(selectedProject)}
             </h3>
             <button
               type="button"

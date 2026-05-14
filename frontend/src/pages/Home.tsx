@@ -28,6 +28,7 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
 }
 
 function projectDisplayName(p: HuaweiProject): string {
+  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda') return 'Grupo Moove';
   const name = (p.name || '').trim();
   if (!name) return p.id;
   // Alguns projetos vêm no formato "regiao_sufixo". Exibir só o sufixo (cliente).
@@ -145,7 +146,7 @@ function ecsProjectTitle(
   ecsList: HuaweiEcsServer[] | null
 ): string {
   if (!project) return '—';
-  const name = project.name || project.id || '';
+  const name = projectDisplayName(project);
   const perfil = project.perfil;
   if (!perfil || !perfil.startsWith('ANANIMCLOUD_')) {
     return project.perfil ? `${displayPerfil(perfil)} — ${name}` : name;
@@ -314,7 +315,7 @@ export default function Home() {
       if (effectiveAccount === '__single__') return true;
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
-    .filter((p) => !isRegionLikeProjectName(p.name))
+    .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
     .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =
