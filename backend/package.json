@@ -1,6 +1,6 @@
 {
   "name": "ananim-manager-painel-backend",
-  "version": "1.2.19",
+  "version": "1.2.20",
   "description": "API do painel de gerenciamento Huawei / SAP B1",
   "main": "src/index.js",
   "type": "module",

@@ -8,7 +8,7 @@
 #define PackageDir "package-iis"
 #endif
 #define MyAppName "Ananim Manager Painel"
-#define MyAppVersion "1.2.19"
+#define MyAppVersion "1.2.20"
 #define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"
 #define MyAppURL "https://github.com/"
@@ -77,7 +77,38 @@ var
   RbUpdate: TNewRadioButton;
   RbClean: TNewRadioButton;
 
-function GetInstalledUninstallString(): String;
+function ExtractExePath(const UninstallString: String): String;
+var
+  s: String;
+  p: Integer;
+begin
+  s := Trim(UninstallString);
+  if s = '' then
+  begin
+    Result := '';
+    exit;
+  end;
+
+  // Pode vir com aspas: "C:\...\unins000.exe" /SILENT ...
+  if (Length(s) >= 2) and (s[1] = '"') then
+  begin
+    p := Pos('"', Copy(s, 2, Length(s) - 1));
+    if p > 0 then
+      Result := Copy(s, 2, p - 1)
+    else
+      Result := '';
+    exit;
+  end;
+
+  // Sem aspas: pega até o primeiro espaço (fallback)
+  p := Pos(' ', s);
+  if p > 0 then
+    Result := Copy(s, 1, p - 1)
+  else
+    Result := s;
+end;
+
+function GetInstalledUninstallStringRaw(): String;
 var
   key, s: String;
 begin
@@ -91,9 +122,56 @@ begin
     Result := '';
 end;
 
+function GetInstalledUninstallString(): String;
+var
+  s, exePath: String;
+begin
+  s := GetInstalledUninstallStringRaw();
+  if s = '' then
+  begin
+    Result := '';
+    exit;
+  end;
+
+  exePath := ExtractExePath(s);
+  if (exePath <> '') and FileExists(exePath) then
+    Result := s
+  else
+    Result := '';
+end;
+
+procedure CleanupStaleUninstallKey();
+var
+  keyHKLM, keyHKCU, s, exePath: String;
+begin
+  keyHKLM := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + '{#MyAppId}' + '}_is1';
+  keyHKCU := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + '{#MyAppId}' + '}_is1';
+
+  // Se existir um registro mas o unins*.exe sumiu, isso faz o Setup reclamar que a versão antiga não foi encontrada.
+  if RegQueryStringValue(HKLM, keyHKLM, 'UninstallString', s) then
+  begin
+    exePath := ExtractExePath(s);
+    if (exePath <> '') and (not FileExists(exePath)) then
+      RegDeleteKeyIncludingSubkeys(HKLM, keyHKLM);
+  end;
+  if RegQueryStringValue(HKCU, keyHKCU, 'UninstallString', s) then
+  begin
+    exePath := ExtractExePath(s);
+    if (exePath <> '') and (not FileExists(exePath)) then
+      RegDeleteKeyIncludingSubkeys(HKCU, keyHKCU);
+  end;
+end;
+
 function IsUpdateOnlySelected(): Boolean;
 begin
   Result := (RbUpdate <> nil) and RbUpdate.Checked;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  // Limpa registro "fantasma" de instalação anterior (uninstaller removido manualmente).
+  CleanupStaleUninstallKey();
+  Result := True;
 end;
 
 procedure InitializeWizard();
