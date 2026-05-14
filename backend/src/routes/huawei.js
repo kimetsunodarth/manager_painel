@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { listProjectsWithConfig, getDiscoveryAccounts, discoverProjectsForAccount } from '../services/huawei-iam.js';
-import { getProfileCredentials } from '../config/configLoader.js';
+import { getProfileNames, getProfileCredentials } from '../config/configLoader.js';
 import { listEcsForProject, startEcs, stopEcs, restartEcs } from '../services/huawei-ecs.js';
 import { userStore } from '../data/store.js';
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
@@ -110,16 +110,33 @@ export async function getEnrichedVisibleProjects(user) {
 
   // Alguns visibleProjects antigos podem ter sido gravados sem "perfil".
   // Para a barra Conta/Projeto do frontend funcionar, tentamos resolver o perfil
-  // consultando os projetos via config.enc/.env (all_perfis) e casando por projectId.
+  // sem depender de chamadas externas: mapeia PROJECT_ID de cada perfil do config → nome do perfil.
   let resolvedPerfilById = null;
   const hasMissingPerfil = visible.some((p) => !p?.perfil && p?.id);
   if (hasMissingPerfil) {
     try {
-      const all = await listProjectsWithConfig({ scope: 'all', source: 'all_perfis' });
       resolvedPerfilById = new Map();
-      for (const p of Array.isArray(all) ? all : []) {
-        if (p?.id && p?.perfil && !resolvedPerfilById.has(p.id)) {
-          resolvedPerfilById.set(p.id, p.perfil);
+
+      // 1) Melhor caminho: resolve por PROJECT_ID (não precisa listar projetos na Huawei)
+      for (const profileName of getProfileNames()) {
+        let creds;
+        try {
+          creds = getProfileCredentials(profileName);
+        } catch (_) {
+          continue;
+        }
+        const pid = String(creds?.project_id || '').trim();
+        if (!pid) continue;
+        if (!resolvedPerfilById.has(pid)) resolvedPerfilById.set(pid, profileName);
+      }
+
+      // 2) Fallback: tenta via listProjectsWithConfig(all_perfis) quando houver AK/SK e o perfil por projeto não estiver cadastrado.
+      if (resolvedPerfilById.size === 0) {
+        const all = await listProjectsWithConfig({ scope: 'all', source: 'all_perfis' });
+        for (const p of Array.isArray(all) ? all : []) {
+          if (p?.id && p?.perfil && !resolvedPerfilById.has(p.id)) {
+            resolvedPerfilById.set(p.id, p.perfil);
+          }
         }
       }
     } catch (err) {
