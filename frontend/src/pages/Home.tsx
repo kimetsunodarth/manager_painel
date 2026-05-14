@@ -263,6 +263,15 @@ export default function Home() {
     }
   };
 
+  // No admin, carregar automaticamente a lista de projetos (mesmo comportamento "pronto para uso" da Programação).
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (huaweiLoading) return;
+    if (huaweiProjects !== null) return;
+    loadHuaweiProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, huaweiProjects, huaweiLoading]);
+
   const toggleProjectSelection = (p: HuaweiProject) => {
     const key = projectKey(p);
     setSelectedProjects((prev) => {
