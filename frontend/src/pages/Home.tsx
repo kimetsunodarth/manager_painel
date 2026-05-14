@@ -27,6 +27,17 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
   return null;
 }
 
+function projectDisplayName(p: HuaweiProject): string {
+  const name = (p.name || '').trim();
+  if (!name) return p.id;
+  // Alguns projetos vêm no formato "regiao_sufixo". Exibir só o sufixo (cliente).
+  if (name.includes('_')) {
+    const suffix = name.split('_').slice(1).join('_').trim();
+    if (suffix) return suffix;
+  }
+  return name;
+}
+
 const REGION_ROOT_NAMES = new Set([
   'sa-brazil-1',
   'la-south-2',
@@ -271,7 +282,7 @@ export default function Home() {
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
     .filter((p) => !isRegionRootProjectName(p.name))
-    .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
+    .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (huaweiProjects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;

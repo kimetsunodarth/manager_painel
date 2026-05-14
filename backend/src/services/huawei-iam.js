@@ -162,10 +162,10 @@ export async function listProjectsWithAKSK(ak, sk, projectId, region) {
 
   let result = allProjects;
   if (region) {
-    const r = String(region).toLowerCase();
-    result = allProjects.filter(
-      (p) => (p.name && (p.name.toLowerCase() === r || p.name.toLowerCase().startsWith(r + '_')))
-    );
+    // Alguns ambientes não seguem o padrão "regiao_suffix" no nome do projeto.
+    // Para não esconder projetos válidos, quando o profile já tem região conhecida,
+    // retornamos todos os projetos e marcamos a região do perfil (fallback para chamadas ECS).
+    result = allProjects;
     result.forEach((p) => { p.region = region; });
   } else {
     const knownRegions = new Set(['sa-brazil-1', 'la-south-2', 'af-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'cn-north-1', 'cn-north-4', 'cn-east-2', 'cn-east-3', 'cn-south-1', 'na-mexico-1', 'eu-west-0', 'eu-west-101', 'tr-west-1', 'ae-ad-1', 'my-kualalumpur-1']);
@@ -189,14 +189,12 @@ export async function listProjectsWithAKSK(ak, sk, projectId, region) {
     });
   }
 
-  // Inclui: (1) projeto raiz (nome = região, ex.: sa-brazil-1) e (2) região_sufixo; exclui *_vazio (ex.: sa-brazil-1_vazio).
-  const knownRegionsList = ['sa-brazil-1', 'la-south-2', 'af-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'cn-north-1', 'cn-north-4', 'cn-east-2', 'cn-east-3', 'cn-south-1', 'na-mexico-1', 'eu-west-0', 'eu-west-101', 'tr-west-1', 'ae-ad-1', 'my-kualalumpur-1'];
+  // Exclui apenas projetos "vazios" gerados automaticamente (ex.: sa-brazil-1_vazio).
   result = result.filter((p) => {
     if (!p.name) return false;
     const n = p.name.toLowerCase().trim();
-    if (n.endsWith('_vazio')) return false; // remove sa-brazil-1_vazio e similares
-    if (knownRegionsList.includes(n)) return true; // projeto raiz
-    return n.includes('_'); // região_sufixo
+    if (n.endsWith('_vazio')) return false;
+    return true;
   });
 
   return result;
