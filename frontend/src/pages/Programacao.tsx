@@ -39,6 +39,16 @@ function displayPerfil(perfil: string | undefined): string {
   return perfil;
 }
 
+function accountIdFromPerfil(perfil: string | undefined | null): string | null {
+  if (!perfil) return null;
+  const p = String(perfil).toUpperCase();
+  if (p.startsWith('ANANIMCLOUD')) return 'ANANIMCLOUD';
+  if (p.startsWith('RAMO_SP') || p.startsWith('RAMO_CH') || p.startsWith('RAMO_SISTEMAS')) return 'RAMO_SISTEMAS';
+  if (p.startsWith('MOOVE')) return 'MOOVE_RAMOSISTEMAS';
+  if (p.startsWith('RSDONE')) return 'RSDONE';
+  return null;
+}
+
 function formatTime(h: number, m: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
@@ -157,13 +167,13 @@ export default function Programacao() {
     return true;
   });
 
-  const accountOptions = Array.from(new Set(projectsInUse.map((p) => (p.perfil || '')).filter(Boolean) as string[]))
-    .map((perfil) => ({ id: perfil, name: perfil }))
+  const accountOptions = Array.from(
+    new Set(projectsInUse.map((p) => accountIdFromPerfil(p.perfil)).filter(Boolean) as string[])
+  )
+    .map((id) => ({ id, name: id }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  const projectsForAccount = selectedAccount
-    ? projectsInUse.filter((p) => (p.perfil || '') === selectedAccount)
-    : projectsInUse;
+  const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
 
   const projectOptions = projectsForAccount.map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 

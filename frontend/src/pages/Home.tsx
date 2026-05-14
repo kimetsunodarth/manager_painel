@@ -17,6 +17,16 @@ function displayPerfil(perfil: string | undefined): string {
   return perfil;
 }
 
+function accountIdFromPerfil(perfil: string | undefined | null): string | null {
+  if (!perfil) return null;
+  const p = String(perfil).toUpperCase();
+  if (p.startsWith('ANANIMCLOUD')) return 'ANANIMCLOUD';
+  if (p.startsWith('RAMO_SP') || p.startsWith('RAMO_CH') || p.startsWith('RAMO_SISTEMAS')) return 'RAMO_SISTEMAS';
+  if (p.startsWith('MOOVE')) return 'MOOVE_RAMOSISTEMAS';
+  if (p.startsWith('RSDONE')) return 'RSDONE';
+  return null;
+}
+
 /** Nome do cliente a partir dos metadados da ECS (centro de custo, cliente, etc.). */
 function getClientNameFromMetadata(meta: Record<string, string> | undefined): string | null {
   if (!meta) return null;
@@ -254,19 +264,19 @@ export default function Home() {
 
   const filteredProjects = baseProjects;
 
-  const accountOptionsRaw = Array.from(
-    new Set((huaweiProjects || []).map((p) => (p.perfil || '')).filter(Boolean))
+  const accountOptions = Array.from(
+    new Set((huaweiProjects || []).map((p) => accountIdFromPerfil(p.perfil)).filter(Boolean) as string[])
   )
-    .map((perfil) => ({ id: perfil, name: perfil.toLowerCase() }))
+    .map((id) => ({ id, name: id }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  // Para usuários não-admin, pode vir projeto sem "perfil". Ainda assim precisamos permitir seleção por projeto.
-  const accountOptions = accountOptionsRaw.length > 0 ? accountOptionsRaw : [{ id: '__single__', name: 'minha conta' }];
-
-  const effectiveAccount = accountOptionsRaw.length > 0 ? selectedAccount : '__single__';
+  const effectiveAccount = selectedAccount || (accountOptions[0]?.id || '');
 
   const projectOptions = (huaweiProjects || [])
-    .filter((p) => accountOptionsRaw.length === 0 || !effectiveAccount || effectiveAccount === '__single__' || (p.perfil || '') === effectiveAccount)
+    .filter((p) => {
+      if (!effectiveAccount) return true;
+      return accountIdFromPerfil(p.perfil) === effectiveAccount;
+    })
     .map((p) => ({ id: projectKey(p), name: p.name || p.id }));
 
   const selectedProjectFromBar =
@@ -647,22 +657,22 @@ export default function Home() {
                <div className="mt-4 flex flex-wrap items-center gap-3">
                  <div className="flex items-center gap-3 flex-wrap">
                    <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
-                     <AccountProjectBar
-                       accounts={accountOptions}
-                       projects={projectOptions}
-                       selectedAccount={effectiveAccount}
-                       selectedProject={selectedProjectKey}
-                       onChangeAccount={(id) => {
-                         setSelectedAccount(id === '__single__' ? '' : id);
+                       <AccountProjectBar
+                         accounts={accountOptions}
+                         projects={projectOptions}
+                         selectedAccount={effectiveAccount}
+                         selectedProject={selectedProjectKey}
+                         onChangeAccount={(id) => {
+                         setSelectedAccount(id);
                          setSelectedProjectKey('');
                        }}
-                       onChangeProject={(id) => setSelectedProjectKey(id)}
-                       onLoad={() => {
-                         if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
-                       }}
-                       loading={huaweiEcsLoading || huaweiLoading}
-                       requireProject
-                     />
+                         onChangeProject={(id) => setSelectedProjectKey(id)}
+                         onLoad={() => {
+                           if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
+                         }}
+                         loading={huaweiEcsLoading || huaweiLoading}
+                         requireProject
+                       />
                    </div>
                    <button
                      type="button"
