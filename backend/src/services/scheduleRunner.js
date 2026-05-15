@@ -120,7 +120,12 @@ export async function monitorStatus() {
   for (const [key, info] of byProject.entries()) {
     try {
       // Listar status reais das VMs no projeto
-      const servers = await listEcsForProject(info.projectId, info.region || undefined, info.perfil);
+      // Para monitorar agendamentos precisamos enxergar todas as VMs do projeto (pode ser grande).
+      // Desliga cálculo de discos para evitar overhead.
+      const servers = await listEcsForProject(info.projectId, info.region || undefined, info.perfil, {
+        maxServers: 20000,
+        includeDisks: false,
+      });
       const serverStatusMap = new Map(servers.map((s) => [s.id, s.status]));
 
       // Analisar cada agendamento

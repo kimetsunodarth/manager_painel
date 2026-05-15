@@ -157,7 +157,10 @@ export async function getEnrichedVisibleProjects(user) {
         return { ...p, perfil, enabled: p.enabled !== false, displayPerfil: p.displayPerfil || null };
       }
       try {
-        let servers = await listEcsForProject(p.id, p.region || undefined, perfil);
+        let servers = await listEcsForProject(p.id, p.region || undefined, perfil, {
+          maxServers: 200,
+          includeDisks: false,
+        });
         const idSet = new Set(allowedIds);
         servers = servers.filter((s) => idSet.has(s.id));
         const clientName = getClientNameFromEcs(servers);
@@ -238,7 +241,15 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão para este projeto' });
     }
     const region = req.query.region || undefined;
-    let servers = await listEcsForProject(projectId, region, perfil);
+    // Proteção para projetos enormes (ex.: MOOVE): limita resultados e aplica filtro durante a paginação.
+    const maxServers = req.query.max ? Number(req.query.max) : undefined;
+    let servers = await listEcsForProject(projectId, region, perfil, {
+      cliente: cliente || undefined,
+      maxServers: Number.isFinite(maxServers) ? maxServers : (cliente ? 500 : 300),
+      includeDisks: true,
+      includeDisksMax: 200,
+    });
+    // Fallback local (metadados) — mantém compatibilidade com tenants que não retornam metadata no /servers/detail.
     servers = filterEcsByCliente(servers, cliente);
 
     const u = userStore.getById(req.user.id);

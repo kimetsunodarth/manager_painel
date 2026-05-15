@@ -16,6 +16,9 @@ Este documento reúne configuração, scripts, localização de arquivos e deplo
   - **Descobrir Projetos Automaticamente** (apenas admin)
   - **Barra Conta / Projeto / Carregar** para selecionar um projeto e listar ECS do projeto.
 - A listagem/tabela completa de projetos e botões de “limpar/listar fonte” foram removidos da Home para simplificar o fluxo.
+- Em projetos muito grandes (ex.: **Grupo Moove**), a API limita a lista retornada para evitar travar o painel:
+  - sem filtro: retorna apenas os primeiros servidores (sem cálculo de discos),
+  - com filtro (campo “Filtrar por cliente / nome”): a API aplica o filtro durante a paginação e retorna mais rápido.
 
 ### Clientes — melhorias de usabilidade
 

@@ -172,18 +172,44 @@ async function getBlockDeviceWithAKSK(ak, sk, projectId, region, serverId) {
   };
 }
 
-export async function listEcsWithAKSK(ak, sk, projectId, region) {
+function normalizeSearchTerm(q) {
+  const t = (q && String(q).trim()) || '';
+  return t ? t.toLowerCase() : '';
+}
+
+function matchesClienteFilter(server, q) {
+  if (!q) return true;
+  const name = (server?.name || '').toLowerCase();
+  if (name.includes(q)) return true;
+  const meta = server?.metadata || {};
+  const metaCliente = String(meta.centro_custo || meta.centrodecusto || meta.cost_center || meta.cliente || meta.client || '').toLowerCase();
+  if (metaCliente.includes(q)) return true;
+  return false;
+}
+
+export async function listEcsWithAKSK(ak, sk, projectId, region, opts = {}) {
   const domain = String(region || '').toLowerCase().startsWith('cn-') ? 'myhuaweicloud.cn' : 'myhuaweicloud.com';
   const host = `ecs.${region}.${domain}`;
   // Implementação alinhada ao projeto "tags": /v2/{project_id}/servers/detail (SDK oficial usa v2).
   // Alguns tenants retornam erro no endpoint antigo /v1/{project_id}/cloudservers/detail.
   const path = `/v2/${projectId}/servers/detail`;
 
-  const allServers = [];
+  const maxServers = Number.isFinite(Number(opts.maxServers)) ? Math.max(1, Number(opts.maxServers)) : 500;
+  const q = normalizeSearchTerm(opts.cliente);
+  const rawCliente = (opts.cliente && String(opts.cliente).trim()) || '';
+  let useNameQuery = !!(rawCliente && rawCliente.length >= 2 && rawCliente.length <= 64);
+
+  const resultServers = [];
   const limit = 100;
   let offset = 0;
   while (true) {
+    // OpenStack Nova aceita filtro por name na listagem — isso reduz drasticamente o volume em projetos grandes.
     const queryParams = { limit: String(limit), offset: String(offset) };
+    if (useNameQuery) {
+      // Usamos name=cliente como "atalho" quando o usuário digitou algo (na UI o campo chama cliente mas também serve para nome).
+      // Se for centro_custo, o filtro local ainda funciona; se for nome, o backend responde muito mais rápido.
+      queryParams.name = rawCliente;
+    }
     const queryStr = `?${new URLSearchParams(queryParams).toString()}`;
     const url = `https://${host}${path}${queryStr}`;
     const headers = signRequest('GET', host, path, ak, sk, { 'X-Project-Id': projectId }, queryParams);
@@ -206,12 +232,28 @@ export async function listEcsWithAKSK(ak, sk, projectId, region) {
 
     const data = await res.json();
     const page = data.servers || [];
-    allServers.push(...page);
-    if (!Array.isArray(page) || page.length < limit) break;
+    const pageArr = Array.isArray(page) ? page : [];
+
+    // Se name=... não retornou nada, fallback: refaz sem name para permitir filtrar por metadata/centro_custo.
+    if (useNameQuery && offset === 0 && pageArr.length === 0) {
+      useNameQuery = false;
+      continue;
+    }
+    for (const s of pageArr) {
+      if (!matchesClienteFilter(s, q)) continue;
+      resultServers.push(s);
+      if (resultServers.length >= maxServers) break;
+    }
+
+    // Sem filtro: retornamos rapidamente (não pagina tudo em projetos gigantes, ex.: MOOVE).
+    // Com filtro: ainda limita a quantidade de resultados para evitar travar o frontend.
+    const hasMore = pageArr.length >= limit;
+    if (!hasMore) break;
+    if (resultServers.length >= maxServers) break;
     offset += limit;
   }
 
-  const baseList = allServers.map((s) => ({
+  const baseList = resultServers.map((s) => ({
     id: s.id,
     name: s.name || s.id,
     status: s.status || 'UNKNOWN',
@@ -221,9 +263,15 @@ export async function listEcsWithAKSK(ak, sk, projectId, region) {
     flavor: s.flavor ? { id: s.flavor.id, name: s.flavor.name, vcpus: s.flavor.vcpus, ram: s.flavor.ram } : null,
     addresses: s.addresses || {},
     metadata: s.metadata || {},
-    // v2/servers/detail normalmente retorna tags como array [{key,value}].
+    // v2/servers/detail pode retornar tags em alguns tenants; em outros vem vazio/undefined.
     tags: s.tags || s.tag || s.tags_list || null,
   }));
+
+  const includeDisksMax = Number.isFinite(Number(opts.includeDisksMax)) ? Math.max(0, Number(opts.includeDisksMax)) : 200;
+  const includeDisks = opts.includeDisks !== false && baseList.length > 0 && baseList.length <= includeDisksMax;
+  if (!includeDisks) {
+    return baseList.map((s) => ({ ...s, totalDiskGb: null, volumeAttachments: [] }));
+  }
 
   const withDisks = await Promise.all(
     baseList.map(async (s) => {
@@ -241,7 +289,7 @@ export async function listEcsWithAKSK(ak, sk, projectId, region) {
 /**
  * Lista ECS do projeto. Se perfil for informado, usa credenciais desse perfil (evita "get token error" ao clicar em projeto de outra conta).
  */
-export async function listEcsForProject(projectId, region, perfil = null) {
+export async function listEcsForProject(projectId, region, perfil = null, opts = {}) {
   let creds;
   if (perfil) {
     try {
@@ -273,7 +321,7 @@ export async function listEcsForProject(projectId, region, perfil = null) {
   const errorsByRegion = [];
   for (const r of candidates) {
     try {
-      const list = await listEcsWithAKSK(creds.ak, creds.sk, projectId, r);
+      const list = await listEcsWithAKSK(creds.ak, creds.sk, projectId, r, opts);
       cache[ck] = r;
       regionCache = cache;
       saveRegionCache();
