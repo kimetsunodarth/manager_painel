@@ -40,6 +40,15 @@ const SUGGESTED_TO_MASTER = [
   { prefix: 'RSDONE_CH_', master: 'RSDONE_CH_ZHOUSE' },
 ];
 
+// Compatibilidade com outros projetos (ex.: finops) que usam chaves globais (MOOVE_AK/MOOVE_SK etc.)
+// Permite rodar o painel com o mesmo arquivo de credenciais, sem duplicar perfis.
+const PROFILE_ENV_ALIASES = [
+  { profile: 'MOOVE_SP_PRINCIPAL', ak: 'MOOVE_AK', sk: 'MOOVE_SK', region: 'MOOVE_REGION', projectId: 'MOOVE_PROJECT_ID' },
+  { profile: 'RAMO_SP_RAMOONE', ak: 'RAMO_AK', sk: 'RAMO_SK', region: 'RAMO_REGION', projectId: 'RAMO_PROJECT_ID' },
+  { profile: 'ANANIMCLOUD_MASTER', ak: 'ANANIM_AK', sk: 'ANANIM_SK', region: 'ANANIM_REGION', projectId: 'ANANIM_PROJECT_ID' },
+  { profile: 'RSDONE_CH_ZHOUSE', ak: 'RSDONE_AK', sk: 'RSDONE_SK', region: 'RSDONE_REGION', projectId: 'RSDONE_PROJECT_ID' },
+];
+
 function parseEnvContent(content) {
   const config = {};
   if (!content || typeof content !== 'string') return config;
@@ -154,6 +163,18 @@ export function getProfileCredentials(profileName, visited = new Set()) {
   const project_id = config[prefix + 'PROJECT_ID'];
   const region = config[prefix + 'REGION'] || 'la-south-2';
   if (!ak || !sk) {
+    // 1) Fallback: aliases globais (finops/webpanel style) para os perfis master.
+    const alias = PROFILE_ENV_ALIASES.find((a) => a.profile.toUpperCase() === name.toUpperCase());
+    if (alias) {
+      const ak2 = config[alias.ak];
+      const sk2 = config[alias.sk];
+      if (ak2 && sk2) {
+        const region2 = (alias.region && config[alias.region] && String(config[alias.region]).trim()) ? String(config[alias.region]).trim() : region;
+        const pid2 = (alias.projectId && config[alias.projectId] && String(config[alias.projectId]).trim()) ? String(config[alias.projectId]).trim() : (project_id || '');
+        return { ak: ak2, sk: sk2, project_id: pid2, region: region2 || 'la-south-2' };
+      }
+    }
+
     const master = getMasterProfileForSuggested(name);
     if (master && !visited.has(master)) {
       return getProfileCredentials(master, visited);

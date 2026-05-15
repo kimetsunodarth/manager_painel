@@ -223,10 +223,8 @@ export async function listProjectsWithConfig(opts = {}) {
   const filterByRegion = opts.scope !== 'all';
 
   if (creds.ak && creds.sk) {
-    if (!creds.project_id) {
-      throw new Error('Configure PROJECT_ID no perfil ou HUAWEI_PROJECT_ID no .env.');
-    }
-    return listProjectsWithAKSK(creds.ak, creds.sk, creds.project_id, filterByRegion ? region : null);
+    // IAM /v3/projects não exige project_id. Mantemos compatível com finops/webpanel (AK/SK sem PROJECT_ID).
+    return listProjectsWithAKSK(creds.ak, creds.sk, creds.project_id || '', filterByRegion ? region : null);
   }
 
   if (creds.type === 'password' && creds.iamUsername && creds.iamPassword && creds.iamDomain) {
@@ -444,8 +442,8 @@ export async function discoverProjectsForAccount(accountId, visibleProjectIds = 
   } catch (e) {
     throw new Error(`Perfil '${account.profile}' não configurado ou sem AK/SK. ${e.message}`);
   }
-  if (!creds.ak || !creds.sk || !creds.project_id) {
-    throw new Error(`Perfil '${account.profile}' precisa de ACCESS_KEY, SECRET_KEY e PROJECT_ID no .env.`);
+  if (!creds.ak || !creds.sk) {
+    throw new Error(`Perfil '${account.profile}' precisa de ACCESS_KEY e SECRET_KEY no .env/config.enc.`);
   }
 
   const allProjects = [];
@@ -453,7 +451,7 @@ export async function discoverProjectsForAccount(accountId, visibleProjectIds = 
 
   for (const region of account.regions) {
     try {
-      const list = await listProjectsWithAKSK(creds.ak, creds.sk, creds.project_id.trim(), region);
+      const list = await listProjectsWithAKSK(creds.ak, creds.sk, (creds.project_id || '').trim(), region);
       for (const p of list) {
         if (seenIds.has(p.id)) continue;
         seenIds.add(p.id);

@@ -45,6 +45,17 @@ A aplicação aceita duas formas de configuração (mesmo conceito do **Huawei C
 
 Em produção (IIS / .exe), use **apenas config.enc + chave** na pasta de instalação; não deixe `.env` com segredos.
 
+### Compatibilidade com FinOps (chaves globais)
+
+Para reaproveitar o mesmo arquivo de credenciais usado no projeto **FinOps**, o backend também aceita as chaves globais abaixo (opcional, para os perfis master):
+
+- `MOOVE_AK` / `MOOVE_SK` (perfil `MOOVE_SP_PRINCIPAL`)
+- `RAMO_AK` / `RAMO_SK` (perfil `RAMO_SP_RAMOONE`)
+- `ANANIM_AK` / `ANANIM_SK` (perfil `ANANIMCLOUD_MASTER`)
+- `RSDONE_AK` / `RSDONE_SK` (perfil `RSDONE_CH_ZHOUSE`)
+
+`*_REGION` e `*_PROJECT_ID` também são aceitos, mas **PROJECT_ID não é obrigatório para listar projetos IAM** (o painel resolve os projetos via IAM).
+
 ---
 
 ## 2. Onde ficam os arquivos de configuração
