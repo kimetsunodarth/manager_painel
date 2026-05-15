@@ -234,7 +234,11 @@ export default function Programacao() {
   const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
 
   const projectOptions = projectsForAccount
-    .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
+    .filter((p) => {
+      const isMooveTenant = accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveTenantProject(p);
+      if (isMooveTenant) return true;
+      return !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id);
+    })
     .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)))
     .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 

@@ -339,7 +339,12 @@ export default function Home() {
       if (effectiveAccount === '__single__') return true;
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
-    .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
+    // Esconde "projetos raiz" de região (ex.: sa-brazil-1, ap-southeast-1). Exceção: MOOVE usa o tenantId cujo name vem como sa-brazil-1.
+    .filter((p) => {
+      const isMooveTenant = accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveTenantProject(p);
+      if (isMooveTenant) return true;
+      return !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id);
+    })
     // MOOVE: o IAM retorna um projeto "MOS" que NÃO deve ser selecionável (não é uma região ECS válida).
     // O projeto correto para listar ECS é o tenantId (079fd9...).
     .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)))
