@@ -20,6 +20,7 @@ Este documento reúne configuração, scripts, localização de arquivos e deplo
   - sem filtro: retorna apenas os primeiros servidores (sem cálculo de discos),
   - com filtro (campo “Filtrar por cliente / nome”): a API aplica o filtro durante a paginação e retorna mais rápido.
 - Observação MOOVE: o IAM pode listar um projeto chamado **MOS**. Esse projeto **não é uma região ECS válida** e por isso é ocultado no seletor; o painel usa o projeto correto (tenantId) para listar as VMs.
+- Observação MOOVE (detalhe): o projeto correto (tenantId `079fd9f3ab8026fe2fcbc00192167cda`) pode aparecer na IAM com `name=sa-brazil-1` (parece “projeto raiz de região”). O painel mantém esse item visível **apenas para MOOVE**, e continua ocultando outros “projetos raiz” de região (ex.: `ap-southeast-1`) para não poluir a lista.
 
 ### Clientes — melhorias de usabilidade
 
