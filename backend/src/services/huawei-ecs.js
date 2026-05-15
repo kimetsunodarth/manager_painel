@@ -76,6 +76,15 @@ function shouldTryNextRegion(err) {
   );
 }
 
+function extractProjectNameFromMismatch(err) {
+  const msg = (err && (err.message || String(err))) || '';
+  const m = String(msg);
+  // Ex.: "does not match with the project name [MOS] in tk."
+  const match = m.match(/project name\s*\[([^\]]+)\]/i);
+  if (match && match[1]) return match[1].trim();
+  return null;
+}
+
 function buildRegionCandidates(projectId, explicitRegion, perfil, credsRegion) {
   const cache = loadRegionCache();
   const ck = regionCacheKey(projectId, perfil);
@@ -211,6 +220,13 @@ export async function listEcsForProject(projectId, region, perfil = null) {
       // Se o caller passou uma região explícita, só tenta fallback quando o erro indicar mismatch.
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
+
+      // Caso especial: algumas APIs retornam "project name [XXX] in tk" — tenta usar XXX como "region".
+      const projName = extractProjectNameFromMismatch(e);
+      if (projName) {
+        const alt = projName.toLowerCase();
+        if (!candidates.includes(alt)) candidates.push(alt);
+      }
     }
   }
   if (errorsByRegion.length > 1) {
@@ -278,6 +294,11 @@ export async function startEcs(projectId, region, serverId, perfil = null) {
       errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
+      const projName = extractProjectNameFromMismatch(e);
+      if (projName) {
+        const alt = projName.toLowerCase();
+        if (!candidates.includes(alt)) candidates.push(alt);
+      }
     }
   }
   if (errorsByRegion.length > 1) {
@@ -309,6 +330,11 @@ export async function stopEcs(projectId, region, serverId, perfil = null) {
       errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
+      const projName = extractProjectNameFromMismatch(e);
+      if (projName) {
+        const alt = projName.toLowerCase();
+        if (!candidates.includes(alt)) candidates.push(alt);
+      }
     }
   }
   if (errorsByRegion.length > 1) {
@@ -340,6 +366,11 @@ export async function restartEcs(projectId, region, serverId, perfil = null) {
       errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
+      const projName = extractProjectNameFromMismatch(e);
+      if (projName) {
+        const alt = projName.toLowerCase();
+        if (!candidates.includes(alt)) candidates.push(alt);
+      }
     }
   }
   if (errorsByRegion.length > 1) {
