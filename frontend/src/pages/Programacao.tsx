@@ -77,7 +77,7 @@ function isRegionLikeProjectName(name: string | undefined | null): boolean {
 }
 
 function projectDisplayName(p: HuaweiProject): string {
-  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda') return 'Grupo Moove';
+  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda' || String(p.name || '').trim().toUpperCase() === 'MOS') return 'Grupo Moove';
   const name = (p.name || '').trim();
   if (!name) return p.id;
   let base = name;
@@ -97,6 +97,14 @@ function projectDisplayName(p: HuaweiProject): string {
     if (region === 'la-south-2') return `${base} (CH)`;
   }
   return base;
+}
+
+function isMooveMosProject(p: HuaweiProject): boolean {
+  return String(p?.name || '').trim().toUpperCase() === 'MOS';
+}
+
+function isMooveTenantProject(p: HuaweiProject): boolean {
+  return p?.id === '079fd9f3ab8026fe2fcbc00192167cda';
 }
 
 function formatTime(h: number, m: number): string {
@@ -227,10 +235,16 @@ export default function Programacao() {
 
   const projectOptions = projectsForAccount
     .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
+    .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)))
     .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
+
+  const effectiveSelectedProject =
+    selectedProjectFromBar && accountIdFromPerfil(selectedProjectFromBar.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(selectedProjectFromBar)
+      ? (projects || []).find((p) => isMooveTenantProject(p)) || selectedProjectFromBar
+      : selectedProjectFromBar;
 
   const handleAddSchedule = async (body: ScheduleVmCreate) => {
     if (!selectedProject) return;
@@ -381,9 +395,9 @@ export default function Programacao() {
             }}
             onChangeProject={(id) => setSelectedProjectKey(id)}
             onLoad={() => {
-              if (!selectedProjectFromBar) return;
-              setSelectedProject(selectedProjectFromBar);
-              try { sessionStorage.setItem(STORAGE_SELECTED_KEY, projectKey(selectedProjectFromBar)); } catch (_) {}
+              if (!effectiveSelectedProject) return;
+              setSelectedProject(effectiveSelectedProject);
+              try { sessionStorage.setItem(STORAGE_SELECTED_KEY, projectKey(effectiveSelectedProject)); } catch (_) {}
             }}
             loading={loading}
             requireProject

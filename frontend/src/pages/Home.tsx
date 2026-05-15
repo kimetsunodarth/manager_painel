@@ -28,7 +28,9 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
 }
 
 function projectDisplayName(p: HuaweiProject): string {
-  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda') return 'Grupo Moove';
+  // MOOVE: o projeto que lista ECS é o tenantId (079fd9...), mas o IAM também retorna um projeto "MOS"
+  // que não corresponde a uma região válida para ECS. Padronizar ambos na UI.
+  if (p.id === '079fd9f3ab8026fe2fcbc00192167cda' || String(p.name || '').trim().toUpperCase() === 'MOS') return 'Grupo Moove';
   const name = (p.name || '').trim();
   if (!name) return p.id;
   // Alguns projetos vêm no formato "regiao_sufixo". Exibir só o sufixo (cliente).
@@ -79,6 +81,14 @@ function isRegionLikeProjectName(name: string | undefined | null): boolean {
   if (REGION_ROOT_NAMES.has(n)) return true;
   // Ex.: la-north-2, ap-southeast-1, eu-west-101
   return /^[a-z]{2}-[a-z0-9-]+-\d+$/.test(n);
+}
+
+function isMooveMosProject(p: HuaweiProject): boolean {
+  return String(p?.name || '').trim().toUpperCase() === 'MOS';
+}
+
+function isMooveTenantProject(p: HuaweiProject): boolean {
+  return p?.id === '079fd9f3ab8026fe2fcbc00192167cda';
 }
 
 /** Nome do cliente a partir dos metadados da ECS (centro de custo, cliente, etc.). */
@@ -330,10 +340,20 @@ export default function Home() {
       return accountIdFromPerfil(p.perfil) === effectiveAccount;
     })
     .filter((p) => !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id))
+    // MOOVE: o IAM retorna um projeto "MOS" que NÃO deve ser selecionável (não é uma região ECS válida).
+    // O projeto correto para listar ECS é o tenantId (079fd9...).
+    .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)))
     .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
 
   const selectedProjectFromBar =
     selectedProjectKey ? (huaweiProjects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
+
+  // Proteção extra: se por algum motivo o projeto "MOS" entrar via cache/visibleProjects antigo,
+  // redireciona automaticamente para o tenantId correto da MOOVE (079fd9...).
+  const effectiveSelectedProject =
+    selectedProjectFromBar && accountIdFromPerfil(selectedProjectFromBar.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(selectedProjectFromBar)
+      ? (huaweiProjects || []).find((p) => isMooveTenantProject(p)) || selectedProjectFromBar
+      : selectedProjectFromBar;
 
   const openAddUserModal = async () => {
     setShowAddUserModal(true);
@@ -667,7 +687,7 @@ export default function Home() {
                         }}
                          onChangeProject={(id) => setSelectedProjectKey(id)}
                          onLoad={() => {
-                           if (selectedProjectFromBar) loadEcsForProject(selectedProjectFromBar);
+                           if (effectiveSelectedProject) loadEcsForProject(effectiveSelectedProject);
                          }}
                          loading={huaweiEcsLoading || huaweiLoading}
                          requireProject

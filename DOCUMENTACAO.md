@@ -19,6 +19,7 @@ Este documento reúne configuração, scripts, localização de arquivos e deplo
 - Em projetos muito grandes (ex.: **Grupo Moove**), a API limita a lista retornada para evitar travar o painel:
   - sem filtro: retorna apenas os primeiros servidores (sem cálculo de discos),
   - com filtro (campo “Filtrar por cliente / nome”): a API aplica o filtro durante a paginação e retorna mais rápido.
+- Observação MOOVE: o IAM pode listar um projeto chamado **MOS**. Esse projeto **não é uma região ECS válida** e por isso é ocultado no seletor; o painel usa o projeto correto (tenantId) para listar as VMs.
 
 ### Clientes — melhorias de usabilidade
 
