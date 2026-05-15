@@ -134,32 +134,43 @@ async function getBlockDeviceWithAKSK(ak, sk, projectId, region, serverId) {
 export async function listEcsWithAKSK(ak, sk, projectId, region) {
   const domain = String(region || '').toLowerCase().startsWith('cn-') ? 'myhuaweicloud.cn' : 'myhuaweicloud.com';
   const host = `ecs.${region}.${domain}`;
-  const path = `/v1/${projectId}/cloudservers/detail`;
-  const queryParams = { limit: '200' };
-  const queryStr = `?${new URLSearchParams(queryParams).toString()}`;
-  const url = `https://${host}${path}${queryStr}`;
+  // Implementação alinhada ao projeto "tags": /v2/{project_id}/servers/detail (SDK oficial usa v2).
+  // Alguns tenants retornam erro no endpoint antigo /v1/{project_id}/cloudservers/detail.
+  const path = `/v2/${projectId}/servers/detail`;
 
-  const headers = signRequest('GET', host, path, ak, sk, { 'X-Project-Id': projectId }, queryParams);
+  const allServers = [];
+  const limit = 100;
+  let offset = 0;
+  while (true) {
+    const queryParams = { limit: String(limit), offset: String(offset) };
+    const queryStr = `?${new URLSearchParams(queryParams).toString()}`;
+    const url = `https://${host}${path}${queryStr}`;
+    const headers = signRequest('GET', host, path, ak, sk, { 'X-Project-Id': projectId }, queryParams);
 
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { ...headers, 'Content-Type': 'application/json;charset=utf8' },
-    signal: AbortSignal.timeout(ECS_TIMEOUT),
-  });
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { ...headers, 'Content-Type': 'application/json;charset=utf8' },
+      signal: AbortSignal.timeout(ECS_TIMEOUT),
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = `List ECS failed (${res.status})`;
-    try {
-      const data = JSON.parse(text);
-      msg = data.error?.message || data.error_msg || data.message || msg;
-    } catch (_) {}
-    throw new Error(msg);
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `List ECS failed (${res.status})`;
+      try {
+        const data = JSON.parse(text);
+        msg = data.error?.message || data.error_msg || data.message || msg;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    const page = data.servers || [];
+    allServers.push(...page);
+    if (!Array.isArray(page) || page.length < limit) break;
+    offset += limit;
   }
 
-  const data = await res.json();
-  const servers = data.servers || [];
-  const baseList = servers.map((s) => ({
+  const baseList = allServers.map((s) => ({
     id: s.id,
     name: s.name || s.id,
     status: s.status || 'UNKNOWN',
@@ -169,7 +180,7 @@ export async function listEcsWithAKSK(ak, sk, projectId, region) {
     flavor: s.flavor ? { id: s.flavor.id, name: s.flavor.name, vcpus: s.flavor.vcpus, ram: s.flavor.ram } : null,
     addresses: s.addresses || {},
     metadata: s.metadata || {},
-    // Algumas APIs retornam tags diretamente no cloudserver detail; mantemos quando existir.
+    // v2/servers/detail normalmente retorna tags como array [{key,value}].
     tags: s.tags || s.tag || s.tags_list || null,
   }));
 
