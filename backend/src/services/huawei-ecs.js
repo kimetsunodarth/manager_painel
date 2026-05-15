@@ -12,6 +12,8 @@ import { getDataDir } from '../appRoot.js';
 const ECS_TIMEOUT = 30000;
 const BLOCK_DEVICE_TIMEOUT = 10000;
 
+const IAM_TIMEOUT = 15000;
+
 const KNOWN_REGIONS = [
   'sa-brazil-1',
   'la-south-2',
@@ -31,6 +33,45 @@ const KNOWN_REGIONS = [
   'ae-ad-1',
   'my-kualalumpur-1',
 ];
+
+let iamRegionsCache = null;
+let iamRegionsCacheTs = 0;
+const IAM_REGIONS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+
+async function listIamRegionsWithAKSK(ak, sk) {
+  const now = Date.now();
+  if (iamRegionsCache && (now - iamRegionsCacheTs) < IAM_REGIONS_CACHE_TTL_MS) return iamRegionsCache;
+  const host = 'iam.myhuaweicloud.com';
+  const urlPath = '/v3/regions';
+  const url = `https://${host}${urlPath}`;
+  const headers = signRequest('GET', host, urlPath, ak, sk, {}, null);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { ...headers, 'Content-Type': 'application/json;charset=utf8' },
+    signal: AbortSignal.timeout(IAM_TIMEOUT),
+  });
+  if (!res.ok) {
+    iamRegionsCache = null;
+    iamRegionsCacheTs = now;
+    return null;
+  }
+  const data = await res.json().catch(() => null);
+  const regions = (data && (data.regions || data.region || data.items)) || [];
+  const ids = [];
+  if (Array.isArray(regions)) {
+    for (const r of regions) {
+      const id = (r && (r.id || r.region_id || r.name)) ? String(r.id || r.region_id || r.name) : '';
+      const v = id.trim();
+      if (!v) continue;
+      // region ids nos endpoints são minúsculos com hífen (ex.: sa-brazil-1)
+      const norm = v.toLowerCase();
+      if (!ids.includes(norm)) ids.push(norm);
+    }
+  }
+  iamRegionsCache = ids;
+  iamRegionsCacheTs = now;
+  return ids;
+}
 
 const REGION_CACHE_PATH = path.join(getDataDir(), 'huawei-project-region-cache.json');
 let regionCache = null;
@@ -215,6 +256,18 @@ export async function listEcsForProject(projectId, region, perfil = null) {
     throw new Error('Configure AK/SK em config.enc ou .env para listar ECS.');
   }
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
+  try {
+    const iamRegions = await listIamRegionsWithAKSK(creds.ak, creds.sk);
+    if (Array.isArray(iamRegions)) {
+      for (const r of iamRegions) {
+        const v = (r && String(r).trim().toLowerCase()) || '';
+        if (!v) continue;
+        if (!candidates.includes(v)) candidates.push(v);
+      }
+    }
+  } catch (_) {
+    // ignora fallback
+  }
 
   let lastErr = null;
   const errorsByRegion = [];
@@ -291,6 +344,16 @@ export async function startEcs(projectId, region, serverId, perfil = null) {
   if (!creds?.ak || !creds?.sk) throw new Error('Configure AK/SK para ações ECS.');
   const body = JSON.stringify({ 'os-start': { servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
+  try {
+    const iamRegions = await listIamRegionsWithAKSK(creds.ak, creds.sk);
+    if (Array.isArray(iamRegions)) {
+      for (const r of iamRegions) {
+        const v = (r && String(r).trim().toLowerCase()) || '';
+        if (!v) continue;
+        if (!candidates.includes(v)) candidates.push(v);
+      }
+    }
+  } catch (_) {}
   let lastErr = null;
   const errorsByRegion = [];
   for (const r of candidates) {
@@ -327,6 +390,16 @@ export async function stopEcs(projectId, region, serverId, perfil = null) {
   if (!creds?.ak || !creds?.sk) throw new Error('Configure AK/SK para ações ECS.');
   const body = JSON.stringify({ 'os-stop': { servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
+  try {
+    const iamRegions = await listIamRegionsWithAKSK(creds.ak, creds.sk);
+    if (Array.isArray(iamRegions)) {
+      for (const r of iamRegions) {
+        const v = (r && String(r).trim().toLowerCase()) || '';
+        if (!v) continue;
+        if (!candidates.includes(v)) candidates.push(v);
+      }
+    }
+  } catch (_) {}
   let lastErr = null;
   const errorsByRegion = [];
   for (const r of candidates) {
@@ -363,6 +436,16 @@ export async function restartEcs(projectId, region, serverId, perfil = null) {
   if (!creds?.ak || !creds?.sk) throw new Error('Configure AK/SK para ações ECS.');
   const body = JSON.stringify({ reboot: { type: 'SOFT', servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
+  try {
+    const iamRegions = await listIamRegionsWithAKSK(creds.ak, creds.sk);
+    if (Array.isArray(iamRegions)) {
+      for (const r of iamRegions) {
+        const v = (r && String(r).trim().toLowerCase()) || '';
+        if (!v) continue;
+        if (!candidates.includes(v)) candidates.push(v);
+      }
+    }
+  } catch (_) {}
   let lastErr = null;
   const errorsByRegion = [];
   for (const r of candidates) {
