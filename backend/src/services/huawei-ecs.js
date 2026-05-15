@@ -71,7 +71,8 @@ function shouldTryNextRegion(err) {
     m.includes('project name') ||
     m.includes('invalid region') ||
     m.includes('the current region is') ||
-    m.includes('forbidden')
+    m.includes('forbidden') ||
+    m.includes('not supported for this domain')
   );
 }
 
@@ -100,7 +101,8 @@ function buildRegionCandidates(projectId, explicitRegion, perfil, credsRegion) {
  * GET /v1/{project_id}/cloudservers/{server_id}/block_device — discos anexados ao ECS (tamanho em GB).
  */
 async function getBlockDeviceWithAKSK(ak, sk, projectId, region, serverId) {
-  const host = `ecs.${region}.myhuaweicloud.com`;
+  const domain = String(region || '').toLowerCase().startsWith('cn-') ? 'myhuaweicloud.cn' : 'myhuaweicloud.com';
+  const host = `ecs.${region}.${domain}`;
   const path = `/v1/${projectId}/cloudservers/${serverId}/block_device`;
   const headers = signRequest('GET', host, path, ak, sk, { 'X-Project-Id': projectId }, null);
 
@@ -121,7 +123,8 @@ async function getBlockDeviceWithAKSK(ak, sk, projectId, region, serverId) {
 }
 
 export async function listEcsWithAKSK(ak, sk, projectId, region) {
-  const host = `ecs.${region}.myhuaweicloud.com`;
+  const domain = String(region || '').toLowerCase().startsWith('cn-') ? 'myhuaweicloud.cn' : 'myhuaweicloud.com';
+  const host = `ecs.${region}.${domain}`;
   const path = `/v1/${projectId}/cloudservers/detail`;
   const queryParams = { limit: '200' };
   const queryStr = `?${new URLSearchParams(queryParams).toString()}`;
@@ -194,6 +197,7 @@ export async function listEcsForProject(projectId, region, perfil = null) {
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
 
   let lastErr = null;
+  const errorsByRegion = [];
   for (const r of candidates) {
     try {
       const list = await listEcsWithAKSK(creds.ak, creds.sk, projectId, r);
@@ -203,10 +207,19 @@ export async function listEcsForProject(projectId, region, perfil = null) {
       return list;
     } catch (e) {
       lastErr = e;
+      errorsByRegion.push({ region: r, message: e?.message || String(e) });
       // Se o caller passou uma região explícita, só tenta fallback quando o erro indicar mismatch.
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
     }
+  }
+  if (errorsByRegion.length > 1) {
+    const unique = [];
+    for (const x of errorsByRegion) {
+      if (!unique.some((u) => u.region === x.region && u.message === x.message)) unique.push(x);
+    }
+    const tried = unique.map((u) => `${u.region}: ${u.message}`).slice(0, 6).join(' | ');
+    throw new Error(`Falha ao listar ECS (regiões tentadas: ${unique.map((u) => u.region).join(', ')}). Últimos erros: ${tried}`);
   }
   throw lastErr || new Error('Falha ao listar ECS.');
 }
@@ -218,7 +231,8 @@ export async function listEcsForProject(projectId, region, perfil = null) {
  * Body: {"os-start":{servers:[{id}]}} | {"os-stop":{servers:[{id}]}} | {"reboot":{type:"SOFT",servers:[{id}]}}
  */
 async function ecsActionWithAKSK(ak, sk, projectId, region, serverId, body) {
-  const host = `ecs.${region}.myhuaweicloud.com`;
+  const domain = String(region || '').toLowerCase().startsWith('cn-') ? 'myhuaweicloud.cn' : 'myhuaweicloud.com';
+  const host = `ecs.${region}.${domain}`;
   const path = `/v1/${projectId}/cloudservers/action`;
   const url = `https://${host}${path}`;
 
@@ -251,6 +265,7 @@ export async function startEcs(projectId, region, serverId, perfil = null) {
   const body = JSON.stringify({ 'os-start': { servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
   let lastErr = null;
+  const errorsByRegion = [];
   for (const r of candidates) {
     try {
       await ecsActionWithAKSK(creds.ak, creds.sk, projectId, r, serverId, body);
@@ -260,9 +275,14 @@ export async function startEcs(projectId, region, serverId, perfil = null) {
       return;
     } catch (e) {
       lastErr = e;
+      errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
     }
+  }
+  if (errorsByRegion.length > 1) {
+    const uniqueRegions = Array.from(new Set(errorsByRegion.map((x) => x.region)));
+    throw new Error(`Falha ao executar start (regiões tentadas: ${uniqueRegions.join(', ')}). Último erro: ${lastErr?.message || String(lastErr)}`);
   }
   throw lastErr || new Error('Falha ao executar start.');
 }
@@ -276,6 +296,7 @@ export async function stopEcs(projectId, region, serverId, perfil = null) {
   const body = JSON.stringify({ 'os-stop': { servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
   let lastErr = null;
+  const errorsByRegion = [];
   for (const r of candidates) {
     try {
       await ecsActionWithAKSK(creds.ak, creds.sk, projectId, r, serverId, body);
@@ -285,9 +306,14 @@ export async function stopEcs(projectId, region, serverId, perfil = null) {
       return;
     } catch (e) {
       lastErr = e;
+      errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
     }
+  }
+  if (errorsByRegion.length > 1) {
+    const uniqueRegions = Array.from(new Set(errorsByRegion.map((x) => x.region)));
+    throw new Error(`Falha ao executar stop (regiões tentadas: ${uniqueRegions.join(', ')}). Último erro: ${lastErr?.message || String(lastErr)}`);
   }
   throw lastErr || new Error('Falha ao executar stop.');
 }
@@ -301,6 +327,7 @@ export async function restartEcs(projectId, region, serverId, perfil = null) {
   const body = JSON.stringify({ reboot: { type: 'SOFT', servers: [{ id: serverId }] } });
   const { cache, ck, candidates } = buildRegionCandidates(projectId, region, perfil, creds.region);
   let lastErr = null;
+  const errorsByRegion = [];
   for (const r of candidates) {
     try {
       await ecsActionWithAKSK(creds.ak, creds.sk, projectId, r, serverId, body);
@@ -310,9 +337,14 @@ export async function restartEcs(projectId, region, serverId, perfil = null) {
       return;
     } catch (e) {
       lastErr = e;
+      errorsByRegion.push({ region: r, message: e?.message || String(e) });
       if (region && !shouldTryNextRegion(e)) break;
       if (!shouldTryNextRegion(e)) continue;
     }
+  }
+  if (errorsByRegion.length > 1) {
+    const uniqueRegions = Array.from(new Set(errorsByRegion.map((x) => x.region)));
+    throw new Error(`Falha ao executar restart (regiões tentadas: ${uniqueRegions.join(', ')}). Último erro: ${lastErr?.message || String(lastErr)}`);
   }
   throw lastErr || new Error('Falha ao executar restart.');
 }
