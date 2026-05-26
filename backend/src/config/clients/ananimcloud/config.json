@@ -1,0 +1,8 @@
+{
+  "clientKey": "ananimcloud",
+  "displayName": "Ananim Cloud",
+  "type": "hana",
+  "comment": "VM SUSE/HANA (CLOUDHDB). Credenciais SSH em credentials.enc (gerado a partir do .env desta pasta).",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00"
+}

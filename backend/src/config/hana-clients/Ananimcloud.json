@@ -1,0 +1,19 @@
+{
+  "clientKey": "ananimcloud",
+  "displayName": "Ananim Cloud",
+  "comment": "VM SUSE/HANA do projeto Ananim Cloud. Credenciais via env (SSH_HOST, SSH_USER, etc).",
+  "envHostKey": "SSH_HOST",
+  "envUserKey": "SSH_USER",
+  "envPasswordKey": "SSH_PASSWORD",
+  "envPortKey": "SSH_PORT",
+  "envPrivateKeyPathKey": "SSH_PRIVATE_KEY_PATH",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "services": [
+    { "id": "serviceLayer", "name": "Service Layer", "action": "executar" },
+    { "id": "sld", "name": "SLD", "action": "executar" },
+    { "id": "hana", "name": "HANA (Cuidado)", "action": "executar" },
+    { "id": "authentication", "name": "Authentication", "action": "executar" },
+    { "id": "all", "name": "TUDO", "action": "executar" }
+  ]
+}

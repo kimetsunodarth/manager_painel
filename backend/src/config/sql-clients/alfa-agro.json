@@ -1,0 +1,11 @@
+{
+  "clientKey": "alfa-agro",
+  "displayName": "Alfa Agro",
+  "groups": [
+    {
+      "id": "animon",
+      "name": "Ananim Windows Monitor V6 Final",
+      "serviceIds": ["AnanimWindowsMonitorV6Final"]
+    }
+  ]
+}

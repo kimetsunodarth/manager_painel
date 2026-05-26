@@ -1,0 +1,21 @@
+{
+  "clientKey": "alfa-citrus",
+  "displayName": "Alfa Citrus",
+  "comment": "Cliente Alfa Citrus (RAMO_SISTEMAS/RamoOne). VM SUSE/HANA. Credenciais via env.",
+  "envHostKey": "SSH_HANA_ALFA_CITRUS_HOST",
+  "envUserKey": "SSH_HANA_ALFA_CITRUS_USER",
+  "envPasswordKey": "SSH_HANA_ALFA_CITRUS_PASSWORD",
+  "envPortKey": "SSH_HANA_ALFA_CITRUS_PORT",
+  "envPrivateKeyPathKey": "SSH_HANA_ALFA_CITRUS_PRIVATE_KEY_PATH",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "services": [
+    { "id": "lista-backups-offsite", "name": "Lista de Backup's Off - Site", "action": "listar" },
+    { "id": "serviceLayer", "name": "Reiniciar Service Layer", "action": "executar" },
+    { "id": "sld", "name": "Reiniciar SLD", "action": "executar" },
+    { "id": "hana", "name": "Reiniciar HANA (Cuidado)", "action": "executar" },
+    { "id": "authentication", "name": "Reiniciar Authentication", "action": "executar" },
+    { "id": "all", "name": "Reiniciar TUDO", "action": "executar" },
+    { "id": "sql-server", "name": "Reiniciar SQL Server", "action": "executar" }
+  ]
+}

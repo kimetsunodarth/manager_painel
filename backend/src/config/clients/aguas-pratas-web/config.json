@@ -1,0 +1,29 @@
+{
+  "clientKey": "aguas-pratas-web",
+  "displayName": "Águas Pratas - Servidor Web (aguasweb)",
+  "type": "sql",
+  "comment": "Servidor aguasweb (124.81.4.10). Apenas SAP B1IF. Credenciais em credentials.enc (SSH_WEB_*).",
+  "connectionType": "web",
+  "groups": [
+    {
+      "id": "sap-b1if",
+      "name": "SAP B1IF",
+      "serviceIds": [
+        "SAPB1iDIProxy",
+        "SAPB1iDIProxy_Monitor",
+        "SAPB1iDIProxy1",
+        "SAPB1iDIProxy1_Monitor",
+        "SAPB1iDIProxy2",
+        "SAPB1iDIProxy2_Monitor",
+        "SAPB1iDIProxy3",
+        "SAPB1iDIProxy3_Monitor",
+        "SAPB1iDIProxy4",
+        "SAPB1iDIProxy4_Monitor",
+        "SAPB1iDIProxy5",
+        "SAPB1iDIProxy5_Monitor",
+        "SAPB1iEventSender",
+        "Tomcat10"
+      ]
+    }
+  ]
+}

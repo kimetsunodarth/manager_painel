@@ -1,0 +1,1 @@
+import { userStore } from './src/data/store.js'; import { getCbrTargets } from './src/routes/backups.js'; const u = userStore.getAll().find(x => x.name.includes('Edmar')); console.log('USER:', u); const { toFetch, allowedIds } = await getCbrTargets(u); console.log('toFetch:', toFetch, 'allowedIds:', allowedIds);

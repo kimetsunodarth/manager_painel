@@ -1,0 +1,16 @@
+# --- SSH: servidor SUSE (restart de serviços SAP/HANA) ---
+# Descomente e preencha com o IP/hostname e usuário da VM SUSE.
+SSH_HOST=
+SSH_USER=
+SSH_PORT=22
+# Use chave privada (recomendado) OU senha (uma das duas):
+# SSH_PRIVATE_KEY_PATH=C:\caminho\para\chave_privada
+# SSH_PASSWORD=
+
+# --- E-mail: notificações após restart (opcional) ---
+# SMTP_HOST=smtp.office365.com
+# SMTP_PORT=587
+# SMTP_USER=
+# SMTP_PASS=
+# EMAIL_FROM=
+# EMAIL_TO=
