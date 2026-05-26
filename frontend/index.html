@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ananim Huawei Painel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body id="body" class="view-login">
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-mascot-wrap" id="login-mascot-wrap">
+        <div class="login-mascot" id="login-mascot">
+          <div class="mascot-head">
+            <div class="mascot-eyes">
+              <span class="mascot-eye mascot-eye-left"></span>
+              <span class="mascot-eye mascot-eye-right"></span>
+            </div>
+            <div class="mascot-arm mascot-arm-left" aria-hidden="true"></div>
+            <div class="mascot-arm mascot-arm-right" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+      <img src="/api/logo" alt="Ananim" class="login-logo">
+      <h1 class="login-title">Ananim Huawei Painel</h1>
+      <p class="login-subtitle">Agendamentos ECS Huawei</p>
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="login-email">E-mail</label>
+          <input type="text" id="login-email" name="email" placeholder="E-mail ou usuário" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Senha</label>
+          <input type="password" id="login-password" name="password" placeholder="Senha" required autocomplete="current-password">
+        </div>
+        <p id="login-error" class="login-error" hidden></p>
+        <button type="submit" class="btn btn-login">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app" aria-hidden="true">
+    <header class="header">
+      <h1>Ananim Huawei Painel</h1>
+      <p class="subtitle">Agendamentos ECS Huawei</p>
+      <nav class="nav-links">
+        <button type="button" class="btn btn-link nav-link" id="nav-contas">Contas</button>
+        <button type="button" class="btn btn-link nav-link" id="nav-agendamentos">Agendamentos</button>
+        <button type="button" class="btn btn-link nav-link" id="nav-usuarios" style="display:none">Usuários</button>
+        <button type="button" class="btn btn-link nav-link" id="nav-log" style="display:none">Log de ações</button>
+        <button type="button" class="btn btn-link nav-link" id="nav-logout">Sair</button>
+      </nav>
+    </header>
+
+    <section class="accounts" id="accounts-section">
+      <h2>Contas</h2>
+      <p class="hint">Selecione uma conta para listar os projetos IAM.</p>
+      <div class="cards" id="account-cards"></div>
+      <div id="accounts-error" class="error-box" hidden>
+        <p id="accounts-error-msg"></p>
+        <div class="error-actions">
+          <button type="button" class="btn btn-primary" id="retry-btn">Atualizar</button>
+        </div>
+        <div class="error-help" id="error-help">
+          <strong>Backend não está respondendo.</strong>
+          <ul>
+            <li>Se estiver em desenvolvimento: inicie a API na pasta <code>backend</code> (<code>npm start</code> ou <code>run.bat</code>).</li>
+            <li>Se estiver no IIS (ex.: porta 8088): verifique se o site está iniciado, se <code>config.enc</code> e <code>key.bin</code> estão na pasta do app e reinicie o site no IIS.</li>
+          </ul>
+          A API deve responder na mesma URL desta página (ex.: <code id="api-url-example"></code>).
+        </div>
+      </div>
+    </section>
+
+    <section class="projects" id="projects-section" hidden>
+      <div class="projects-header">
+        <h2>Projetos — <span id="current-account-name"></span></h2>
+        <div class="projects-header-actions">
+          <button type="button" class="btn btn-primary" id="refresh-projects-btn" title="Buscar projetos novamente na nuvem">Atualizar projetos</button>
+          <button type="button" class="btn btn-secondary" id="back-btn">Voltar</button>
+        </div>
+      </div>
+      <div id="region-bar" class="region-bar" hidden>
+        <label>Região para ECS:</label>
+        <select id="region-select"></select>
+      </div>
+      <div class="projects-search-bar">
+        <label for="projects-search">Pesquisar projetos:</label>
+        <input type="text" id="projects-search" placeholder="Nome ou ID do projeto..." autocomplete="off">
+      </div>
+      <div id="projects-loading" class="loading" hidden>Carregando projetos…</div>
+      <div id="projects-error" class="error" hidden></div>
+      <div id="projects-list" class="projects-list"></div>
+    </section>
+
+    <section class="ecs-section" id="ecs-section" hidden>
+      <div class="ecs-header">
+        <h2>ECS — <span id="ecs-project-name"></span></h2>
+        <button type="button" class="btn btn-secondary" id="ecs-back-btn">Voltar aos projetos</button>
+      </div>
+      <div class="ecs-search-bar">
+        <label for="ecs-search">Pesquisar ECS:</label>
+        <input type="text" id="ecs-search" placeholder="Nome ou ID do servidor..." autocomplete="off">
+      </div>
+      <div id="ecs-loading" class="loading" hidden>Carregando servidores…</div>
+      <div id="ecs-error" class="error" hidden></div>
+      <div id="ecs-list" class="ecs-list"></div>
+    </section>
+
+    <section class="schedules-section" id="schedules-section" hidden>
+      <div class="schedules-header">
+        <h2>Agendamentos (Cloud8)</h2>
+        <p class="hint">Agende Start ou Stop dos ECS por horário e dias da semana.</p>
+        <button type="button" class="btn btn-primary" id="schedule-new-btn">Novo agendamento</button>
+      </div>
+      <div class="schedules-search-bar">
+        <label for="schedules-search">Pesquisar:</label>
+        <input type="text" id="schedules-search" placeholder="Nome do servidor, projeto, conta, start, stop, restart..." autocomplete="off">
+      </div>
+      <div id="schedules-loading" class="loading" hidden>Carregando agendamentos…</div>
+      <div id="schedules-error" class="error" hidden></div>
+      <div id="schedules-list" class="schedules-list"></div>
+
+      <div id="schedule-form-box" class="schedule-form-box" hidden>
+        <h3 id="schedule-form-title">Novo agendamento</h3>
+        <form id="schedule-form">
+          <input type="hidden" id="schedule-id" value="">
+          <div class="form-row">
+            <label>Conta</label>
+            <select id="schedule-accountId" required></select>
+          </div>
+          <div class="form-row">
+            <label>Região</label>
+            <select id="schedule-region"></select>
+          </div>
+          <div class="form-row">
+            <label>Projeto</label>
+            <select id="schedule-projectId" required>
+              <option value="">— Selecione a conta e depois o projeto —</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Servidor</label>
+            <select id="schedule-serverId">
+              <option value="">— Selecione conta, região e projeto —</option>
+            </select>
+            <span class="form-hint">Ou digite o ID abaixo se não carregar a lista.</span>
+          </div>
+          <div class="form-row">
+            <label>ID do servidor (se não usou o select)</label>
+            <input type="text" id="schedule-serverId-fallback" placeholder="uuid do ECS (opcional)">
+          </div>
+          <div class="form-row">
+            <label>Nome do servidor (exibição)</label>
+            <input type="text" id="schedule-serverName" placeholder="Ex: App Server">
+          </div>
+          <div class="form-row">
+            <label>Ação</label>
+            <select id="schedule-action">
+              <option value="start">Start</option>
+              <option value="stop">Stop</option>
+              <option value="restart">Restart</option>
+            </select>
+          </div>
+          <div class="form-row inline">
+            <div>
+              <label>Horário</label>
+              <input type="number" id="schedule-hour" min="0" max="23" value="8" placeholder="Hora"> :
+              <input type="number" id="schedule-minute" min="0" max="59" value="0" placeholder="Min">
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Dias da semana</label>
+            <div class="days-checkboxes" id="schedule-days">
+              <label><input type="checkbox" value="0"> Dom</label>
+              <label><input type="checkbox" value="1"> Seg</label>
+              <label><input type="checkbox" value="2"> Ter</label>
+              <label><input type="checkbox" value="3"> Qua</label>
+              <label><input type="checkbox" value="4"> Qui</label>
+              <label><input type="checkbox" value="5"> Sex</label>
+              <label><input type="checkbox" value="6"> Sáb</label>
+              <label><input type="checkbox" id="schedule-days-all"> Todos</label>
+            </div>
+          </div>
+          <div class="form-row">
+            <label><input type="checkbox" id="schedule-enabled" checked> Ativo</label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <button type="button" class="btn btn-secondary" id="schedule-cancel-btn">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="action-log-section" id="action-log-section" hidden>
+      <div class="action-log-header">
+        <h2>Log de ações</h2>
+        <p class="action-log-desc">Últimas ações no painel (login, ECS, agendamentos, usuários). Apenas admin.</p>
+        <div class="action-log-actions">
+          <button type="button" class="btn btn-primary" id="action-log-refresh">Atualizar</button>
+          <button type="button" class="btn btn-secondary" id="action-log-export">Exportar</button>
+        </div>
+      </div>
+      <div id="action-log-loading" class="loading" hidden>Carregando…</div>
+      <div id="action-log-list" class="action-log-list"></div>
+    </section>
+
+    <section class="users-section" id="users-section" hidden>
+      <div class="users-header">
+        <h2>Gerenciar usuários</h2>
+        <button type="button" class="btn btn-primary" id="user-new-btn">Novo usuário</button>
+      </div>
+      <div id="users-list" class="users-list"></div>
+      <div id="user-form-box" class="schedule-form-box" hidden>
+        <h3 id="user-form-title">Novo usuário</h3>
+        <form id="user-form">
+          <input type="hidden" id="user-id" value="">
+          <div class="form-row">
+            <label>E-mail / Usuário</label>
+            <input type="text" id="user-email" required placeholder="E-mail ou nome de usuário">
+          </div>
+          <div class="form-row">
+            <label>Senha</label>
+            <input type="password" id="user-password" placeholder="Deixe em branco para não alterar (edição)">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <button type="button" class="btn btn-secondary" id="user-cancel-btn">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

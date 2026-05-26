@@ -1,0 +1,24 @@
+=== Huawei Cloud Panel - Backend ===
+
+1) INSTALAR PYTHON (se ainda nao tiver)
+   - Baixe: https://www.python.org/downloads/
+   - Na instalacao, marque "Add Python to PATH"
+   - Ou instale pela Microsoft Store: procure "Python 3.12"
+
+2) ABRIR POWERSHELL NESTA PASTA (backend)
+   - No Explorador de Arquivos, clique na barra de endereco, digite powershell e Enter
+
+3) CRIAR AMBIENTE E DEPENDENCIAS (só na primeira vez)
+   .\setup.ps1
+
+   Se der erro "python nao encontrado", tente:
+   py -3 -m venv venv
+   .\venv\Scripts\pip.exe install -r requirements.txt
+
+4) INICIAR O SERVIDOR
+   .\run.ps1
+
+   Ou diretamente:
+   .\venv\Scripts\python.exe app.py
+
+5) Abra o frontend: na pasta huawei-cloud-panel\frontend, dê duplo clique em index.html
