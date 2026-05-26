@@ -1,0 +1,1 @@
+{"clientKey":"controlla","displayName":"Controlla","comment":"SAP Control Center (SLD) - Ativar Support User. Credenciais via env: envUserKey e envPasswordKey.","baseUrl":"https://controlla.ananim.com.br:40000/ControlCenter/","envUserKey":"CONTROL_CENTER_CONTROLLA_USER","envPasswordKey":"CONTROL_CENTER_CONTROLLA_PASSWORD","associatedHanaKeys":["controlla","controlla-web"]}

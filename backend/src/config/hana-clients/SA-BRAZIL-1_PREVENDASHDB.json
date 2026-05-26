@@ -1,0 +1,19 @@
+{
+  "clientKey": "SA-BRAZIL-1_PREVENDASHDB",
+  "displayName": "Prevendas",
+  "comment": "VM SUSE/HANA do projeto Prevendas. Credenciais via env (SSH_HOST, SSH_USER, etc).",
+  "envHostKey": "SSH_HANA_PREVENDAS_HOST",
+  "envUserKey": "SSH_HANA_PREVENDAS_USER",
+  "envPasswordKey": "SSH_HANA_PREVENDAS_PASSWORD",
+  "envPortKey": "SSH_HANA_PREVENDAS_PORT",
+  "envPrivateKeyPathKey": "SSH_HANA_PREVENDAS_PRIVATE_KEY_PATH",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "services": [
+    { "id": "serviceLayer", "name": "Service Layer", "action": "executar" },
+    { "id": "sld", "name": "SLD", "action": "executar" },
+    { "id": "hana", "name": "HANA (Cuidado)", "action": "executar" },
+    { "id": "authentication", "name": "Authentication", "action": "executar" },
+    { "id": "all", "name": "TUDO", "action": "executar" }
+  ]
+}

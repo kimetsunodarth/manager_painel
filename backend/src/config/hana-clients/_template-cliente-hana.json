@@ -1,0 +1,25 @@
+{
+  "clientKey": "nome-do-cliente",
+  "displayName": "NOME_EXIBIDO_NO_DROPDOWN",
+  "comment": "Template: copie para <clientKey>.json e preencha. Serviços SAP ficam no mesmo arquivo (services). Regra em hanaClients.js HANA_CLIENT_RULES.",
+  "envHostKey": "SSH_HANA_NOMECLIENTE_HOST",
+  "envUserKey": "SSH_HANA_NOMECLIENTE_USER",
+  "envPasswordKey": "SSH_HANA_NOMECLIENTE_PASSWORD",
+  "envPortKey": "SSH_HANA_NOMECLIENTE_PORT",
+  "envPrivateKeyPathKey": "SSH_HANA_NOMECLIENTE_PRIVATE_KEY_PATH",
+  "envJumpHostKey": "SSH_HANA_NOMECLIENTE_JUMP_HOST",
+  "envJumpUserKey": "SSH_HANA_NOMECLIENTE_JUMP_USER",
+  "envJumpPasswordKey": "SSH_HANA_NOMECLIENTE_JUMP_PASSWORD",
+  "envJumpPortKey": "SSH_HANA_NOMECLIENTE_JUMP_PORT",
+  "hanaSid": "NDB",
+  "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "services": [
+    { "id": "lista-backups-offsite", "name": "Lista de Backup's Off - Site", "action": "listar" },
+    { "id": "serviceLayer", "name": "Reiniciar Service Layer", "action": "executar" },
+    { "id": "sld", "name": "Reiniciar SLD", "action": "executar" },
+    { "id": "hana", "name": "Reiniciar HANA (Cuidado)", "action": "executar" },
+    { "id": "authentication", "name": "Reiniciar Authentication", "action": "executar" },
+    { "id": "all", "name": "Reiniciar TUDO", "action": "executar" },
+    { "id": "sql-server", "name": "Reiniciar SQL Server", "action": "executar" }
+  ]
+}
