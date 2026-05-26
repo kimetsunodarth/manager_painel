@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUAWEI CLOUD PANEL - Apresentacao</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; background: #0f0f0f; color: #fff; }
+        .presentation { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .slide { display: none; width: 100%; height: 100%; padding: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); flex-direction: column; justify-content: center; animation: slideIn 0.5s ease-in-out; }
+        .slide.active { display: flex; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        .slide h1 { font-size: 3.5em; margin-bottom: 30px; font-weight: 700; }
+        .slide h2 { font-size: 2.5em; margin-bottom: 40px; font-weight: 600; }
+        .slide p { font-size: 1.3em; line-height: 1.8; margin-bottom: 20px; opacity: 0.95; }
+        .slide ul { font-size: 1.2em; list-style: none; margin-left: 40px; }
+        .slide li { margin-bottom: 15px; line-height: 1.6; }
+        .slide li::before { content: "▸ "; color: #ffd700; font-weight: bold; margin-right: 10px; }
+        .slide-title { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); justify-content: space-around; }
+        .slide-problem { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .slide-solution { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #000; }
+        .slide-solution h2, .slide-solution p, .slide-solution li { color: #000; }
+        .metric { text-align: center; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 10px; margin: 15px 0; }
+        .metric-value { font-size: 2.5em; font-weight: 700; color: #ffd700; margin-bottom: 10px; }
+        .controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 1000; }
+        button { padding: 12px 25px; font-size: 1em; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 25px; cursor: pointer; transition: all 0.3s; font-weight: 600; }
+        button:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        .slide-counter { position: fixed; top: 20px; right: 30px; font-size: 1.2em; background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 20px; }
+        @media (max-width: 1024px) { .slide { padding: 40px; } .slide h1 { font-size: 2.5em; } .slide h2 { font-size: 2em; } }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <div class="slide slide-title active">
+            <h1>HUAWEI CLOUD PANEL</h1>
+            <div style="font-size: 1.8em; opacity: 0.9; margin: 20px 0;">Apresentacao Executiva</div>
+            <div style="font-size: 1.2em; opacity: 0.8;">v1.0 | Fevereiro de 2026</div>
+        </div>
+
+        <div class="slide slide-problem">
+            <h2>Problema Identificado</h2>
+            <p style="font-size: 1.5em; margin-top: 40px;">Falta de agenda e controle de custos em instâncias ECS</p>
+        </div>
+
+        <div class="slide slide-solution">
+            <h2>Solucao Proposta</h2>
+            <p style="font-size: 1.5em; margin-top: 40px; color: #000;">Painel com agendamento automático de start/stop por horário</p>
+        </div>
+
+        <div class="slide">
+            <h2>Beneficios Principais</h2>
+            <ul>
+                <li>Redução de custos</li>
+                <li>Agendamento automático</li>
+                <li>Auditoria de ações</li>
+                <li>Suporte a múltiplas contas</li>
+            </ul>
+        </div>
+
+        <div class="slide">
+            <h2>Stack Tecnologico</h2>
+            <ul>
+                <li>Node.js</li>
+                <li>Express.js</li>
+                <li>Huawei Cloud API</li>
+                <li>SQLite</li>
+                <li>Cron</li>
+            </ul>
+        </div>
+
+        <div class="slide">
+            <h2>ROI e Payback</h2>
+            <div class="metric">
+                <div style="font-size: 1.2em; margin: 20px 0;">Reduz custos em 40% (máquinas desligadas fora do horário)</div>
+            </div>
+            <div class="metric">
+                <div style="font-size: 1.2em;">Payback: 2 meses</div>
+            </div>
+        </div>
+
+        <div class="slide slide-title">
+            <h1>Pronto para Producao</h1>
+            <div style="font-size: 1.6em; opacity: 0.95; margin-top: 40px;">Painel web para agendamentos de start/stop de ECS</div>
+        </div>
+    </div>
+
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">7</span>
+    </div>
+
+    <div class="controls">
+        <button onclick="previousSlide()">Anterior</button>
+        <button onclick="nextSlide()">Proximo</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        document.getElementById('total-slides').textContent = totalSlides;
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+        }
+        function nextSlide() { showSlide(currentSlide + 1); }
+        function previousSlide() { showSlide(currentSlide - 1); }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') previousSlide();
+        });
+    </script>
+</body>
+</html>

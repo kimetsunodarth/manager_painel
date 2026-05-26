@@ -1,0 +1,23 @@
+# Copie este arquivo para .env (renomeie ou salve como .env nesta pasta).
+# Obrigatorio: defina SESSION_SECRET com valor forte (min. 16 caracteres).
+# Execute Gerar-SESSION_SECRET.bat para gerar um valor aleatorio e cole abaixo.
+
+NODE_ENV=production
+SESSION_SECRET=COLOQUE_AQUI_VALOR_FORTE_OU_USE_GERADOR
+
+# Credenciais Huawei (preencha conforme suas contas)
+RAMO_AK=
+RAMO_SK=
+ANANIM_AK=
+ANANIM_SK=
+RSDONE_AK=
+RSDONE_SK=
+MOOVE_AK=
+MOOVE_SK=
+
+# Para IIS em http://localhost:8088 (sem HTTPS), use para o login/sessao funcionar:
+COOKIE_SECURE=false
+
+# Opcional
+# CORS_ORIGIN=https://seu-dominio.com
+# SESSION_MAX_AGE_MS=86400000
