@@ -1,257 +1,116 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ananim Manager Painel - Enterprise Presentation</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>HUAWEI CLOUD PANEL - Apresentacao</title>
     <style>
-        :root {
-            --bg-deep: #020617;
-            --bg-card: rgba(15, 23, 42, 0.6);
-            --accent: #38bdf8;
-            --accent-glow: rgba(56, 189, 248, 0.3);
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
-            --p-gradient: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
-            --p-gradient-purple: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
-        }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Outfit', sans-serif; background-color: var(--bg-deep); color: var(--text-primary); overflow: hidden; }
-
-        .slide {
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: absolute;
-            transition: all 0.8s cubic-bezier(0.8, 0, 0.2, 1);
-            background: radial-gradient(circle at 75% 25%, #0f172a 0%, #020617 100%);
-        }
-
-        .slide.active { opacity: 1; transform: scale(1); visibility: visible; }
-        .slide:not(.active) { opacity: 0; transform: scale(0.95); visibility: hidden; }
-
-        .container {
-            width: 1300px;
-            max-width: 95%;
-            background: var(--bg-card);
-            backdrop-filter: blur(30px);
-            border: 1px solid var(--border);
-            border-radius: 40px;
-            padding: 80px;
-            box-shadow: 0 60px 150px rgba(0,0,0,0.9);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .container::before {
-            content: '';
-            position: absolute;
-            top: -100px;
-            right: -100px;
-            width: 300px;
-            height: 300px;
-            background: var(--accent);
-            filter: blur(150px);
-            opacity: 0.15;
-            z-index: -1;
-        }
-
-        h1 { font-size: 5rem; font-weight: 800; line-height: 1.1; margin-bottom: 20px; background: var(--p-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        h2 { font-size: 3.5rem; font-weight: 700; color: var(--accent); margin-bottom: 30px; letter-spacing: -2px; }
-        p { font-size: 1.4rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 25px; }
-
-        .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 30px; }
-        .feature-item { background: rgba(255,255,255,0.03); padding: 25px; border-radius: 20px; border: 1px solid var(--border); transition: 0.4s; }
-        .feature-item:hover { background: rgba(255,255,255,0.06); transform: translateY(-5px); border-color: var(--accent); }
-        .feature-item h3 { font-size: 1.6rem; margin-bottom: 10px; color: #fff; }
-        .feature-item p { font-size: 1.1rem; margin-bottom: 0; }
-
-        .pill { display: inline-block; padding: 8px 20px; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--accent); border-radius: 100px; color: var(--accent); font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px; }
-        .pill-purple { background: rgba(168, 85, 247, 0.1); border-color: #a855f7; color: #a855f7; }
-
-        .code-display { font-family: 'JetBrains Mono', monospace; background: #000; padding: 25px; border-radius: 16px; border: 1px solid #222; margin-top: 25px; font-size: 0.95rem; color: #cbd5e1; position: relative; }
-        .code-display::after { content: 'SYSTEM LOG'; position: absolute; top: -10px; left: 20px; background: var(--accent); color: #000; padding: 2px 10px; font-size: 0.7rem; font-weight: 800; border-radius: 4px; }
-
-        .controls { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 1000; }
-        .nav-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; width: 50px; height: 50px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:hover { background: var(--accent); color: #000; box-shadow: 0 0 20px var(--accent-glow); }
-
-        .progress-indicator { position: fixed; top: 0; left: 0; height: 4px; background: var(--p-gradient); z-index: 2000; transition: width 0.4s; }
-        #particles-js { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
-        
-        .version-badge { position: absolute; top: 40px; right: 40px; font-size: 1.2rem; font-weight: 800; color: rgba(255,255,255,0.2); }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; background: #0f0f0f; color: #fff; }
+        .presentation { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .slide { display: none; width: 100%; height: 100%; padding: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); flex-direction: column; justify-content: center; animation: slideIn 0.5s ease-in-out; }
+        .slide.active { display: flex; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        .slide h1 { font-size: 3.5em; margin-bottom: 30px; font-weight: 700; }
+        .slide h2 { font-size: 2.5em; margin-bottom: 40px; font-weight: 600; }
+        .slide p { font-size: 1.3em; line-height: 1.8; margin-bottom: 20px; opacity: 0.95; }
+        .slide ul { font-size: 1.2em; list-style: none; margin-left: 40px; }
+        .slide li { margin-bottom: 15px; line-height: 1.6; }
+        .slide li::before { content: "▸ "; color: #ffd700; font-weight: bold; margin-right: 10px; }
+        .slide-title { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); justify-content: space-around; }
+        .slide-problem { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .slide-solution { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #000; }
+        .slide-solution h2, .slide-solution p, .slide-solution li { color: #000; }
+        .metric { text-align: center; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 10px; margin: 15px 0; }
+        .metric-value { font-size: 2.5em; font-weight: 700; color: #ffd700; margin-bottom: 10px; }
+        .controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 1000; }
+        button { padding: 12px 25px; font-size: 1em; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; border-radius: 25px; cursor: pointer; transition: all 0.3s; font-weight: 600; }
+        button:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        .slide-counter { position: fixed; top: 20px; right: 30px; font-size: 1.2em; background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 20px; }
+        @media (max-width: 1024px) { .slide { padding: 40px; } .slide h1 { font-size: 2.5em; } .slide h2 { font-size: 2em; } }
     </style>
 </head>
 <body>
-    <div id="particles-js"></div>
-    <div class="progress-indicator" id="progress"></div>
-
-    <div class="slides-wrapper">
-        <!-- Slide 1: Welcome -->
-        <div class="slide active">
-            <div class="container" style="text-align: center;">
-                <div class="pill">Strategic Cloud Management</div>
-                <h1>ANANIM<br>MANAGER PAINEL</h1>
-                <p>Advanced Orchestration for Huawei Cloud & SAP Business One Infrastructure</p>
-                <div style="margin-top: 50px; display: flex; justify-content: center; gap: 60px;">
-                    <div><span style="display: block; font-size: 2.5rem; font-weight: 800; color: var(--accent);">v1.2.14</span><span style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-secondary);">Latest Release</span></div>
-                    <div><span style="display: block; font-size: 2.5rem; font-weight: 800; color: var(--accent);">60%</span><span style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-secondary);">Efficiency Gain</span></div>
-                </div>
-            </div>
-            <div class="version-badge">2026 EDITION</div>
+    <div class="presentation">
+        <div class="slide slide-title active">
+            <h1>HUAWEI CLOUD PANEL</h1>
+            <div style="font-size: 1.8em; opacity: 0.9; margin: 20px 0;">Apresentacao Executiva</div>
+            <div style="font-size: 1.2em; opacity: 0.8;">v1.0 | Fevereiro de 2026</div>
         </div>
 
-        <!-- Slide 2: The Core Concept -->
+        <div class="slide slide-problem">
+            <h2>Problema Identificado</h2>
+            <p style="font-size: 1.5em; margin-top: 40px;">Falta de agenda e controle de custos em instâncias ECS</p>
+        </div>
+
+        <div class="slide slide-solution">
+            <h2>Solucao Proposta</h2>
+            <p style="font-size: 1.5em; margin-top: 40px; color: #000;">Painel com agendamento automático de start/stop por horário</p>
+        </div>
+
         <div class="slide">
-            <div class="container">
-                <div class="pill">Vision & Problem</div>
-                <h2>A Unified Horizon</h2>
-                <p>Gerenciar múltiplas consoles (Huawei, SAP Control Center, Backup) é fragmentado e ineficiente. O Ananim Manager centraliza todo o ecossistema em uma única interface inteligente.</p>
-                <div class="features">
-                    <div class="feature-item">
-                        <h3>Visibilidade Total</h3>
-                        <p>Consolidamos ECS, CBR Backups e SAP Services em um dashboard fluido e intuitivo.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>Segurança Granular</h3>
-                        <p>Controle quem vê o quê. Isole projetos e VMs por usuário com permissões de nível Enterprise.</p>
-                    </div>
-                </div>
-            </div>
+            <h2>Beneficios Principais</h2>
+            <ul>
+                <li>Redução de custos</li>
+                <li>Agendamento automático</li>
+                <li>Auditoria de ações</li>
+                <li>Suporte a múltiplas contas</li>
+            </ul>
         </div>
 
-        <!-- Slide 3: Smart Monitoring (v1.2.14) -->
         <div class="slide">
-            <div class="container">
-                <div class="pill pill-purple">New in v1.2.14</div>
-                <h2 style="color: #a855f7;">External Monitoring Evolution</h2>
-                <p>Agora compatível com controles externos (Cloud8 etc). O painel monitora o status real e calcula horas extras automaticamente.</p>
-                <div class="features">
-                    <div class="feature-item" style="border-color: #a855f7;">
-                        <h3>Sincronismo Passivo</h3>
-                        <p>Acompanha VMs gerenciadas externamente sem interferir nos comandos de Start/Stop.</p>
-                    </div>
-                    <div class="feature-item" style="border-color: #a855f7;">
-                        <h3>Auto-Opening Sessions</h3>
-                        <p>Detecta atividade fora do horário e abre sessões de "Extra Hours" via Monitor de Sistema.</p>
-                    </div>
-                </div>
-                <div class="code-display" style="border-color: #a855f7;">
-                    <span style="color: #a855f7;">[Monitor]</span> VM MAXTECHDB ativa fora do horário. Abrindo sessão de extra hours.<br>
-                    <span style="color: #10b981;">[Success]</span> Session ID 542 created for serverId: 88cf46...
-                </div>
-            </div>
+            <h2>Stack Tecnologico</h2>
+            <ul>
+                <li>Node.js</li>
+                <li>Express.js</li>
+                <li>Huawei Cloud API</li>
+                <li>SQLite</li>
+                <li>Cron</li>
+            </ul>
         </div>
 
-        <!-- Slide 4: Strategic Features -->
         <div class="slide">
-            <div class="container">
-                <div class="pill">Strategic Capabilities</div>
-                <h2>Orchestration Power</h2>
-                <div class="features">
-                    <div class="feature-item">
-                        <h3>SAP Control Center</h3>
-                        <p>Automação de ativação de usuários de suporte com retry inteligente e resiliência a delay.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>Agendamento Granular</h3>
-                        <p>Horários por VM ou por Projeto, com cancelamento pontual e recorrência flexível.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>CBR & Backups</h3>
-                        <p>Monitoramento de proteção de dados e status de replicação de forma transparente.</p>
-                    </div>
-                    <div class="feature-item">
-                        <h3>Audit Logs</h3>
-                        <p>Rastreabilidade completa: Quem, quando e de onde cada ação foi executada.</p>
-                    </div>
-                </div>
+            <h2>ROI e Payback</h2>
+            <div class="metric">
+                <div style="font-size: 1.2em; margin: 20px 0;">Reduz custos em 40% (máquinas desligadas fora do horário)</div>
+            </div>
+            <div class="metric">
+                <div style="font-size: 1.2em;">Payback: 2 meses</div>
             </div>
         </div>
 
-        <!-- Slide 5: Economic Impact -->
-        <div class="slide">
-            <div class="container">
-                <div class="pill">ROI & Payback</div>
-                <h2>Efficiency by the Numbers</h2>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px;">
-                    <div>
-                        <div style="font-size: 4rem; font-weight: 800; color: #ef4444;">-60%</div>
-                        <p>Redução no tempo de gestão operacional de infraestrutura Huawei/SAP.</p>
-                    </div>
-                    <div>
-                        <div style="font-size: 4rem; font-weight: 800; color: var(--accent);">2 mo.</div>
-                        <p>Tempo médio de Payback baseado na economia de horas de engenharia.</p>
-                    </div>
-                </div>
-                <div class="feature-item" style="margin-top: 40px; background: rgba(56, 189, 248, 0.05);">
-                    <p style="color: #fff; text-align: center; margin: 0;"><strong>Valor Estratégico:</strong> Eliminação de erros humanos em paradas e desligamentos, otimizando custos de consumo Cloud.</p>
-                </div>
-            </div>
+        <div class="slide slide-title">
+            <h1>Pronto para Producao</h1>
+            <div style="font-size: 1.6em; opacity: 0.95; margin-top: 40px;">Painel web para agendamentos de start/stop de ECS</div>
         </div>
+    </div>
 
-        <!-- Slide 6: Outro -->
-        <div class="slide" style="text-align: center;">
-            <div class="container">
-                <div class="pill">Ready for Production</div>
-                <h1>ENTERPRISE<br>MASTERY</h1>
-                <p>Transformando a gestão de SAP e Huawei Cloud em uma experiência de alta performance.</p>
-                <h2 style="font-size: 2rem; margin-top: 40px;">ANANIM EXCELLENCE v1.2.14</h2>
-            </div>
-        </div>
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">7</span>
     </div>
 
     <div class="controls">
-        <button class="nav-btn" onclick="prevSlide()">←</button>
-        <button class="nav-btn" onclick="nextSlide()">→</button>
+        <button onclick="previousSlide()">Anterior</button>
+        <button onclick="nextSlide()">Proximo</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
     <script>
-        particlesJS('particles-js', {
-            "particles": {
-                "number": { "value": 60, "density": { "enable": true, "value_area": 800 } },
-                "color": { "value": "#38bdf8" },
-                "shape": { "type": "circle" },
-                "opacity": { "value": 0.2, "random": false },
-                "size": { "value": 3, "random": true },
-                "line_linked": { "enable": true, "distance": 150, "color": "#38bdf8", "opacity": 0.1, "width": 1 },
-                "move": { "enable": true, "speed": 1.5, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false }
-            },
-            "interactivity": {
-                "events": { "onhover": { "enable": true, "mode": "grab" }, "onclick": { "enable": true, "mode": "push" } }
-            }
-        });
-
-        let current = 0;
+        let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
-        const progress = document.getElementById('progress');
-
-        function updateProgress() {
-            progress.style.width = ((current + 1) / slides.length * 100) + '%';
+        const totalSlides = slides.length;
+        document.getElementById('total-slides').textContent = totalSlides;
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
         }
-
-        function showSlide(index) {
-            slides[current].classList.remove('active');
-            current = (index + slides.length) % slides.length;
-            slides[current].classList.add('active');
-            updateProgress();
-        }
-
-        function nextSlide() { showSlide(current + 1); }
-        function prevSlide() { showSlide(current - 1); }
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
-            if (e.key === 'ArrowLeft') prevSlide();
+        function nextSlide() { showSlide(currentSlide + 1); }
+        function previousSlide() { showSlide(currentSlide - 1); }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') previousSlide();
         });
-
-        updateProgress();
     </script>
 </body>
 </html>

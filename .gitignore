@@ -1,49 +1,18 @@
-# Dependências
-node_modules/
-
-# Ambiente e segredos (nunca versionar)
 .env
-.encryption_key
-key.bin
 config.enc
-*.pem
-
-# Build e artefatos
-frontend/dist/
-backend/dist/
+key.bin
+__pycache__/
+*.py[cod]
+venv/
+.venv/
 *.log
-logs/
-installer/package-iis-tmp-*/
-installer/package-iis-tmp*/
-installer/package-iis-tmp-old*/
-.npm-cache-tmp/
-
-# Banco de dados interno (criado em runtime)
-backend/src/data/*.db
-backend/src/data/ananim.db
-data/
-
-# Config gerado em runtime (opcional: pode versionar vazios)
-backend/src/config/agendamentos-vm.json
-backend/src/config/cancelamentos-dia.json
-backend/src/config/ecs-extra-hours.json
-backend/src/config/vm-schedule.json
-backend/src/config/skip-next-stop.json
-backend/src/config/dynamic-clients-registry.json
-
-# Instalador (build output)
-installer/Output/
-installer/package-iis/
-installer/package-linux/
-installer/playwright-runtime/
-
-# IDE / OS
-.idea/
-.vscode/
-*.swp
 .DS_Store
-Thumbs.db
-
-# Credenciais por cliente
-backend/src/config/clients/*/.env
-backend/src/config/clients/*/env.txt
+backend/agendamentos.json
+backend/actionLog.json
+iisnode/
+dist/
+backend/dist/
+backend/.pkg-cache/
+package-iis/
+installer/Output/
+node_modules/
