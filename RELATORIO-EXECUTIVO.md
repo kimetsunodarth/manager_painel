@@ -1,4 +1,4 @@
-# ANANIM MANAGER PAINEL - Relatorio Executivo
+# HUAWEI CLOUD PANEL - Relatorio Executivo
 
 **Versao:** 1.0  
 **Data:** Fevereiro de 2026  
@@ -6,35 +6,35 @@
 
 ## 1. Sumario Executivo
 
-Painel centralizado para gerenciamento de Huawei Cloud e SAP B1
+Painel web para agendamentos de start/stop de ECS
 
 ### Problema Identificado
-Dispersão de gerenciamento entre múltiplas consoles de Huawei e SAP
+Falta de agenda e controle de custos em instâncias ECS
 
 ### Solucao Proposta
-Interface unificada controlando ECS, backups, licenças, documentos e usuários
+Painel com agendamento automático de start/stop por horário
 
 ## 2. Beneficios
 
 ### Beneficios Mensuraveis
-1. Interface unificada
-2. Controle granular de permissões
-3. Auditoria completa de ações
-4. Suporte multi-usuário
+1. Redução de custos
+2. Agendamento automático
+3. Auditoria de ações
+4. Suporte a múltiplas contas
 
 
 ### ROI Financeiro
-- **Impacto Principal:** Reduz tempo administrativo em 60%
+- **Impacto Principal:** Reduz custos em 40% (máquinas desligadas fora do horário)
 - **Tempo de Payback:** 2 meses
 
 ## 3. Stack Tecnologico
 
 ### Tecnologias Utilizadas
-- Node.js 18+
+- Node.js
 - Express.js
-- HTML5/CSS3
 - Huawei Cloud API
-- IIS
+- SQLite
+- Cron
 
 
 ## 4. Requisitos

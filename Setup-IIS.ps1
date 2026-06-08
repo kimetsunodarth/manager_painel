@@ -1,216 +1,155 @@
-# Configura o IIS para o Ananim Manager Painel (iisnode ou HttpPlatformHandler).
-# Execute como Administrador. Requer IIS; iisnode OU HttpPlatformHandler + Node.js.
-# Uso: .\Setup-IIS.ps1 [-SitePath "C:\caminho"] [-AppPath "C:\caminho"] [-Port 8890]
-#      Opcional: -AppPoolIdentity "worker@cloud.local" -AppPoolPassword "senha"
-# O instalador Inno chama com -AppPath (equivalente a -SitePath).
-
+<#
+.SYNOPSIS
+    Configura o IIS para executar o Ananim Huawei Painel (iisnode).
+.DESCRIPTION
+    Cria App Pool, Site, permissões e executa npm install no backend.
+    Execute como Administrador. Requer IIS, URL Rewrite e iisnode instalados.
+.PARAMETER SitePath
+    Pasta raiz do projeto (onde estão web.config, backend, frontend).
+.PARAMETER SiteName
+    Nome do site no IIS.
+.PARAMETER AppPoolName
+    Nome do pool de aplicativos.
+.PARAMETER Port
+    Porta HTTP do site (ex: 80).
+.PARAMETER InstallIIS
+    Se presente, tenta habilitar recursos do IIS (Web-Server básico).
+#>
+[CmdletBinding()]
 param(
+    [Parameter(Mandatory = $false)]
     [string]$SitePath = (Get-Location).Path,
-    [string]$AppPath,
-    [string]$SiteName = "ananim-manager-painel",
-    [string]$AppPoolName = "AnanimManagerPanel",
-    [int]$Port = 8890,
-    [switch]$InstallIIS,
-    [string]$AppPoolIdentity,
-    [string]$AppPoolPassword
+    [string]$SiteName = "Ananim Huawei Painel",
+    [string]$AppPoolName = "AnanimPanel",
+    [int]$Port = 80,
+    [switch]$InstallIIS
 )
 
 $ErrorActionPreference = "Stop"
-if ($AppPath) { $SitePath = $AppPath }
-$SitePath = $SitePath.TrimEnd('\')
 
-function Write-Step { param($msg) Write-Host ">>> $msg" -ForegroundColor Cyan }
-function Write-Ok   { param($msg) Write-Host "    OK: $msg" -ForegroundColor Green }
-function Write-Err  { param($msg) Write-Host "    ERRO: $msg" -ForegroundColor Red }
-
-# Verificar Admin
-$currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Err "Execute como Administrador. Use Configurar-IIS.bat (ele pede elevacao) ou botao direito > Executar como administrador."
+# Verificar administrador
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "ERRO: Execute como Administrador (clique direito -> Executar como administrador)." -ForegroundColor Red
     exit 1
 }
 
-Write-Step "Pasta do site (raiz do projeto): $SitePath"
+$SitePath = $SitePath.TrimEnd("\")
 if (-not (Test-Path $SitePath)) {
-    Write-Err "Pasta nao encontrada: $SitePath"
+    Write-Host "ERRO: Pasta nao encontrada: $SitePath" -ForegroundColor Red
     exit 1
 }
-
 if (-not (Test-Path (Join-Path $SitePath "web.config"))) {
-    Write-Err "web.config nao encontrado em $SitePath. Execute este script na pasta raiz do projeto ou na pasta instalada."
+    Write-Host "ERRO: web.config nao encontrado em $SitePath" -ForegroundColor Red
     exit 1
 }
-Write-Ok "web.config encontrado"
+if (-not (Test-Path (Join-Path $SitePath "backend\server.js"))) {
+    Write-Host "ERRO: backend\server.js nao encontrado em $SitePath" -ForegroundColor Red
+    exit 1
+}
 
-$exeEntry = Join-Path $SitePath "Ananim-Manager-Painel-API.exe"
-$apiEntry = Join-Path $SitePath "api\src\index.js"
-$backendEntry = Join-Path $SitePath "backend\src\index.js"
-$hasExe = Test-Path $exeEntry
-$hasNodeApp = (Test-Path $apiEntry) -or (Test-Path $backendEntry)
-if (-not $hasExe -and -not $hasNodeApp) {
-    Write-Host "    Instalacao apenas frontend (sem exe/api/backend). Site servira conteudo estatico." -ForegroundColor Cyan
-} elseif ($hasExe) {
-    Write-Ok "API (exe) encontrada: Ananim-Manager-Painel-API.exe"
+Write-Host "=== Ananim Huawei Painel - Configuracao IIS ===" -ForegroundColor Cyan
+Write-Host "Pasta do site: $SitePath"
+Write-Host "Site: $SiteName | Pool: $AppPoolName | Porta: $Port"
+Write-Host ""
+
+# Opcional: habilitar IIS
+if ($InstallIIS) {
+    Write-Host "Habilitando recursos do IIS..." -ForegroundColor Yellow
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServer -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-CommonHttpFeatures -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ApplicationDevelopment -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HealthAndDiagnostics -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HttpErrors -NoRestart -ErrorAction SilentlyContinue
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ASPNET45 -NoRestart -ErrorAction SilentlyContinue
+    Write-Host "Recursos do IIS habilitados. Reinicie o computador se solicitado." -ForegroundColor Green
+}
+
+# Verificar módulos IIS (iisnode e URL Rewrite)
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+if (-not (Get-Module WebAdministration)) {
+    Write-Host "AVISO: Modulo WebAdministration nao carregado. Instale o IIS e as Ferramentas de Gerenciamento." -ForegroundColor Yellow
+}
+
+$appCmd = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
+if (-not (Test-Path $appCmd)) {
+    Write-Host "ERRO: IIS nao encontrado (appcmd inexistente). Instale o IIS primeiro." -ForegroundColor Red
+    exit 1
+}
+
+# Remover site e pool existentes com o mesmo nome (reconfigurar)
+& $appCmd list apppool /name:$AppPoolName 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Removendo pool existente: $AppPoolName"
+    & $appCmd delete apppool /apppool.name:$AppPoolName
+}
+& $appCmd list site /name:$SiteName 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Removendo site existente: $SiteName"
+    & $appCmd delete site /site.name:$SiteName
+}
+
+# Criar App Pool
+Write-Host "Criando pool de aplicativos: $AppPoolName" -ForegroundColor Green
+& $appCmd add apppool /name:$AppPoolName /managedRuntimeVersion:""
+if ($LASTEXITCODE -ne 0) { Write-Host "Falha ao criar pool."; exit 1 }
+& $appCmd set apppool /apppool.name:$AppPoolName /managedPipelineMode:Integrated
+& $appCmd set apppool /apppool.name:$AppPoolName /processModel.identityType:ApplicationPoolIdentity
+
+# Criar Site
+Write-Host "Criando site: $SiteName" -ForegroundColor Green
+& $appCmd add site /name:$SiteName /physicalPath:$SitePath /bindings:http/*:${Port}:
+if ($LASTEXITCODE -ne 0) { Write-Host "Falha ao criar site."; exit 1 }
+& $appCmd set site /site.name:$SiteName /[path='/'].applicationPool:$AppPoolName
+
+# Permissões na pasta (IIS_IUSRS ou conta do App Pool)
+$identity = "IIS_IUSRS"
+$acl = Get-Acl $SitePath
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "ReadAndExecute,Read", "ContainerInherit,ObjectInherit", "None", "Allow")
+$acl.SetAccessRule($rule)
+Set-Acl -Path $SitePath -AclObject $acl
+Write-Host "Permissoes definidas para $identity na pasta do site." -ForegroundColor Green
+
+# Gravação apenas na pasta backend (para users.json, actionLog.json, agendamentos.json)
+$backendPath = Join-Path $SitePath "backend"
+if (Test-Path $backendPath) {
+    $aclB = Get-Acl $backendPath
+    $ruleB = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Modify", "ContainerInherit,ObjectInherit", "None", "Allow")
+    $aclB.SetAccessRule($ruleB)
+    Set-Acl -Path $backendPath -AclObject $aclB
+    Write-Host "Permissoes de gravacao definidas em backend." -ForegroundColor Green
+}
+
+# npm install --production no backend
+$nodePath = "${env:ProgramFiles}\nodejs\node.exe"
+$npmPath = "${env:ProgramFiles}\nodejs\npm.cmd"
+if (Test-Path $nodePath) {
+    Write-Host "Executando npm install --production no backend..." -ForegroundColor Green
+    Push-Location $backendPath
+    try {
+        & $npmPath install --production 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Host "AVISO: npm install retornou codigo $LASTEXITCODE" -ForegroundColor Yellow }
+        else { Write-Host "npm install concluido." -ForegroundColor Green }
+    } finally {
+        Pop-Location
+    }
 } else {
-    Write-Ok "Runtime Node encontrado (api ou backend)"
+    Write-Host "AVISO: Node.js nao encontrado em $nodePath. Execute manualmente: cd backend && npm install --production" -ForegroundColor Yellow
 }
 
-# Verificar se a porta esta em uso
-Write-Step "Verificando se a porta $Port esta em uso..."
-$portInUse = $false
-try {
-    $inUse = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }
-    if ($inUse) { $portInUse = $true }
-} catch {
-    $netstat = & netstat -an 2>$null
-    if ($netstat -match ":$Port\s+.*(LISTENING|ESCUTANDO)") { $portInUse = $true }
+# .env
+$envPath = Join-Path $SitePath ".env"
+$envExample = Join-Path $SitePath ".env.example"
+if (-not (Test-Path $envPath) -and (Test-Path $envExample)) {
+    Copy-Item $envExample $envPath
+    Write-Host "Arquivo .env criado a partir de .env.example. EDITE e preencha SESSION_SECRET e credenciais." -ForegroundColor Yellow
+} elseif (-not (Test-Path $envPath)) {
+    Write-Host "AVISO: .env nao existe. Crie a partir de .env.example e defina SESSION_SECRET e NODE_ENV=production." -ForegroundColor Yellow
 }
-if ($portInUse) {
-    Write-Err "A porta $Port ja esta em uso. Libere a porta ou altere -Port no script."
-    exit 1
-}
-Write-Ok "Porta $Port disponivel"
-
-$appcmdPath = Join-Path $env:windir "system32\inetsrv\appcmd.exe"
-if (-not (Test-Path $appcmdPath)) {
-    Write-Err "IIS nao encontrado. Instale: Gerenciador do Servidor > Funcoes > Servidor Web (IIS)."
-    exit 1
-}
-
-# Desbloquear secoes do IIS (evita 500.19)
-Write-Step "Desbloqueando secoes system.webServer..."
-& $appcmdPath unlock config -section:system.webServer/handlers 2>$null
-& $appcmdPath unlock config -section:system.webServer/rewrite 2>$null
-& $appcmdPath unlock config -section:system.webServer/iisnode 2>$null
-& $appcmdPath unlock config -section:system.webServer/httpPlatform 2>$null
-Write-Ok "Secoes desbloqueadas"
-
-# Atualizar web.config com caminho real do node.exe (evita 502.3 se Node estiver em Program Files (x86))
-$nodeExe = $null
-try {
-    $nodeExe = (Get-Command node -ErrorAction Stop).Source
-} catch {}
-if ($nodeExe -and (Test-Path $nodeExe)) {
-    $webConfigPath = Join-Path $SitePath "web.config"
-    $content = Get-Content $webConfigPath -Raw -Encoding UTF8
-    if ($content -match 'processPath="[^"]*node\.exe"') {
-        $content = $content -replace 'processPath="[^"]*"', "processPath=`"$($nodeExe.Replace('\','\\'))`""
-        Set-Content -Path $webConfigPath -Value $content -Encoding UTF8 -NoNewline
-        Write-Ok "web.config atualizado com caminho do Node: $nodeExe"
-    }
-}
-
-# Pasta de log (HttpPlatformHandler; nao usar iisnode)
-$logsDir = Join-Path $SitePath "logs"
-if (-not (Test-Path $logsDir)) {
-    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
-    Write-Ok "Pasta logs criada (HttpPlatformHandler)"
-}
-
-# Permissoes: App Pool precisa ler/executar e gravar (backend cria ananim.db, logs)
-Write-Step "Definindo permissoes para o IIS na pasta do site..."
-try {
-    $acl = Get-Acl $SitePath
-    $identity = "IIS_IUSRS"
-    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Modify", "ContainerInherit,ObjectInherit", "None", "Allow")
-    $acl.SetAccessRule($rule)
-    if ($AppPoolIdentity -and $AppPoolIdentity -notmatch "^(ApplicationPoolIdentity|LocalSystem|NetworkService)$") {
-        $rule2 = New-Object System.Security.AccessControl.FileSystemAccessRule($AppPoolIdentity, "Modify", "ContainerInherit,ObjectInherit", "None", "Allow")
-        $acl.SetAccessRule($rule2)
-        Write-Ok "Permissoes (Modify) definidas para $identity e $AppPoolIdentity"
-    } else {
-        Write-Ok "Permissoes (Modify) definidas para $identity"
-    }
-    Set-Acl -Path $SitePath -AclObject $acl
-} catch {
-    Write-Host "    Aviso: $($_.Exception.Message)" -ForegroundColor Yellow
-}
-
-# Remover site antigo (se existir)
-Write-Step "Removendo site antigo (se existir)..."
-& $appcmdPath delete site $SiteName 2>$null
-
-# App Pool (No Managed Code - para iisnode/HttpPlatformHandler)
-Write-Step "Criando App Pool: $AppPoolName"
-& $appcmdPath delete apppool /apppool.name:$AppPoolName 2>$null
-$poolOut = & $appcmdPath add apppool /name:$AppPoolName /managedRuntimeVersion:"" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "    Aviso app pool: $poolOut" -ForegroundColor Yellow
-}
-
-# Configuracoes avancadas do pool: somente Start Mode = AlwaysRunning, Idle Time-out = 0
-Write-Step "Configurando App Pool (Start Mode: AlwaysRunning, Idle Time-out: 0)..."
-try {
-    Import-Module WebAdministration -ErrorAction Stop
-    $filter = "system.applicationHost/applicationPools/add[@name='$AppPoolName']"
-    Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter $filter -name "startMode" -value "AlwaysRunning"
-    Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter "$filter/processModel" -name "idleTimeout" -value "00:00:00"
-    Write-Ok "Start Mode = AlwaysRunning, Idle Time-out = 0"
-} catch {
-    Write-Host "    Fallback appcmd..." -ForegroundColor Yellow
-    $poolFilter = "/[name='$AppPoolName'].startMode:`"AlwaysRunning`""
-    & $appcmdPath set config -section:system.applicationHost/applicationPools $poolFilter /commit:apphost 2>&1
-    $poolFilterIdle = "/[name='$AppPoolName'].processModel.idleTimeout:00:00:00"
-    & $appcmdPath set config -section:system.applicationHost/applicationPools $poolFilterIdle /commit:apphost 2>&1
-    Write-Ok "Start Mode e Idle Time-out (tente conferir no IIS)"
-}
-
-# Identidade do pool (SpecificUser): worker@cloud.local (ou -AppPoolIdentity / -AppPoolPassword)
-if ($AppPoolIdentity) {
-    if ($AppPoolPassword) {
-        Write-Step "Definindo identidade do App Pool: $AppPoolIdentity"
-        & $appcmdPath set apppool /apppool.name:$AppPoolName /processModel.identityType:SpecificUser "/processModel.userName:$AppPoolIdentity" "/processModel.password:$AppPoolPassword" 2>&1
-        if ($LASTEXITCODE -eq 0) { Write-Ok "Identidade definida: $AppPoolIdentity" } else { Write-Host "    Aviso: nao foi possivel definir identidade (defina manualmente no IIS)." -ForegroundColor Yellow }
-    } else {
-        Write-Host "    Identidade $AppPoolIdentity informada sem senha. Defina a senha manualmente em IIS > App Pool > Advanced Settings > Identity." -ForegroundColor Yellow
-    }
-}
-
-# Criar site
-Write-Step "Criando site '$SiteName' na porta $Port..."
-$physArg = "/physicalPath:`"$SitePath`""
-$bindings = "http/*:${Port}:"
-$siteOut = & $appcmdPath add site /name:$SiteName $physArg "/bindings:$bindings" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Err "appcmd add site falhou: $siteOut"
-    exit 1
-}
-Write-Ok "Site criado"
-
-# Atribuir Application Pool ao site
-Write-Step "Atribuindo App Pool ao site..."
-$setOut = & $appcmdPath set app "$SiteName/" "/applicationPool:$AppPoolName" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "    Aviso set app: $setOut" -ForegroundColor Yellow
-} else {
-    Write-Ok "App Pool atribuido"
-}
-
-Write-Step "Verificando site..."
-$list = & $appcmdPath list site 2>&1
-$listText = if ($list -is [array]) { $list | Out-String } else { [string]$list }
-if ($listText -notmatch [regex]::Escape($SiteName)) {
-    Write-Err "Site nao aparece apos criacao."
-    exit 1
-}
-Write-Ok "Site '$SiteName' visivel no IIS"
 
 Write-Host ""
-Write-Host "=== CONCLUIDO ===" -ForegroundColor Green
-Write-Host "  Site:   $SiteName (em Sites no IIS)"
-Write-Host "  Pool:   $AppPoolName (AlwaysRunning, Idle Time-out 0)"
-if ($AppPoolIdentity) { Write-Host "  Identity: $AppPoolIdentity" }
-Write-Host "  Porta:  $Port"
-Write-Host "  URL:    http://localhost:$Port/"
-if ($hasExe -or $hasNodeApp) {
-    Write-Host "  API:    http://localhost:$Port/api/"
-    Write-Host "  Health: http://localhost:$Port/api/health"
-    Write-Host ""
-    if ($hasExe) { Write-Host "Configuracao: .env ou config.enc + .encryption_key na pasta do site." -ForegroundColor Cyan }
-    else { Write-Host "Na pasta backend/ configure o .env (ou config.enc)." -ForegroundColor Cyan }
-} else {
-    Write-Host ""
-    Write-Host "Este instalador so inclui o frontend. A API deve rodar separadamente." -ForegroundColor Cyan
-    Write-Host "Veja CONFIG-README.txt." -ForegroundColor Cyan
-}
-exit 0
+Write-Host "=== Concluido ===" -ForegroundColor Cyan
+Write-Host "Site disponivel em: http://localhost:$Port" -ForegroundColor Green
+Write-Host "Verifique se URL Rewrite e iisnode estao instalados. Veja IIS-DEPLOY.md para HTTPS e mais opcoes." -ForegroundColor Gray
+Write-Host ""
