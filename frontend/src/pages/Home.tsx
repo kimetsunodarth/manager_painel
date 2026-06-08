@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ClipboardList, Calendar, RefreshCw } from 'lucide-react';
 import { huawei, users as usersApi, type HuaweiProject, type HuaweiEcsServer, type User, type DiscoveryAccount, type DiscoveredProject, type ScheduleVm } from '../api/client';
 import { useUser } from '../hooks/useUser';
 import { getErrorMessage } from '../utils/errorMessage';
@@ -208,6 +209,25 @@ function formatMinutes(minutes: number | undefined): string {
   return `${m} min`;
 }
 
+function EcsStatusBadge({ status }: { status: string }) {
+  const s = (status || '').toUpperCase();
+  const cfg =
+    s === 'ACTIVE'
+      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
+      : s === 'SHUTOFF' || s === 'STOPPED'
+        ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+        : s === 'REBOOT' || s === 'HARD_REBOOT'
+          ? 'bg-blue-500/15 text-blue-300 border-blue-500/25'
+          : s === 'ERROR'
+            ? 'bg-red-500/15 text-red-400 border-red-500/25'
+            : 'bg-white/[0.06] text-gray-400 border-white/10';
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${cfg}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function Home() {
   const user = useUser();
   const canHuaweiAdmin = user?.role === 'admin' || (Array.isArray(user?.permissions) && user?.permissions.includes('huawei:projects'));
@@ -263,6 +283,7 @@ export default function Home() {
   const [scheduleEnd, setScheduleEnd] = useState('');
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleMode, setScheduleMode] = useState<'project' | 'vm'>('project');
   const [skipNextStop, setSkipNextStop] = useState(false);
   const [cancelStopLoading, setCancelStopLoading] = useState(false);
   // Cancelar programação para um dia (modal na Home)
@@ -478,6 +499,8 @@ export default function Home() {
 
   const openScheduleModal = async () => {
     if (!selectedProject) return;
+    const mode = selectedEcsIds.length > 0 ? 'vm' : 'project';
+    setScheduleMode(mode);
     setShowScheduleModal(true);
     setScheduleError(null);
     try {
@@ -532,13 +555,58 @@ export default function Home() {
     setScheduleSaving(true);
     setScheduleError(null);
     try {
-      await huawei.setEcsSchedule(
-        selectedProject.id,
-        { start: scheduleStart || undefined, end: scheduleEnd || undefined },
-        selectedProject.perfil
-      );
-      setShowScheduleModal(false);
-      await loadEcsForProject(selectedProject);
+      if (scheduleMode === 'vm' && selectedEcsIds.length > 0) {
+        const parseTime = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return { hour: h || 0, minute: m || 0 };
+        };
+        const pk = projectKey(selectedProject);
+        const adds: Promise<unknown>[] = [];
+        for (const serverId of selectedEcsIds) {
+          const server = (huaweiEcs || []).find((e) => e.id === serverId);
+          const serverName = server?.name || serverId;
+          if (scheduleStart) {
+            const { hour, minute } = parseTime(scheduleStart);
+            adds.push(huawei.schedulesVm.add({
+              projectKey: pk,
+              projectId: selectedProject.id,
+              region: selectedProject.region || null,
+              perfil: selectedProject.perfil || null,
+              serverId,
+              serverName,
+              action: 'start',
+              hour,
+              minute,
+              days: null,
+            }));
+          }
+          if (scheduleEnd) {
+            const { hour, minute } = parseTime(scheduleEnd);
+            adds.push(huawei.schedulesVm.add({
+              projectKey: pk,
+              projectId: selectedProject.id,
+              region: selectedProject.region || null,
+              perfil: selectedProject.perfil || null,
+              serverId,
+              serverName,
+              action: 'stop',
+              hour,
+              minute,
+              days: null,
+            }));
+          }
+        }
+        await Promise.all(adds);
+        setShowScheduleModal(false);
+      } else {
+        await huawei.setEcsSchedule(
+          selectedProject.id,
+          { start: scheduleStart || undefined, end: scheduleEnd || undefined },
+          selectedProject.perfil
+        );
+        setShowScheduleModal(false);
+        await loadEcsForProject(selectedProject);
+      }
     } catch (e: unknown) {
       setScheduleError(e instanceof Error ? e.message : 'Erro ao salvar programação.');
     } finally {
@@ -674,7 +742,7 @@ export default function Home() {
             )}
           </div>
           {huaweiError && (
-            <p className="mt-3 text-sm text-red-600">{huaweiError}</p>
+            <p className="mt-3 text-sm text-red-400">{huaweiError}</p>
           )}
            {huaweiProjects && (
              <>
@@ -745,25 +813,25 @@ export default function Home() {
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
-                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors"
                                   title="Ver ECS"
                                 >
-                                  📋
+                                  <ClipboardList className="w-4 h-4" aria-hidden="true" />
                                 </button>
                                 <Link
                                   to="/programacao"
-                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors inline-flex"
                                   title="Programação"
                                 >
-                                  📅
+                                  <Calendar className="w-4 h-4" aria-hidden="true" />
                                 </Link>
                                 <button
                                   type="button"
-                                  className="p-1 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors"
                                   title="Atualizar"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
                                 >
-                                  🔄
+                                  <RefreshCw className="w-4 h-4" aria-hidden="true" />
                                 </button>
                               </span>
                             </td>
@@ -865,7 +933,7 @@ export default function Home() {
                     )}
                   </div>
                   {huaweiEcsLoading && <p className="text-sm text-gray-400">Carregando ECS...</p>}
-                  {huaweiEcsError && <p className="text-sm text-red-600">{huaweiEcsError}</p>}
+                  {huaweiEcsError && <p className="text-sm text-red-400">{huaweiEcsError}</p>}
                   {huaweiEcs && !huaweiEcsLoading && (
                     <div className="overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
                       <table className="w-full text-sm">
@@ -909,7 +977,7 @@ export default function Home() {
                                   <td className="py-2 px-3 font-medium">{s.name || s.id}</td>
                                   {isAdmin && <td className="py-2 px-3 font-mono text-xs">{s.id}</td>}
                                   <td className="py-2 px-3 text-gray-300">{metaCliente}</td>
-                                  <td className="py-2 px-3">{s.status}</td>
+                                  <td className="py-2 px-3"><EcsStatusBadge status={s.status} /></td>
                                   <td className="py-2 px-3 text-gray-300">{formatFlavor(s.flavor)}</td>
                                   <td className="py-2 px-3 text-gray-300">{formatDiskSize(s)}</td>
                                   <td className="py-2 px-3 text-gray-300">{ips || '—'}</td>
@@ -962,9 +1030,15 @@ export default function Home() {
           {showScheduleModal && selectedProject && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !scheduleSaving && setShowScheduleModal(false)}>
               <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-medium text-white mb-2">Programação das VMs</h3>
+                <h3 className="text-lg font-medium text-white mb-2">
+                  {scheduleMode === 'vm'
+                    ? `Programação — ${selectedEcsIds.length} VM(s) selecionada(s)`
+                    : 'Programação geral do projeto'}
+                </h3>
                 <p className="text-sm text-gray-300 mb-3">
-                  Horário em que as VMs deste projeto ficam ligadas. Fora desse intervalo, o marcador &quot;Horas a mais&quot; acumula.
+                  {scheduleMode === 'vm'
+                    ? `Cria agendamentos de Start e Stop para as ${selectedEcsIds.length} VM(s) selecionadas. Aparecem na página Programação.`
+                    : 'Horário em que as VMs deste projeto ficam ligadas. Fora desse intervalo, o marcador "Horas a mais" acumula.'}
                 </p>
                 {scheduleError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{scheduleError}</div>}
                 <div className="grid grid-cols-2 gap-4 mb-4">

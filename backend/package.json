@@ -1,6 +1,6 @@
 {
   "name": "ananim-manager-painel-backend",
-  "version": "1.2.46",
+  "version": "1.2.50",
   "description": "API do painel de gerenciamento Huawei / SAP B1",
   "main": "src/index.js",
   "type": "module",
@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "build:bundle": "node scripts/build-bundle.js",
     "build:exe": "node scripts/build-bundle.js && pkg dist/app.cjs --targets node18-win-x64 --output dist/Ananim-Manager-Painel-API.exe --public-packages better-sqlite3",
+    "build:decrypt-logs": "pkg decrypt-logs.cjs --targets node18-win-x64 --output dist/Descriptografar-Logs.exe",
     "build:linux": "node scripts/build-bundle.js && pkg dist/app.cjs --targets node18-linux-x64 --output dist/Ananim-Manager-Painel-API --public-packages better-sqlite3",
     "gerar-chave": "node scripts/gerar_chave.js",
     "gerar-jwt-e-enc": "node scripts/gerar-jwt-e-enc.js",
@@ -39,7 +40,10 @@
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.1",
     "npx": "^10.2.2",
+    "otplib": "^13.4.0",
     "playwright": "^1.58.2",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {

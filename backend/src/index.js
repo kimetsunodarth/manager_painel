@@ -6,6 +6,20 @@ import './bootstrap-config.js';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getAppRoot } from './appRoot.js';
+import crypto from 'crypto';
+import path from 'path';
+import { APP_VERSION } from './version.js';
+import { installEncryptedStdoutLogger } from './utils/encryptedStdoutLogger.js';
+import { appendEncryptedLine } from './utils/encryptedLineLog.js';
+import { getLogCryptoKey } from './utils/logCryptoKey.js';
+
+const isProductionEarly = process.env.NODE_ENV === 'production';
+try {
+  installEncryptedStdoutLogger({ appDir: process.cwd(), requireKey: isProductionEarly });
+} catch (e) {
+  process.stderr.write('[Ananim] Falha ao inicializar logger criptografado: ' + (e?.message || e) + '\n');
+  process.exit(1);
+}
 
 try {
   console.log('[Ananim] Iniciando... v=%s cwd=%s HTTP_PLATFORM_PORT=%s PORT=%s', APP_VERSION, process.cwd(), process.env.HTTP_PLATFORM_PORT, process.env.PORT);
@@ -48,7 +62,6 @@ import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
 import { extractIp } from './utils/validation.js';
-import { APP_VERSION } from './version.js';
 
 initDb();
 
@@ -77,6 +90,15 @@ if (isIis) {
 const rawPort = process.env.PORT || process.env.HTTP_PLATFORM_PORT || 3001;
 const PORT = parseInt(String(rawPort), 10) || 3001;
 const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction && !getLogCryptoKey(process.cwd())) {
+  console.error('[Ananim] Em produção, .encryption_key/key.bin/CONFIG_KEY é obrigatório para criptografia de logs.');
+  process.exit(1);
+}
+
+function makeRequestId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return crypto.randomBytes(16).toString('hex');
+}
 
 app.use(helmet({ contentSecurityPolicy: false }));
 const corsOrigin = process.env.FRONTEND_ORIGIN;
@@ -100,6 +122,34 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
+
+app.use((req, res, next) => {
+  const started = Date.now();
+  const requestId = makeRequestId();
+  req.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  res.on('finish', () => {
+    try {
+      const payload = {
+        t: new Date().toISOString(),
+        requestId,
+        method: req.method,
+        path: req.originalUrl || req.url,
+        status: res.statusCode,
+        durationMs: Date.now() - started,
+        ip: extractIp(req),
+        userAgent: req.headers['user-agent'] || null,
+        userId: req.user?.id || null,
+        userEmail: req.user?.email || null,
+      };
+      appendEncryptedLine(path.join(process.cwd(), 'logs', 'requests.log'), payload, {
+        appDir: process.cwd(),
+        requireKey: isProduction,
+      });
+    } catch (_) {}
+  });
+  next();
+});
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -185,7 +235,22 @@ try {
 process.on('uncaughtException', (err) => {
   console.error('[Ananim] uncaughtException:', err && err.message);
   if (err && err.stack) console.error(err.stack);
+  try {
+    appendEncryptedLine(path.join(process.cwd(), 'logs', 'startup-error.log'), {
+      t: new Date().toISOString(),
+      type: 'uncaughtException',
+      error: err?.message || String(err),
+      stack: err?.stack || null,
+    }, { appDir: process.cwd(), requireKey: isProduction });
+  } catch (_) {}
 });
 process.on('unhandledRejection', (reason, p) => {
   console.error('[Ananim] unhandledRejection:', reason, p);
+  try {
+    appendEncryptedLine(path.join(process.cwd(), 'logs', 'startup-error.log'), {
+      t: new Date().toISOString(),
+      type: 'unhandledRejection',
+      error: String(reason),
+    }, { appDir: process.cwd(), requireKey: isProduction });
+  } catch (_) {}
 });

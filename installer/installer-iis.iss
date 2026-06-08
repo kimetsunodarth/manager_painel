@@ -9,7 +9,7 @@
 #endif
 #define MyAppName "Ananim Manager Painel"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.46"
+  #define MyAppVersion "1.2.50"
 #endif
 #define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"
@@ -51,6 +51,7 @@ Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Excludes: "config\*;config.enc;.e
 Source: ".\{#PackageDir}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist
 Source: ".\{#PackageDir}\config.enc"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
 Source: ".\{#PackageDir}\.encryption_key"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+Source: ".\{#PackageDir}\key.bin"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 [Dirs]
 ; logs, data e config/ sao criados com permissoes para o App Pool IIS poder escrever

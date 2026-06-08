@@ -74,6 +74,12 @@ $ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
 try { npm run build:exe 2>&1 | Out-Null } finally { $ErrorActionPreference = $ea }
 $exePath = Join-Path $backend "dist\Ananim-Manager-Painel-API.exe"
 if (-not (Test-Path $exePath)) { throw "Backend exe nao gerado. Execute no backend: npm run build:exe" }
+
+Write-Host "Build do Descriptografar-Logs.exe..."
+$ea = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+try { npm run build:decrypt-logs 2>&1 | Out-Null } finally { $ErrorActionPreference = $ea }
+$decryptExePath = Join-Path $backend "dist\Descriptografar-Logs.exe"
+if (-not (Test-Path $decryptExePath)) { throw "Descriptografar-Logs.exe nao gerado. Execute no backend: npm run build:decrypt-logs" }
 Pop-Location
 
 # 3) Montar pacote (sem api/ nem backend/)
@@ -83,6 +89,8 @@ New-Item -ItemType Directory -Path $packageIisTmp -Force | Out-Null
 # .exe na raiz
 Copy-Item $exePath (Join-Path $packageIisTmp "Ananim-Manager-Painel-API.exe") -Force
 Write-Host "Copiado: Ananim-Manager-Painel-API.exe"
+Copy-Item $decryptExePath (Join-Path $packageIisTmp "Descriptografar-Logs.exe") -Force
+Write-Host "Copiado: Descriptografar-Logs.exe"
 
 # lib/node_modules/better-sqlite3 (exe usa NODE_PATH=lib; nao colocar node_modules na raiz)
 $pkgLib = Join-Path $packageIisTmp "lib"
@@ -183,7 +191,11 @@ Nao ha pasta backend nem api - nao expoe codigo.
 
 4. URL: http://localhost:8890/   Login demo: joao@example.com / admin123
 
-5. Se 502.3 (Bad Gateway): abra logs\api-stdout.log - la aparece o erro do exe. Confirme lib\node_modules\better-sqlite3 e config.enc + chave na pasta.
+5. Se 502.3 (Bad Gateway): use Descriptografar-Logs.exe para ler logs\api-stdout.log, logs\startup-error.log, logs\requests.log e logs\action-log.log.
+   Exemplo:
+     Descriptografar-Logs.exe --file logs\api-stdout.log --format line --pretty
+     Descriptografar-Logs.exe --file logs\requests.log --format line --json
+   Confirme tambem lib\node_modules\better-sqlite3 e config.enc + chave na pasta.
 
 SEGURANCA IIS:
 - O web.config bloqueia acesso HTTP direto a: .env, .encryption_key, config.enc, key.bin, config, data, logs, lib, node_modules.

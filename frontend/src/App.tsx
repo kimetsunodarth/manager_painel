@@ -23,6 +23,7 @@ function PrivateRoute({ children }: { children: ReactNode }) {
     api<{ ok: boolean }>('/auth/me', { skipGlobalErrorHandler: true })
       .then(() => setStatus('ok'))
       .catch(() => {
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('user');
         setStatus('invalid');
       });

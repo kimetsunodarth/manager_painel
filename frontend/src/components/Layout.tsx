@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Home,
+  Settings,
+  ClipboardList,
+  Calendar,
+  Clock,
+  Building2,
+  Users,
+  ScrollText,
+  type LucideIcon,
+} from 'lucide-react';
 import { auth } from '../api/client';
 import { useUser } from '../hooks/useUser';
 
-const menuItems = [
-  { path: '/', label: 'Home', icon: '🏠' },
-  { path: '/servicos', label: 'Serviços', icon: '⚙️' },
-  { path: '/backups', label: 'Detalhes / Backups', icon: '📋' },
-  { path: '/programacao', label: 'Programação', icon: '📅', adminOnly: true },
-  { path: '/extensao-horario', label: 'Extensão de horário', icon: '⏱️', adminOnly: true },
-  { path: '/documentos', label: 'Documentos', icon: '📁' },
-  { path: '/clientes', label: 'Clientes', icon: '🏢', adminOnly: true },
-  { path: '/usuarios', label: 'Usuários', icon: '👥', permission: 'users:*' },
-  { path: '/logs', label: 'Log de auditoria', icon: '📜', adminOnly: true },
+const menuItems: { path: string; label: string; icon: LucideIcon; adminOnly?: boolean; permission?: string }[] = [
+  { path: '/', label: 'Home', icon: Home },
+  { path: '/servicos', label: 'Serviços', icon: Settings },
+  { path: '/backups', label: 'Detalhes / Backups', icon: ClipboardList },
+  { path: '/programacao', label: 'Programação', icon: Calendar, adminOnly: true },
+  { path: '/extensao-horario', label: 'Extensão de horário', icon: Clock, adminOnly: true },
+  // { path: '/documentos', label: 'Documentos', icon: FolderOpen },
+  { path: '/clientes', label: 'Clientes', icon: Building2, adminOnly: true },
+  { path: '/usuarios', label: 'Usuários', icon: Users, permission: 'users:*' },
+  { path: '/logs', label: 'Log de auditoria', icon: ScrollText, adminOnly: true },
 ];
 
 function safeUser() {
@@ -44,6 +55,7 @@ export default function Layout() {
     } catch (err) {
       console.warn('Erro ao chamar logout na API:', err);
     }
+    localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     navigate('/login');
   };
@@ -59,7 +71,7 @@ export default function Layout() {
           <Link to="/" className="flex items-center min-w-0 flex-1">
             <div className={`flex items-center justify-center ${sidebarOpen ? 'h-8' : 'h-8 w-8'} bg-white/95 rounded overflow-hidden`}>
               <img
-                src="/ananim-logo.png"
+                src="/logos/logo Ananim_Prancheta 1 cópia 10.png"
                 alt="Ananim"
                 className={`h-full w-full object-cover ${sidebarOpen ? 'px-2' : ''}`}
               />
@@ -91,11 +103,13 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
+                title={item.label}
+                aria-label={item.label}
                 className={`flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.06] ${
                   location.pathname === item.path ? 'bg-white/[0.06] border-l-4 border-ananim-accent' : ''
                 }`}
               >
-                <span className="text-lg">{item.icon}</span>
+                <item.icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                 {sidebarOpen && <span>{item.label}</span>}
               </Link>
             ))}
@@ -106,7 +120,7 @@ export default function Layout() {
         <header className="bg-ananim-surface/60 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
            <div className="flex items-center gap-3">
              <div className="h-8 w-8 bg-white/95 rounded overflow-hidden flex items-center justify-center">
-               <img src="/ananim-mark.png" alt="Ananim" className="h-full w-full object-cover" />
+               <img src="/logos/logo Ananim_Prancheta 1 cópia 6.png" alt="Ananim" className="h-full w-full object-cover" />
              </div>
              <h1 className="text-lg font-medium font-display text-white">
                Ananim Manager Painel

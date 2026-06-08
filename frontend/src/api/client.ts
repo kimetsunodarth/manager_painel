@@ -1,5 +1,6 @@
 /** Em build para IIS use relativo '/api'. Para dev com backend em outra origem, defina VITE_API_URL. */
 const API_BASE = (import.meta.env.VITE_API_URL as string) || '/api';
+const AUTH_TOKEN_KEY = 'auth_token';
 
 /** True quando a API está na mesma origem (instalação IIS ou dev com proxy). */
 const isSameOriginApi = !API_BASE.startsWith('http');
@@ -18,6 +19,10 @@ export async function api<T>(
     'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
   };
+  const storedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (storedToken && !(headers as Record<string, string>).Authorization) {
+    (headers as Record<string, string>).Authorization = `Bearer ${storedToken}`;
+  }
 
   let res: Response;
   try {
@@ -31,6 +36,7 @@ export async function api<T>(
     throw new Error(msg.includes('Failed') || msg.includes('NetworkError') ? backendMsg : msg);
   }
   if (res.status === 401 && !skipGlobalErrorHandler) {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Não autorizado');
@@ -53,9 +59,19 @@ export async function api<T>(
 
 export const auth = {
   login: (email: string, password: string) =>
-    api<{ ok: boolean; user: User }>('/auth/login', {
+    api<{ ok: boolean; mfaRequired?: boolean; mfaSetupRequired?: boolean; setupToken?: string; qrDataUrl?: string; manualKey?: string; challengeToken?: string; delivery?: string; expiresIn?: number; token?: string; user?: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+  verifyMfaSetup: (setupToken: string, code: string) =>
+    api<{ ok: boolean; mfaRequired?: boolean; token?: string; user: User }>('/auth/mfa/setup/verify', {
+      method: 'POST',
+      body: JSON.stringify({ setupToken, code }),
+    }),
+  verifyMfa: (challengeToken: string, code: string) =>
+    api<{ ok: boolean; mfaRequired?: boolean; token?: string; user: User }>('/auth/login/mfa', {
+      method: 'POST',
+      body: JSON.stringify({ challengeToken, code }),
     }),
   logout: () =>
     api<{ ok: boolean }>('/auth/logout', {
@@ -704,6 +720,8 @@ export interface User {
   allowedServiceIds?: string[];
   /** Cliente preferido na aba Serviços quando o usuário tem vários (ex.: roland, cloudhdb). Vazio = usar ordem dos projetos. */
   preferredServiceClientKey?: string | null;
+  mfaEnabled?: boolean;
+  mfaEmail?: string | null;
 }
 
 export interface CreateUser {
@@ -717,6 +735,8 @@ export interface CreateUser {
   allowedHuaweiEcsIds?: AllowedHuaweiEcsIds;
   allowedServiceIds?: string[];
   preferredServiceClientKey?: string | null;
+  mfaEnabled?: boolean;
+  mfaEmail?: string | null;
 }
 
 /** Opções de cliente para preferência na aba Serviços (HANA/SQL). */

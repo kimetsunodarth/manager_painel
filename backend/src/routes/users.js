@@ -27,7 +27,7 @@ router.get('/:id', requirePermission('users:*'), (req, res) => {
 
 router.post('/', requirePermission('users:*'), async (req, res) => {
   try {
-    const { name, email, password, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds } = req.body || {};
+    const { name, email, password, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, mfaEnabled, mfaEmail } = req.body || {};
     const nameStr = typeof name === 'string' ? name.trim() : '';
     const emailStr = typeof email === 'string' ? email.trim() : '';
     const passwordStr = typeof password === 'string' ? password : '';
@@ -60,6 +60,8 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
       visibleProjects: Array.isArray(visibleProjects) ? visibleProjects : [],
       allowedHuaweiEcsIds: allowedHuaweiEcsIds != null && typeof allowedHuaweiEcsIds === 'object' && !Array.isArray(allowedHuaweiEcsIds) ? allowedHuaweiEcsIds : {},
       allowedServiceIds: Array.isArray(allowedServiceIds) ? allowedServiceIds : [],
+      mfaEnabled: mfaEnabled !== false,
+      mfaEmail: typeof mfaEmail === 'string' ? mfaEmail.trim() : null,
     });
     logAction(req, 'Usuário criado', { userId: user.id, email: user.email, role: user.role });
     res.status(201).json(user);
@@ -69,7 +71,7 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
 });
 
 router.patch('/:id', requirePermission('users:*'), async (req, res) => {
-  const { name, email, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, preferredServiceClientKey, password } = req.body || {};
+  const { name, email, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, preferredServiceClientKey, password, mfaEnabled, mfaEmail } = req.body || {};
   const existing = userStore.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
   const data = {};
@@ -95,6 +97,8 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
   if (visibleProjects !== undefined) data.visibleProjects = Array.isArray(visibleProjects) ? visibleProjects : [];
   if (allowedHuaweiEcsIds !== undefined) data.allowedHuaweiEcsIds = allowedHuaweiEcsIds != null && typeof allowedHuaweiEcsIds === 'object' && !Array.isArray(allowedHuaweiEcsIds) ? allowedHuaweiEcsIds : {};
   if (allowedServiceIds !== undefined) data.allowedServiceIds = Array.isArray(allowedServiceIds) ? allowedServiceIds : [];
+  if (mfaEnabled !== undefined) data.mfaEnabled = !!mfaEnabled;
+  if (mfaEmail !== undefined) data.mfaEmail = mfaEmail == null ? null : String(mfaEmail).trim();
   if (preferredServiceClientKey !== undefined) data.preferredServiceClientKey = preferredServiceClientKey == null || preferredServiceClientKey === '' ? null : String(preferredServiceClientKey).trim();
   if (password !== undefined && typeof password === 'string' && password.length >= 6) {
     data.passwordHash = await bcrypt.hash(password, 10);
@@ -110,6 +114,7 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
   if (visibleProjects !== undefined) actions.push('projetos visíveis alterados');
   if (allowedHuaweiEcsIds !== undefined) actions.push('ECS Huawei por projeto alterados');
   if (allowedServiceIds !== undefined) actions.push('serviços SAP/HANA alterados');
+  if (mfaEnabled !== undefined || mfaEmail !== undefined) actions.push('MFA alterado');
   if (preferredServiceClientKey !== undefined) actions.push('cliente preferido (Serviços) alterado');
   if (password && password.length >= 6) actions.push('senha redefinida');
   if (actions.length) logAction(req, 'Usuário atualizado', { targetUserId: req.params.id, targetEmail: existing.email, alterações: actions.join(', ') });

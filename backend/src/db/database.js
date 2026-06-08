@@ -52,6 +52,9 @@ export function initDb() {
       visibleProjects TEXT NOT NULL DEFAULT '[]',
       allowedHuaweiEcsIds TEXT NOT NULL DEFAULT '{}',
       allowedServiceIds TEXT NOT NULL DEFAULT '[]',
+      mfaEnabled INTEGER NOT NULL DEFAULT 1,
+      mfaEmail TEXT,
+      mfaSecret TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
 
@@ -103,6 +106,24 @@ export function initDb() {
   } catch (e) {
     if (!e.message?.includes('duplicate column')) throw e;
   }
+  try {
+    database.exec(`ALTER TABLE users ADD COLUMN mfaEnabled INTEGER NOT NULL DEFAULT 1`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE users ADD COLUMN mfaEmail TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE users ADD COLUMN mfaSecret TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`UPDATE users SET mfaEnabled = 1 WHERE mfaEnabled IS NULL`);
+  } catch (_) {}
 
   try {
     database.exec(`ALTER TABLE audit_logs ADD COLUMN ipAddress TEXT`);
@@ -121,8 +142,8 @@ export function initDb() {
     const defaultAdminHash = '$2a$10$/Aw/YX/97gKKBaBKU0j4iuCk/FkSGx.QX1NFD1AZ8uif0qorKgC0K';
     database
       .prepare(
-        `INSERT INTO users (id, name, email, passwordHash, role, permissions, allowedEcsIds, visibleProjects)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO users (id, name, email, passwordHash, role, permissions, allowedEcsIds, visibleProjects, mfaEnabled, mfaEmail, mfaSecret)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         '1',
@@ -132,7 +153,10 @@ export function initDb() {
         'admin',
         JSON.stringify(['ecs:*', 'services:*', 'backups:list', 'licenses:*', 'users:*', 'huawei:projects']),
         JSON.stringify([]),
-        JSON.stringify([])
+        JSON.stringify([]),
+        1,
+        'joao@example.com',
+        null
       );
     console.log('Banco interno: usuário admin padrão criado (joao@example.com). Redefina a senha no primeiro acesso.');
   }

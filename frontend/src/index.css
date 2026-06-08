@@ -5,16 +5,37 @@
 @layer base {
   html {
     color-scheme: dark;
+    scroll-behavior: smooth;
   }
 
   body {
     margin: 0;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     @apply bg-ananim-bg text-ananim-text font-sans;
   }
 
   ::selection {
     background: rgba(0, 200, 224, 0.25);
+  }
+
+  /* Focus ring acessível — substituí o outline padrão feio */
+  :focus-visible {
+    outline: 2px solid rgba(0, 200, 224, 0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Scrollbar sutil (Chromium) */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+  /* Select / option em dark */
+  select option {
+    background: #0C0C16;
+    color: #E5E7EB;
   }
 }
 
@@ -24,18 +45,23 @@
   }
 
   .ananim-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer;
   }
 
   .ananim-btn-primary {
-    @apply ananim-btn bg-ananim-accent text-black hover:shadow-[0_0_30px_rgba(0,200,224,0.35)];
+    @apply ananim-btn bg-ananim-accent text-black font-semibold hover:brightness-110 hover:shadow-[0_0_24px_rgba(0,200,224,0.30)] active:brightness-95;
   }
 
   .ananim-btn-ghost {
-    @apply ananim-btn bg-white/[0.06] text-white hover:bg-white/[0.10] border border-white/10;
+    @apply ananim-btn bg-white/[0.06] text-white hover:bg-white/[0.10] border border-white/10 hover:border-white/20;
   }
 
   .ananim-input {
-    @apply w-full rounded-lg px-3 py-2 bg-white/[0.06] border border-white/10 text-white placeholder:text-gray-400 focus:outline-none focus:border-ananim-accent/50;
+    @apply w-full rounded-lg px-3 py-2 bg-white/[0.06] border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:border-ananim-accent/60 focus:bg-white/[0.08] transition-colors duration-150;
+  }
+
+  /* Skeleton loading shimmer */
+  .ananim-skeleton {
+    @apply rounded bg-white/[0.06] animate-pulse;
   }
 }
