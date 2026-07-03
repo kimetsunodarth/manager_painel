@@ -8,8 +8,32 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Segurança — senha SMTP:** a API de billing (`/api/huawei/billing-config*`) não retorna mais `smtp.pass`; respostas passam por `sanitizeBillingConfig` e expõem apenas `smtp.passSet`. No frontend, o campo de senha inicia vazio e enviar vazio mantém a senha atual.
+
+### Alterado
+
+- **Higiene do repositório:** `backend/users.json` (hashes/e-mails reais), `db_temp.db`, screenshots de debug e `tsconfig.tsbuildinfo` removidos do versionamento; `.gitignore` ampliado (dados runtime, scripts de investigação locais).
+- **README.md** reescrito para refletir a arquitetura real (`backend/src/` Express 5 + `frontend/src/` React/TS); estrutura antiga (server.js, app.js) marcada como legado.
+
+---
+
+## [1.2.69] – 2026-07-03
+
+Consolidação do trabalho de 1.0.0 até 1.2.69 (as versões intermediárias não foram registradas individualmente neste arquivo; detalhes em `docs/MEMORIA_INTERNA.md` e `docs/HANDOFF_AGENTE.md`).
+
 ### Adicionado
 
+- **Módulo SAP B1/HANA:** gestão de serviços por cliente (HANA/SQL/Web), start/stop via SSH (`ssh2`), Support User no Control Center via Playwright/Chromium; clientes em `backend/src/config/clients/` e `hana-clients/`.
+- **Horas extras / Extensão de horário:** sessões de VM fora do horário com cobrança (`extensionBilling`, arredondamento 30 min), tabela `extension_sessions`, páginas `ExtensaoHorario`, `HorasExtrasCliente` e `TarifaHorasExtras`.
+- **Notificações por e-mail:** `emailNotifier`/`emailService` (SMTP Office 365), e-mails de alerta e e-mail de teste.
+- **MFA TOTP:** setup por QR code (otplib/speakeasy), ligado por padrão para novos usuários.
+- **Geo-segurança (opcional):** camada `geoSecurity` de bloqueio por geolocalização (`SECURITY_GEO_ENABLED`).
+- **Auditoria com geolocalização:** IP, user agent e país/região/cidade em `audit_logs`.
+- **Backups CBR, Licenças e Documentos** por cliente (upload até 70 MB).
+- **Role `client`:** home restrita aos projetos vinculados com autoload de conta/projeto.
+- **Migração do backend para `backend/src/`** (Express 5 ESM modular) e do frontend para React 18 + TypeScript + Vite + Tailwind; SQLite via better-sqlite3 (WAL).
 - **Logo criptografado:** armazenamento do logo em `logo.enc` (mesma chave que config.enc/key.bin); servido via `GET /api/logo`; script `backend/scripts/encrypt-logo.js`; frontend passa a usar `/api/logo` em vez de `logo.png`.
 - **Logs criptografados:** em produção (exe/IIS) toda saída da aplicação e erros de inicialização vão para `logs/app.log.enc` e `logs/startup-error.log.enc` (módulo `utils/log-encrypt.js`); chave = key.bin; formato append-only por bloco (4 bytes length + iv + tag + ciphertext).
 - **Descriptografar-Logs.exe:** ferramenta (CLI) para ler logs criptografados; entrada `backend/decrypt-logs.js`, build com `npm run build:decrypt-logs`; incluída no pacote IIS e no instalador Inno; ao ser executada sem argumentos, exibe instruções de uso e aguarda Enter (evita janela fechar ao clicar).
