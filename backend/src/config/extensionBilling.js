@@ -82,6 +82,18 @@ export function getBillingConfig() {
   return loadBillingConfig();
 }
 
+/**
+ * Versão segura para respostas de API: nunca expõe a senha SMTP.
+ * `passSet` indica ao frontend se há senha salva (enviar pass vazio mantém a atual).
+ */
+export function sanitizeBillingConfig(config) {
+  if (!config || typeof config !== 'object') return config;
+  const { smtp, ...rest } = config;
+  if (!smtp) return { ...rest, smtp: null };
+  const { pass, ...smtpRest } = smtp;
+  return { ...rest, smtp: { ...smtpRest, passSet: Boolean(pass) } };
+}
+
 export function saveBillingConfig(config) {
   const existing = loadBillingConfig();
 
