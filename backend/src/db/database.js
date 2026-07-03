@@ -55,6 +55,9 @@ export function initDb() {
       mfaEnabled INTEGER NOT NULL DEFAULT 1,
       mfaEmail TEXT,
       mfaSecret TEXT,
+      failedLoginAttempts INTEGER NOT NULL DEFAULT 0,
+      lockedUntil TEXT,
+      lastLoginAt TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
 
@@ -67,6 +70,10 @@ export function initDb() {
       details TEXT,
       ipAddress TEXT,
       userAgent TEXT,
+      countryCode TEXT,
+      countryName TEXT,
+      regionName TEXT,
+      cityName TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
 
@@ -85,6 +92,19 @@ export function initDb() {
       userId TEXT,
       userName TEXT,
       userEmail TEXT,
+      userIp TEXT,
+      countryCode TEXT,
+      countryName TEXT,
+      regionName TEXT,
+      cityName TEXT,
+      endedByUserId TEXT,
+      endedByUserName TEXT,
+      endedByUserEmail TEXT,
+      endedByUserIp TEXT,
+      endedByCountryCode TEXT,
+      endedByCountryName TEXT,
+      endedByRegionName TEXT,
+      endedByCityName TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_extension_sessions_project_server ON extension_sessions(projectKey, serverId);
@@ -122,6 +142,21 @@ export function initDb() {
     if (!e.message?.includes('duplicate column')) throw e;
   }
   try {
+    database.exec(`ALTER TABLE users ADD COLUMN failedLoginAttempts INTEGER NOT NULL DEFAULT 0`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE users ADD COLUMN lockedUntil TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE users ADD COLUMN lastLoginAt TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
     database.exec(`UPDATE users SET mfaEnabled = 1 WHERE mfaEnabled IS NULL`);
   } catch (_) {}
 
@@ -133,6 +168,91 @@ export function initDb() {
   
   try {
     database.exec(`ALTER TABLE audit_logs ADD COLUMN userAgent TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN countryCode TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN countryName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN regionName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE audit_logs ADD COLUMN cityName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN userIp TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN countryCode TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN countryName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN regionName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN cityName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByUserId TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByUserName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByUserEmail TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByUserIp TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByCountryCode TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByCountryName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByRegionName TEXT`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
+    database.exec(`ALTER TABLE extension_sessions ADD COLUMN endedByCityName TEXT`);
   } catch (e) {
     if (!e.message?.includes('duplicate column')) throw e;
   }
@@ -170,3 +290,4 @@ export function closeDb() {
     db = null;
   }
 }
+

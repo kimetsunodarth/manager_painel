@@ -8,7 +8,8 @@ import {
   type ScheduleVm,
   type ScheduleVmCreate,
 } from '../api/client';
-import AccountProjectBar from '../components/AccountProjectBar';
+import { getHomeProjectKey, getHomeProjectSelection } from '../utils/homeProjectSelection';
+import PageHeader from '../components/PageHeader';
 
 const DAYS_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STORAGE_PROJECTS_KEY = 'ananim_programacao_projects';
@@ -119,8 +120,10 @@ function formatDays(days: number[] | null): string {
 }
 
 export default function Programacao() {
+  const homeSelection = getHomeProjectSelection();
+  const homeProjectKey = getHomeProjectKey(homeSelection?.project);
   const cachedProjects = loadProjectsFromStorage();
-  const cachedSelectedKey = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_SELECTED_KEY) : null;
+  const cachedSelectedKey = homeProjectKey || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_SELECTED_KEY) : null);
   const [projects, setProjects] = useState<HuaweiProject[] | null>(cachedProjects);
   const [projectsInUseKeys, setProjectsInUseKeys] = useState<Set<string>>(new Set());
   const [selectedAccount, setSelectedAccount] = useState<string>('');
@@ -232,23 +235,6 @@ export default function Programacao() {
     return true;
   });
 
-  const accountOptions = Array.from(
-    new Set(projectsInUse.map((p) => accountIdFromPerfil(p.perfil)).filter(Boolean) as string[])
-  )
-    .map((id) => ({ id, name: id }))
-    .sort((a, b) => a.id.localeCompare(b.id));
-
-  const projectsForAccount = selectedAccount ? projectsInUse.filter((p) => accountIdFromPerfil(p.perfil) === selectedAccount) : projectsInUse;
-
-  const projectOptions = projectsForAccount
-    .filter((p) => {
-      const isMooveTenant = accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveTenantProject(p);
-      if (isMooveTenant) return true;
-      return !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id);
-    })
-    .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)))
-    .map((p) => ({ id: projectKey(p), name: projectDisplayName(p) }));
-
   const selectedProjectFromBar =
     selectedProjectKey ? (projects || []).find((p) => projectKey(p) === selectedProjectKey) || null : null;
 
@@ -256,6 +242,30 @@ export default function Programacao() {
     selectedProjectFromBar && accountIdFromPerfil(selectedProjectFromBar.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(selectedProjectFromBar)
       ? (projects || []).find((p) => isMooveTenantProject(p)) || selectedProjectFromBar
       : selectedProjectFromBar;
+
+  useEffect(() => {
+    if (!projectsInUse.length) {
+      setSelectedProject(null);
+      return;
+    }
+    const preferredKey = getHomeProjectKey(homeSelection?.project) || selectedProjectKey || cachedSelectedKey;
+    const nextProject =
+      (preferredKey ? projectsInUse.find((p) => projectKey(p) === preferredKey) : null) ||
+      (effectiveSelectedProject && projectsInUse.some((p) => projectKey(p) === projectKey(effectiveSelectedProject)) ? effectiveSelectedProject : null) ||
+      projectsInUse[0] ||
+      null;
+    if (!nextProject) return;
+    const nextKey = projectKey(nextProject);
+    const nextAccount = accountIdFromPerfil(nextProject.perfil) || '';
+    if (selectedProject?.id !== nextProject.id || selectedProject?.perfil !== nextProject.perfil) {
+      setSelectedProject(nextProject);
+    }
+    if (selectedProjectKey !== nextKey) setSelectedProjectKey(nextKey);
+    if (selectedAccount !== nextAccount) setSelectedAccount(nextAccount);
+    try {
+      sessionStorage.setItem(STORAGE_SELECTED_KEY, nextKey);
+    } catch (_) {}
+  }, [cachedSelectedKey, effectiveSelectedProject, homeSelection?.project, projectsInUse, selectedAccount, selectedProject, selectedProjectKey]);
 
   const handleAddSchedule = async (body: ScheduleVmCreate) => {
     if (!selectedProject) return;
@@ -324,126 +334,138 @@ export default function Programacao() {
   };
 
   const today = new Date().toISOString().slice(0, 10);
+  const totalSchedules = schedulesVm.length;
+  const totalVms = new Set(schedulesVm.map((item) => item.serverId)).size;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold font-display text-white">Programação</h2>
-        <span className="flex gap-2">
-          <button
-            type="button"
-            onClick={async () => {
-              setDiagnosticLoading(true);
-              setDiagnostic(null);
-              try {
-                const data = await huawei.schedulesDiagnostic();
-                setDiagnostic(data);
-              } catch (e) {
+    <div className="ananim-page">
+      <PageHeader
+        badge="Programação"
+        title="Programação operacional"
+        description="Centralize agendas por VM, exceções por data e diagnóstico com o projeto ativo herdado da Home."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setDiagnosticLoading(true);
                 setDiagnostic(null);
-                window.alert(e instanceof Error ? e.message : 'Erro ao carregar diagnóstico.');
-              } finally {
-                setDiagnosticLoading(false);
-              }
-            }}
-            disabled={diagnosticLoading}
-            className="ananim-btn-ghost px-4 py-2 disabled:opacity-50"
-            title="Ver por que as programações executam ou não (hora do servidor, agendamentos devidos)"
-          >
-            {diagnosticLoading ? '...' : 'Diagnóstico'}
-          </button>
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            className="ananim-btn-primary px-4 py-2 disabled:opacity-50"
-          >
-            {loading ? 'Carregando...' : 'Atualizar'}
-          </button>
-        </span>
+                try {
+                  const data = await huawei.schedulesDiagnostic();
+                  setDiagnostic(data);
+                } catch (e) {
+                  setDiagnostic(null);
+                  window.alert(e instanceof Error ? e.message : 'Erro ao carregar diagnóstico.');
+                } finally {
+                  setDiagnosticLoading(false);
+                }
+              }}
+              disabled={diagnosticLoading}
+              className="ananim-btn-ghost disabled:opacity-50"
+            >
+              {diagnosticLoading ? '...' : 'Diagnóstico'}
+            </button>
+            <button type="button" onClick={load} disabled={loading} className="ananim-btn-primary disabled:opacity-50">
+              {loading ? 'Carregando...' : 'Atualizar'}
+            </button>
+          </div>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Projetos em uso</p>
+          <p className="ananim-metric-value">{projectsInUse.length}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">VMs com agenda</p>
+          <p className="ananim-metric-value">{totalVms}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Agendamentos</p>
+          <p className="ananim-metric-value">{totalSchedules}</p>
+        </div>
       </div>
+
       {diagnostic && (
-        <div className="mb-4 p-4 ananim-card text-sm">
-          <h3 className="font-semibold text-white mb-2">Diagnóstico de programações (hora do servidor)</h3>
-          <p className="mb-1 text-gray-200">Hora do servidor: <strong>{diagnostic.serverTimeLocal}</strong> (hora/minuto: {diagnostic.serverHour}:{String(diagnostic.serverMinute).padStart(2, '0')}, dia da semana: {diagnostic.serverDayOfWeek})</p>
-          <p className="mb-1 text-gray-200">Arquivo: <code className="text-xs bg-white/[0.08] px-1.5 py-0.5 rounded font-mono">{diagnostic.agendamentosFilePath ?? '—'}</code></p>
-          <p className="mb-1 text-gray-200">Total: {diagnostic.totalSchedules} agendamentos ({diagnostic.enabledCount} habilitados)</p>
-          {diagnostic.invalidForCronCount != null && diagnostic.invalidForCronCount > 0 && (
-            <p className="mb-1 text-amber-300"><strong>{diagnostic.invalidForCronCount} agendamento(s) inválido(s)</strong> (sem projectId ou serverId) — não executam. Edite e salve com o projeto correto.</p>
-          )}
-          <p className="mb-2 text-gray-200">Devidos agora: <strong>{diagnostic.dueNowCount}</strong> {diagnostic.dueNowCount > 0 ? `— ${diagnostic.dueNow.map((d) => `${d.serverName} ${d.action}`).join(', ')}` : ''}</p>
-          {diagnostic.hint && <p className="mb-2 text-amber-300">{diagnostic.hint}</p>}
-          <p className="text-gray-400">Se a VM não ligar no horário: confira se a hora do servidor está correta (fuso). O cron usa a hora local do servidor.</p>
-          <button type="button" onClick={() => setDiagnostic(null)} className="mt-2 text-ananim-accent hover:underline text-xs">Fechar</button>
+        <div className="mt-6 ananim-card p-5 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="ananim-section-title">Diagnóstico de execução</h3>
+              <p className="ananim-section-subtitle">Hora do servidor, arquivo efetivo e itens devidos agora.</p>
+            </div>
+            <button type="button" onClick={() => setDiagnostic(null)} className="text-xs font-medium text-ananim-accent hover:text-white">
+              Fechar
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-ananim-textSoft">
+              <p className="text-ananim-text">Hora do servidor: <strong>{diagnostic.serverTimeLocal}</strong></p>
+              <p className="mt-1">Hora/minuto: {diagnostic.serverHour}:{String(diagnostic.serverMinute).padStart(2, '0')}</p>
+              <p>Dia da semana: {diagnostic.serverDayOfWeek}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-ananim-textSoft">
+              <p className="text-ananim-text">Arquivo da agenda</p>
+              <code className="mt-1 block text-xs text-white">{diagnostic.agendamentosFilePath ?? '—'}</code>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-ananim-textSoft">
+              <p>Total: <strong className="text-white">{diagnostic.totalSchedules}</strong></p>
+              <p>Habilitados: <strong className="text-white">{diagnostic.enabledCount}</strong></p>
+              {diagnostic.invalidForCronCount != null && diagnostic.invalidForCronCount > 0 && (
+                <p className="mt-2 text-amber-300">{diagnostic.invalidForCronCount} item(ns) inválido(s) para cron.</p>
+              )}
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-ananim-textSoft">
+              <p>Devidos agora: <strong className="text-white">{diagnostic.dueNowCount}</strong></p>
+              <p className="mt-1">{diagnostic.dueNowCount > 0 ? diagnostic.dueNow.map((d) => `${d.serverName} ${d.action}`).join(', ') : 'Nenhum agendamento devido neste momento.'}</p>
+            </div>
+          </div>
+          {diagnostic.hint && <p className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-amber-200">{diagnostic.hint}</p>}
         </div>
       )}
 
-      <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-200">
-        <strong>Cobrança:</strong> As cobranças são feitas de hora em hora. Ex.: 30 min = 1 hora cheia.
-      </div>
-
-      <div className="mb-4 p-3 bg-ananim-accent/10 border border-ananim-accent/20 rounded-lg text-sm text-gray-300">
-        <strong className="text-white">Programação por VM:</strong> Cada VM pode ter horários individuais de Start e Stop. O cancelamento é somente para o dia específico — no dia seguinte a programação oficial é seguida.
-      </div>
-
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
-
-      {/* Seletor de projeto */}
-      <div className="mb-6 ananim-card p-4">
-        <h3 className="text-base font-medium text-white mb-2">Projeto / Cliente</h3>
-        {projectsInUseKeys.size > 0 && (
-          <p className="text-xs text-gray-400 mb-3">{projectsInUse.length} projeto(s) em uso</p>
-        )}
-
-        <div className="rounded-xl bg-black/20 border border-white/10 p-3 mb-3">
-          <AccountProjectBar
-            accounts={accountOptions}
-            projects={projectOptions}
-            selectedAccount={selectedAccount}
-            selectedProject={selectedProjectKey}
-            onChangeAccount={(id) => {
-              setSelectedAccount(id);
-              setSelectedProjectKey('');
-            }}
-            onChangeProject={(id) => setSelectedProjectKey(id)}
-            onLoad={() => {
-              if (!effectiveSelectedProject) return;
-              setSelectedProject(effectiveSelectedProject);
-              try { sessionStorage.setItem(STORAGE_SELECTED_KEY, projectKey(effectiveSelectedProject)); } catch (_) {}
-            }}
-            loading={loading}
-            requireProject
-          />
+      <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+          <strong>Cobrança:</strong> continua fechada por hora cheia. Ex.: 30 min = 1 hora.
+        </div>
+        <div className="rounded-3xl border border-ananim-accent/20 bg-ananim-accent/10 p-4 text-sm text-ananim-textSoft">
+          <strong className="text-white">Regra por VM:</strong> o cancelamento é pontual por data e não altera a programação oficial do dia seguinte.
         </div>
       </div>
 
-          {selectedProject && (
-        <div className="ananim-card overflow-hidden">
-          <div className="p-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
-            <h3 className="text-base font-medium text-white">
-              {displayPerfil(selectedProject.perfil)} — {projectDisplayName(selectedProject)}
-            </h3>
+      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {projectsInUseKeys.size > 0 && <span className="ananim-chip">{projectsInUse.length} projeto(s) em uso</span>}
+        {homeSelection?.project?.name ? <span className="ananim-chip">Origem: {homeSelection.project.name}</span> : null}
+      </div>
+
+      {selectedProject && (
+        <div className="mt-6 ananim-card overflow-hidden">
+          <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ananim-accent">{displayPerfil(selectedProject.perfil)}</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">{projectDisplayName(selectedProject)}</h3>
+            </div>
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="ananim-btn bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 px-3 py-1.5 text-sm"
+              className="ananim-btn bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25"
             >
-              + Novo agendamento
+              Novo agendamento
             </button>
           </div>
 
           {projectSchedule?.start && projectSchedule?.end && (
-            <div className="px-4 py-2.5 bg-ananim-accent/[0.08] border-b border-ananim-accent/20 text-sm text-gray-300 flex items-center gap-3">
-              <span>
-                <strong className="text-white">Programação geral:</strong> Start {projectSchedule.start} → Stop {projectSchedule.end}
-              </span>
-              <span className="text-gray-500 text-xs">todos os dias · definida em Home</span>
+            <div className="flex flex-wrap items-center gap-3 border-b border-ananim-accent/20 bg-ananim-accent/[0.08] px-5 py-3 text-sm text-ananim-textSoft">
+              <span><strong className="text-white">Programação geral:</strong> Start {projectSchedule.start} → Stop {projectSchedule.end}</span>
+              <span className="text-ananim-muted">todos os dias · definida em Home</span>
             </div>
           )}
 
           {schedulesVm.length === 0 ? (
-            <div className="p-10 text-center text-gray-500 text-sm">
-              Nenhum agendamento. Clique em <strong className="text-gray-300">"+ Novo agendamento"</strong> para criar<br />
-              <span className="text-gray-600 text-xs mt-1 block">Ex.: MAXTECHDB Stop 23:00 · Start 06:45 · Restart 04:00 (todos os dias)</span>
+            <div className="p-12 text-center text-sm text-ananim-muted">
+              Nenhum agendamento neste projeto. Clique em <strong className="text-white">Novo agendamento</strong> para criar a rotina inicial.
             </div>
           ) : (
             <ScheduleGroupedTable
@@ -461,7 +483,6 @@ export default function Programacao() {
         </div>
       )}
 
-      {/* Modal: Novo agendamento */}
       {showAddModal && selectedProject && (
         <ScheduleFormModal
           ecsList={ecsList}
@@ -473,7 +494,6 @@ export default function Programacao() {
         />
       )}
 
-      {/* Modal: Editar */}
       {editingSchedule && (
         <ScheduleFormModal
           ecsList={ecsList}
@@ -484,21 +504,18 @@ export default function Programacao() {
         />
       )}
 
-      {/* Modal: Cancelar para dia específico */}
       {showCancelDateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="ananim-card p-6 max-w-md w-full shadow-xl shadow-black/40">
             <h3 className="text-base font-medium text-white mb-2">Cancelar para dia específico</h3>
-            <p className="text-sm text-gray-200 mb-1">
-              <strong>{showCancelDateModal.schedule.serverName}</strong> —{' '}
-              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${showCancelDateModal.schedule.action === 'stop' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+            <p className="text-sm text-ananim-text mb-1">
+              <strong>{showCancelDateModal.schedule.serverName}</strong>{' '}
+              <span className={`ml-1 rounded-full px-2 py-1 text-[11px] font-semibold ${showCancelDateModal.schedule.action === 'stop' ? 'bg-amber-500/20 text-amber-300' : showCancelDateModal.schedule.action === 'restart' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
                 {showCancelDateModal.schedule.action === 'stop' ? 'Stop' : showCancelDateModal.schedule.action === 'restart' ? 'Restart' : 'Start'}
               </span>{' '}
               às {formatTime(showCancelDateModal.schedule.hour, showCancelDateModal.schedule.minute)}
             </p>
-            <p className="text-sm text-gray-400 mb-4">
-              No dia selecionado o agendamento não será executado. No dia seguinte a programação oficial será seguida.
-            </p>
+            <p className="text-sm text-ananim-textSoft mb-4">No dia selecionado o agendamento não será executado. No dia seguinte a programação oficial será seguida.</p>
             <input
               type="date"
               value={cancelDate}
@@ -507,18 +524,14 @@ export default function Programacao() {
               className="ananim-input mb-4"
             />
             <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => { setShowCancelDateModal(null); setCancelDate(''); }}
-                className="ananim-btn-ghost px-4 py-2"
-              >
+              <button type="button" onClick={() => { setShowCancelDateModal(null); setCancelDate(''); }} className="ananim-btn-ghost">
                 Fechar
               </button>
               <button
                 type="button"
                 onClick={handleCancelForDate}
                 disabled={saving || !cancelDate}
-                className="ananim-btn bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 px-4 py-2 disabled:opacity-50"
+                className="ananim-btn bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 disabled:opacity-50"
               >
                 {saving ? 'Salvando...' : 'Confirmar'}
               </button>
@@ -527,8 +540,8 @@ export default function Programacao() {
         </div>
       )}
 
-      <p className="mt-4 text-sm text-gray-500">
-        Defina também o horário geral do projeto na <Link to="/" className="text-ananim-accent hover:underline">Home</Link> (Definir programação).
+      <p className="mt-5 text-sm text-ananim-muted">
+        Defina também o horário geral do projeto na <Link to="/" className="text-ananim-accent hover:text-white">Home</Link>.
       </p>
     </div>
   );
@@ -588,16 +601,16 @@ function ScheduleGroupedTable({
   ).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-white/[0.04] border-b border-white/10">
+    <div className="ananim-table-wrap">
+      <table className="ananim-table min-w-[960px]">
+        <thead>
           <tr>
             <th className="w-8" />
-            <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-xs uppercase tracking-wide">Horário</th>
-            <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-xs uppercase tracking-wide">Ação</th>
-            <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-xs uppercase tracking-wide">Recorrência</th>
-            <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-xs uppercase tracking-wide">Criado / Modificado</th>
-            <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-xs uppercase tracking-wide">Ações</th>
+            <th className="text-left py-2.5 px-4 font-medium text-ananim-muted text-xs uppercase tracking-wide">Horário</th>
+            <th className="text-left py-2.5 px-4 font-medium text-ananim-muted text-xs uppercase tracking-wide">Ação</th>
+            <th className="text-left py-2.5 px-4 font-medium text-ananim-muted text-xs uppercase tracking-wide">Recorrência</th>
+            <th className="text-left py-2.5 px-4 font-medium text-ananim-muted text-xs uppercase tracking-wide">Criado / Modificado</th>
+            <th className="text-left py-2.5 px-4 font-medium text-ananim-muted text-xs uppercase tracking-wide">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -608,10 +621,10 @@ function ScheduleGroupedTable({
                 {/* Cabeçalho do grupo (VM) */}
                 <tr
                   key={`group-${group.name}`}
-                  className="bg-white/[0.03] border-b border-white/10 cursor-pointer select-none hover:bg-white/[0.05] transition-colors"
+                  className="cursor-pointer select-none"
                   onClick={() => toggleCollapse(group.name)}
                 >
-                  <td className="py-2.5 pl-3 pr-1 text-gray-400">
+                  <td className="py-2.5 pl-3 pr-1 text-ananim-muted">
                     {isOpen
                       ? <ChevronDown className="w-3.5 h-3.5" />
                       : <ChevronRight className="w-3.5 h-3.5" />}
@@ -620,7 +633,7 @@ function ScheduleGroupedTable({
                     <span className="flex items-center gap-2">
                       <Server className="w-3.5 h-3.5 text-ananim-accent flex-shrink-0" aria-hidden="true" />
                       <span className="font-medium text-white">{group.name}</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-ananim-muted">
                         {group.items.length} agendamento{group.items.length !== 1 ? 's' : ''}
                         {' · '}
                         {[...new Set(group.items.map((i) => i.action === 'stop' ? 'Stop' : i.action === 'restart' ? 'Restart' : 'Start'))].join(', ')}
@@ -631,7 +644,7 @@ function ScheduleGroupedTable({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onAddForVm(group.serverId, group.name); }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/[0.06] border border-white/10 text-gray-300 text-xs hover:bg-white/[0.10] hover:text-white transition-colors"
+                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-ananim-textSoft transition-colors hover:bg-white/[0.08] hover:text-white"
                       title="Adicionar agendamento para esta VM"
                     >
                       <Plus className="w-3 h-3" aria-hidden="true" />
@@ -642,14 +655,14 @@ function ScheduleGroupedTable({
 
                 {/* Linhas do grupo */}
                 {isOpen && group.items.map((s) => (
-                  <tr key={s.id} className="border-b border-white/[0.04] hover:bg-white/[0.025] transition-colors">
+                  <tr key={s.id}>
                     <td />
-                    <td className="py-2 px-4 font-mono text-gray-200 tabular-nums">{formatTime(s.hour, s.minute)}</td>
+                    <td className="font-mono text-ananim-text tabular-nums">{formatTime(s.hour, s.minute)}</td>
                     <td className="py-2 px-4">
                       <ActionBadge action={s.action} isExternal={s.isExternal} />
                     </td>
-                    <td className="py-2 px-4 text-gray-300 text-xs">{formatDays(s.days)}</td>
-                    <td className="py-2 px-4 text-gray-500 text-xs">
+                    <td className="text-xs text-ananim-textSoft">{formatDays(s.days)}</td>
+                    <td className="text-xs text-ananim-muted">
                       {s.createdBy || '—'}
                       {s.lastModifiedBy ? ` / ${s.lastModifiedBy}` : ''}
                     </td>
@@ -658,14 +671,14 @@ function ScheduleGroupedTable({
                         <button
                           type="button"
                           onClick={() => onEdit(s)}
-                          className="px-2 py-1 rounded bg-ananim-accent/10 text-ananim-accent border border-ananim-accent/20 text-xs font-medium hover:bg-ananim-accent/20 transition-colors"
+                          className="rounded-full border border-ananim-accent/20 bg-ananim-accent/10 px-2.5 py-1 text-xs font-medium text-ananim-accent transition-colors hover:bg-ananim-accent/20"
                         >
                           Editar
                         </button>
                         <button
                           type="button"
                           onClick={() => onCancelDate(s)}
-                          className="px-2 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-medium hover:bg-amber-500/20 transition-colors"
+                          className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/20"
                           title="Cancelar somente para um dia específico"
                         >
                           Cancelar dia
@@ -674,7 +687,7 @@ function ScheduleGroupedTable({
                           type="button"
                           onClick={() => onRemove(s.id)}
                           disabled={saving}
-                          className="px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-medium hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+                          className="rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
                         >
                           Excluir
                         </button>
@@ -761,7 +774,7 @@ function ScheduleFormModal({
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">VM</label>
+              <label className="ananim-label">VM</label>
               <select
                 value={serverId}
                 onChange={(e) => {
@@ -786,7 +799,7 @@ function ScheduleFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Ação</label>
+              <label className="ananim-label">Ação</label>
               <select
                 value={action}
                 onChange={(e) => setAction(e.target.value as 'start' | 'stop' | 'restart')}
@@ -798,7 +811,7 @@ function ScheduleFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Horário</label>
+              <label className="ananim-label">Horário</label>
               <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="time"
@@ -806,7 +819,7 @@ function ScheduleFormModal({
                   onChange={(e) => setTimeFromInput(e.target.value)}
                   className="ananim-input w-auto text-sm"
                 />
-                <span className="text-gray-500 text-sm">ou</span>
+                <span className="text-ananim-muted text-sm">ou</span>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
@@ -816,7 +829,7 @@ function ScheduleFormModal({
                     onChange={(e) => setHour(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
                     className="ananim-input w-14 text-sm text-center"
                   />
-                  <span className="text-gray-400 text-sm">h</span>
+                  <span className="text-ananim-textSoft text-sm">h</span>
                   <input
                     type="number"
                     min={0}
@@ -825,7 +838,7 @@ function ScheduleFormModal({
                     onChange={(e) => setMinute(Math.min(59, Math.max(0, parseInt(e.target.value, 10) || 0)))}
                     className="ananim-input w-14 text-sm text-center"
                   />
-                  <span className="text-gray-400 text-sm">min</span>
+                  <span className="text-ananim-textSoft text-sm">min</span>
                 </div>
                 <span className="flex gap-1">
                   <button
@@ -856,17 +869,17 @@ function ScheduleFormModal({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Dias (nenhum = todos)</label>
+              <label className="ananim-label mb-2">Dias (nenhum = todos)</label>
               <div className="flex flex-wrap gap-2">
                 {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                  <label key={d} className="flex items-center gap-1.5 cursor-pointer">
+                  <label key={d} className="flex items-center gap-1.5 cursor-pointer rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
                     <input
                       type="checkbox"
                       checked={days.includes(d)}
                       onChange={() => toggleDay(d)}
                       className="rounded border-white/20 bg-white/[0.06] accent-ananim-accent w-3.5 h-3.5"
                     />
-                    <span className="text-sm text-gray-300">{DAYS_LABELS[d]}</span>
+                    <span className="text-sm text-ananim-textSoft">{DAYS_LABELS[d]}</span>
                   </label>
                 ))}
               </div>

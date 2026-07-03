@@ -4,6 +4,7 @@ import { userStore } from '../data/store.js';
 import { authMiddleware, requirePermission } from '../middleware/auth.js';
 import { logAction } from '../middleware/auditLog.js';
 import { EMAIL_REGEX, isValidEmail } from '../utils/validation.js';
+import { normalizeAllowedServiceIds } from '../utils/servicePermissions.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -28,6 +29,7 @@ router.get('/:id', requirePermission('users:*'), (req, res) => {
 router.post('/', requirePermission('users:*'), async (req, res) => {
   try {
     const { name, email, password, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, mfaEnabled, mfaEmail } = req.body || {};
+    const isAdmin = req.user?.role === 'admin';
     const nameStr = typeof name === 'string' ? name.trim() : '';
     const emailStr = typeof email === 'string' ? email.trim() : '';
     const passwordStr = typeof password === 'string' ? password : '';
@@ -59,9 +61,9 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
       allowedEcsIds: Array.isArray(allowedEcsIds) ? allowedEcsIds : [],
       visibleProjects: Array.isArray(visibleProjects) ? visibleProjects : [],
       allowedHuaweiEcsIds: allowedHuaweiEcsIds != null && typeof allowedHuaweiEcsIds === 'object' && !Array.isArray(allowedHuaweiEcsIds) ? allowedHuaweiEcsIds : {},
-      allowedServiceIds: Array.isArray(allowedServiceIds) ? allowedServiceIds : [],
-      mfaEnabled: mfaEnabled !== false,
-      mfaEmail: typeof mfaEmail === 'string' ? mfaEmail.trim() : null,
+      allowedServiceIds: normalizeAllowedServiceIds(allowedServiceIds),
+      mfaEnabled: isAdmin && mfaEnabled === false ? false : true,
+      mfaEmail: typeof mfaEmail === 'string' ? mfaEmail.trim() : emailStr,
     });
     logAction(req, 'Usuário criado', { userId: user.id, email: user.email, role: user.role });
     res.status(201).json(user);
@@ -73,6 +75,7 @@ router.post('/', requirePermission('users:*'), async (req, res) => {
 router.patch('/:id', requirePermission('users:*'), async (req, res) => {
   const { name, email, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, preferredServiceClientKey, password, mfaEnabled, mfaEmail } = req.body || {};
   const existing = userStore.getById(req.params.id);
+  const isAdmin = req.user?.role === 'admin';
   if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
   const data = {};
   if (name !== undefined) {
@@ -96,8 +99,13 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
   if (allowedEcsIds !== undefined) data.allowedEcsIds = Array.isArray(allowedEcsIds) ? allowedEcsIds : [];
   if (visibleProjects !== undefined) data.visibleProjects = Array.isArray(visibleProjects) ? visibleProjects : [];
   if (allowedHuaweiEcsIds !== undefined) data.allowedHuaweiEcsIds = allowedHuaweiEcsIds != null && typeof allowedHuaweiEcsIds === 'object' && !Array.isArray(allowedHuaweiEcsIds) ? allowedHuaweiEcsIds : {};
-  if (allowedServiceIds !== undefined) data.allowedServiceIds = Array.isArray(allowedServiceIds) ? allowedServiceIds : [];
-  if (mfaEnabled !== undefined) data.mfaEnabled = !!mfaEnabled;
+  if (allowedServiceIds !== undefined) data.allowedServiceIds = normalizeAllowedServiceIds(allowedServiceIds);
+  if (mfaEnabled !== undefined) {
+    if (!isAdmin && mfaEnabled === false) {
+      return res.status(403).json({ error: 'Apenas administradores podem desabilitar MFA.' });
+    }
+    data.mfaEnabled = !!mfaEnabled;
+  }
   if (mfaEmail !== undefined) data.mfaEmail = mfaEmail == null ? null : String(mfaEmail).trim();
   if (preferredServiceClientKey !== undefined) data.preferredServiceClientKey = preferredServiceClientKey == null || preferredServiceClientKey === '' ? null : String(preferredServiceClientKey).trim();
   if (password !== undefined && typeof password === 'string' && password.length >= 6) {

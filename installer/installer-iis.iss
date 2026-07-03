@@ -9,7 +9,7 @@
 #endif
 #define MyAppName "Ananim Manager Painel"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.50"
+  #define MyAppVersion "1.2.69"
 #endif
 #define MyAppId "C3D4E5F6-A7B8-9012-CDEF-123456789012"
 #define MyAppPublisher "Ananim"
@@ -49,8 +49,8 @@ Source: ".\{#PackageDir}\*"; DestDir: "{app}"; Excludes: "config\*;config.enc;.e
 
 ; Config e chaves só na primeira instalação (não sobrescrever em atualização).
 Source: ".\{#PackageDir}\config\*"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist
-Source: ".\{#PackageDir}\config.enc"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
-Source: ".\{#PackageDir}\.encryption_key"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+Source: ".\{#PackageDir}\config.enc"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
+Source: ".\{#PackageDir}\.encryption_key"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 Source: ".\{#PackageDir}\key.bin"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist skipifsourcedoesntexist
 
 [Dirs]

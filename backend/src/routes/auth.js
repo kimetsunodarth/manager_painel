@@ -5,23 +5,65 @@ import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
 import { JWT_SECRET as getJwtSecret, authMiddleware } from '../middleware/auth.js';
 import { appendLog } from '../data/auditLog.js';
-import { isValidEmail, extractIp } from '../utils/validation.js';
+import { extractIp } from '../utils/validation.js';
 import { confirmSetupSession, createLoginChallenge, createSetupSession, getSetupQrDataUrl, verifyLoginChallenge } from '../services/mfaService.js';
 
 const router = Router();
+router.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-const MFA_REQUIRED = String(process.env.MFA_REQUIRED || 'true').toLowerCase() !== 'false';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h';
+const MFA_REQUIRED = String(process.env.MFA_REQUIRED || 'false').toLowerCase() === 'true';
+const LOGIN_LOCK_MAX_ATTEMPTS = Number(process.env.LOGIN_LOCK_MAX_ATTEMPTS || 5);
+const LOGIN_LOCK_MINUTES = Number(process.env.LOGIN_LOCK_MINUTES || 15);
+
+function parseJwtExpiryToMs() {
+  let maxAge = 12 * 60 * 60 * 1000;
+  const match = String(JWT_EXPIRES_IN).match(/^(\d+)([dhms])$/);
+  if (!match) return maxAge;
+  const val = parseInt(match[1], 10);
+  const unit = match[2];
+  if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
+  else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
+  else if (unit === 'm') maxAge = val * 60 * 1000;
+  else if (unit === 's') maxAge = val * 1000;
+  return maxAge;
+}
+
 function getCookieOptions(req, maxAge) {
   const forwardedProto = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
   const isHttps = req.secure || forwardedProto.includes('https');
   const host = String(req.headers.host || '').toLowerCase();
   const isLocalhost = host.includes('localhost') || host.startsWith('127.0.0.1');
-  return {
+  const options = {
     httpOnly: true,
     secure: isHttps && !isLocalhost,
     sameSite: 'strict',
-    ...(typeof maxAge === 'number' ? { maxAge } : {}),
+  };
+  if (typeof maxAge === 'number' && String(process.env.SECURITY_SESSION_COOKIE_PERSIST || 'false').toLowerCase() === 'true') {
+    options.maxAge = maxAge;
+  }
+  return options;
+}
+
+function buildAuditContext(req, action, details = {}) {
+  return {
+    userId: details.userId ?? null,
+    userName: details.userName ?? '',
+    userEmail: details.userEmail ?? '',
+    action,
+    details,
+    ipAddress: extractIp(req),
+    userAgent: req.headers['user-agent'],
+    countryCode: req.securityContext?.geo?.countryCode || null,
+    countryName: req.securityContext?.geo?.countryName || null,
+    regionName: req.securityContext?.geo?.regionName || null,
+    cityName: req.securityContext?.geo?.cityName || null,
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -46,26 +88,56 @@ const meLimiter = rateLimit({
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    const emailStr = typeof email === 'string' ? email.trim() : '';
+    const loginStr = typeof email === 'string' ? email.trim() : '';
     const passwordStr = typeof password === 'string' ? password : '';
-    if (!emailStr || !passwordStr) {
-      return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
+    if (!loginStr || !passwordStr) {
+      return res.status(400).json({ error: 'Usuário/e-mail e senha são obrigatórios' });
     }
-    if (!isValidEmail(emailStr, 255)) {
-      return res.status(400).json({ error: 'E-mail em formato inválido' });
+    if (loginStr.length > 255) {
+      return res.status(400).json({ error: 'Usuário/e-mail em formato inválido' });
     }
     if (passwordStr.length < 6) {
       return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
     }
-    const user = userStore.findByEmail(emailStr);
+    const user = userStore.findByLogin(loginStr);
     if (!user) {
+      appendLog(buildAuditContext(req, 'login_failed', {
+        login: loginStr,
+        reason: 'user_not_found',
+      }));
       return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+    if (user.lockedUntil && Date.parse(user.lockedUntil) > Date.now()) {
+      appendLog(buildAuditContext(req, 'login_locked', {
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        lockedUntil: user.lockedUntil,
+      }));
+      return res.status(429).json({ error: `Conta temporariamente bloqueada até ${new Date(user.lockedUntil).toLocaleString('pt-BR')}` });
     }
     const ok = await bcrypt.compare(passwordStr, user.passwordHash);
     if (!ok) {
+      const updated = userStore.registerFailedLogin(user.id, {
+        maxAttempts: LOGIN_LOCK_MAX_ATTEMPTS,
+        lockMinutes: LOGIN_LOCK_MINUTES,
+      });
+      appendLog(buildAuditContext(req, 'login_failed', {
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        reason: updated?.lockedUntil ? 'account_locked' : 'invalid_password',
+        failedLoginAttempts: updated?.failedLoginAttempts ?? (user.failedLoginAttempts || 0) + 1,
+        lockedUntil: updated?.lockedUntil || null,
+      }));
+      if (updated?.lockedUntil) {
+        return res.status(429).json({ error: `Conta bloqueada por ${LOGIN_LOCK_MINUTES} minutos após múltiplas falhas.` });
+      }
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
-    if (MFA_REQUIRED) {
+    userStore.clearFailedLogins(user.id);
+    const shouldRequireMfa = MFA_REQUIRED || user.mfaEnabled === true;
+    if (shouldRequireMfa) {
       if (!user.mfaSecret) {
         const setup = createSetupSession(user);
         const qrDataUrl = await getSetupQrDataUrl(setup.token);
@@ -87,6 +159,10 @@ router.post('/login', loginLimiter, async (req, res) => {
         details: { role: user.role },
         ipAddress: extractIp(req),
         userAgent: req.headers['user-agent'],
+        countryCode: req.securityContext?.geo?.countryCode || null,
+        countryName: req.securityContext?.geo?.countryName || null,
+        regionName: req.securityContext?.geo?.regionName || null,
+        cityName: req.securityContext?.geo?.cityName || null,
         createdAt: new Date().toISOString(),
       });
       return res.json({
@@ -103,22 +179,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       getJwtSecret(),
       { expiresIn: JWT_EXPIRES_IN }
     );
-    
-    // Parse JWT_EXPIRES_IN (e.g. '7d', '24h') to milliseconds for cookie maxAge
-    let maxAge = 7 * 24 * 60 * 60 * 1000; // default 7 days
-    if (typeof JWT_EXPIRES_IN === 'string') {
-      const match = JWT_EXPIRES_IN.match(/^(\d+)([dhms])$/);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        const unit = match[2];
-        if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
-        else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
-        else if (unit === 'm') maxAge = val * 60 * 1000;
-        else if (unit === 's') maxAge = val * 1000;
-      }
-    }
 
-    res.cookie('token', token, getCookieOptions(req, maxAge));
+    res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
 
     appendLog({
       userId: user.id,
@@ -128,9 +190,14 @@ router.post('/login', loginLimiter, async (req, res) => {
       details: { role: user.role, mfa: false },
       ipAddress: extractIp(req),
       userAgent: req.headers['user-agent'],
+      countryCode: req.securityContext?.geo?.countryCode || null,
+      countryName: req.securityContext?.geo?.countryName || null,
+      regionName: req.securityContext?.geo?.regionName || null,
+      cityName: req.securityContext?.geo?.cityName || null,
       createdAt: new Date().toISOString(),
     });
-    res.json({ ok: true, mfaRequired: false, token, user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds, visibleProjects: user.visibleProjects || [], allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {}, allowedServiceIds: user.allowedServiceIds || [] } });
+    userStore.markSuccessfulLogin(user.id);
+    res.json({ ok: true, mfaRequired: false, user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds, visibleProjects: user.visibleProjects || [], allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {}, allowedServiceIds: user.allowedServiceIds || [] } });
   } catch (e) {
     console.error('[auth] login error:', e?.message || e);
     if (e.message && e.message.includes('JWT_SECRET')) {
@@ -155,17 +222,7 @@ router.post('/mfa/setup/verify', loginLimiter, async (req, res) => {
       getJwtSecret(),
       { expiresIn: JWT_EXPIRES_IN }
     );
-    let maxAge = 7 * 24 * 60 * 60 * 1000;
-    const match = String(JWT_EXPIRES_IN).match(/^(\d+)([dhms])$/);
-    if (match) {
-      const val = parseInt(match[1], 10);
-      const unit = match[2];
-      if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
-      else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
-      else if (unit === 'm') maxAge = val * 60 * 1000;
-      else if (unit === 's') maxAge = val * 1000;
-    }
-    res.cookie('token', token, getCookieOptions(req, maxAge));
+    res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
     appendLog({
       userId: user.id,
       userName: user.name,
@@ -174,12 +231,16 @@ router.post('/mfa/setup/verify', loginLimiter, async (req, res) => {
       details: { role: user.role },
       ipAddress: extractIp(req),
       userAgent: req.headers['user-agent'],
+      countryCode: req.securityContext?.geo?.countryCode || null,
+      countryName: req.securityContext?.geo?.countryName || null,
+      regionName: req.securityContext?.geo?.regionName || null,
+      cityName: req.securityContext?.geo?.cityName || null,
       createdAt: new Date().toISOString(),
     });
+    userStore.markSuccessfulLogin(user.id);
     return res.json({
       ok: true,
       mfaRequired: false,
-      token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds, visibleProjects: user.visibleProjects || [], allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {}, allowedServiceIds: user.allowedServiceIds || [] },
     });
   } catch (e) {
@@ -201,17 +262,7 @@ router.post('/login/mfa', loginLimiter, async (req, res) => {
       getJwtSecret(),
       { expiresIn: JWT_EXPIRES_IN }
     );
-    let maxAge = 7 * 24 * 60 * 60 * 1000;
-    const match = String(JWT_EXPIRES_IN).match(/^(\d+)([dhms])$/);
-    if (match) {
-      const val = parseInt(match[1], 10);
-      const unit = match[2];
-      if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
-      else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
-      else if (unit === 'm') maxAge = val * 60 * 1000;
-      else if (unit === 's') maxAge = val * 1000;
-    }
-    res.cookie('token', token, getCookieOptions(req, maxAge));
+    res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
     appendLog({
       userId: user.id,
       userName: user.name,
@@ -220,12 +271,16 @@ router.post('/login/mfa', loginLimiter, async (req, res) => {
       details: { role: user.role, mfa: true },
       ipAddress: extractIp(req),
       userAgent: req.headers['user-agent'],
+      countryCode: req.securityContext?.geo?.countryCode || null,
+      countryName: req.securityContext?.geo?.countryName || null,
+      regionName: req.securityContext?.geo?.regionName || null,
+      cityName: req.securityContext?.geo?.cityName || null,
       createdAt: new Date().toISOString(),
     });
+    userStore.markSuccessfulLogin(user.id);
     return res.json({
       ok: true,
       mfaRequired: false,
-      token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds, visibleProjects: user.visibleProjects || [], allowedHuaweiEcsIds: user.allowedHuaweiEcsIds || {}, allowedServiceIds: user.allowedServiceIds || [] },
     });
   } catch (e) {

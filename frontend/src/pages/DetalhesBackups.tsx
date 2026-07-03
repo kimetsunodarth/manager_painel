@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { backups as api, type CbrByClientItem, type CbrBackupItem } from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 function formatSize(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
@@ -90,60 +91,80 @@ export default function DetalhesBackups() {
   }, [cbrData?.byClient, searchLower]);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-        <h2 className="text-xl font-semibold font-display text-white">Detalhes / Backups</h2>
-        <div className="flex items-center gap-3 flex-wrap">
-          <input
-            type="search"
-            placeholder="Pesquisar por recurso, nome do backup ou projeto..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="ananim-input w-72 max-w-full py-1.5 text-sm"
-            aria-label="Pesquisar backups"
-          />
-          <button
-            type="button"
-            onClick={() => loadCbr()}
-            className="ananim-btn-primary px-3 py-1.5"
-          >
-            Atualizar
-          </button>
+    <div className="ananim-page">
+      <PageHeader
+        badge="Backups"
+        title="Detalhes / Backups"
+        description="Consulte backups CBR da semana com pesquisa rápida, agrupamento por recurso e leitura mais limpa para operação."
+        actions={
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="search"
+              placeholder="Pesquisar por recurso, backup ou projeto..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="ananim-input min-w-[260px] max-w-full text-sm"
+              aria-label="Pesquisar backups"
+            />
+            <button
+              type="button"
+              onClick={() => loadCbr()}
+              className="ananim-btn-primary px-4"
+            >
+              Atualizar
+            </button>
+          </div>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Janela</p>
+          <p className="ananim-metric-value">Últimos {DAYS_SEMANA} dias</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Recursos</p>
+          <p className="ananim-metric-value">{resourceGroups.length}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Busca</p>
+          <p className="ananim-metric-value">{search.trim() ? 'Filtrando' : 'Completa'}</p>
         </div>
       </div>
-      <p className="text-sm text-gray-300 mb-4">Backups da semana (últimos 7 dias), agrupados por recurso.</p>
+
+      <p className="text-sm text-ananim-textSoft">Backups da semana (últimos 7 dias), agrupados por recurso.</p>
       <div className="ananim-card overflow-hidden">
           {cbrLoading ? (
-            <div className="p-8 text-center text-gray-400">Carregando CBR...</div>
+            <div className="p-8 text-center text-ananim-muted">Carregando CBR...</div>
           ) : resourceGroups.length > 0 ? (
             <div className="divide-y divide-white/10">
               {resourceGroups.map((group) => (
-                <div key={group.resourceName} className="p-4">
-                  <h3 className="text-base font-semibold text-white mb-2">
+                <div key={group.resourceName} className="p-5 md:p-6">
+                  <h3 className="ananim-section-title">
                     {group.resourceName}
-                    <span className="text-sm font-normal text-gray-400 ml-2">({group.backups.length} backup{group.backups.length !== 1 ? 's' : ''})</span>
+                    <span className="ml-2 text-sm font-normal text-ananim-muted">({group.backups.length} backup{group.backups.length !== 1 ? 's' : ''})</span>
                   </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-white/[0.04] border-b border-white/10">
+                  <div className="ananim-table-wrap mt-4">
+                    <table className="ananim-table">
+                      <thead>
                         <tr>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Nome do backup</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Criado em</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Tipo</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Tamanho</th>
+                          <th>Nome do backup</th>
+                          <th>Projeto</th>
+                          <th>Criado em</th>
+                          <th>Tipo</th>
+                          <th>Status</th>
+                          <th>Tamanho</th>
                         </tr>
                       </thead>
                       <tbody>
                         {group.backups.map((b) => (
-                          <tr key={b.id} className="border-b border-white/10 hover:bg-white/[0.03]">
-                            <td className="py-2 px-3">{b.name || b.id}</td>
-                            <td className="py-2 px-3 text-gray-300">{b.clientName}{b.region ? ` (${b.region})` : ''}</td>
-                            <td className="py-2 px-3">{formatCbrDate(b.created_at)}</td>
-                            <td className="py-2 px-3">{b.type}</td>
-                            <td className="py-2 px-3">{b.status}</td>
-                            <td className="py-2 px-3">{formatSize(b.resource_size || 0)}</td>
+                          <tr key={b.id}>
+                            <td className="font-medium text-ananim-text">{b.name || b.id}</td>
+                            <td>{b.clientName}{b.region ? ` (${b.region})` : ''}</td>
+                            <td>{formatCbrDate(b.created_at)}</td>
+                            <td>{b.type}</td>
+                            <td>{b.status}</td>
+                            <td>{formatSize(b.resource_size || 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -153,9 +174,9 @@ export default function DetalhesBackups() {
               ))}
             </div>
           ) : cbrData && cbrData.byClient.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">Nenhum cliente/projeto configurado ou sem backups na semana.</div>
+            <div className="p-8 text-center text-ananim-muted">Nenhum cliente/projeto configurado ou sem backups na semana.</div>
           ) : search.trim() ? (
-            <div className="p-8 text-center text-gray-400">Nenhum resultado para &quot;{search.trim()}&quot;.</div>
+            <div className="p-8 text-center text-ananim-muted">Nenhum resultado para &quot;{search.trim()}&quot;.</div>
           ) : null}
       </div>
     </div>

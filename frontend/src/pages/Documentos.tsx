@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { documents as api, type DocumentItem } from '../api/client';
 import { useUser } from '../hooks/useUser';
+import PageHeader from '../components/PageHeader';
 
 function getBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -140,16 +141,13 @@ export default function Documentos() {
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">Documentos</h2>
-      <p className="text-sm text-gray-500 mb-4">Propriedades do servidor</p>
-
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-medium text-gray-800">
-            Lista de documentos cadastrados
-          </h3>
-          {isAdmin && (
+    <div className="ananim-page">
+      <PageHeader
+        badge="Documentos"
+        title="Documentos"
+        description="Centralize arquivos operacionais do painel com upload, download e manutenção em uma leitura mais direta."
+        actions={
+          isAdmin ? (
             <>
               <input
                 ref={fileInputRef}
@@ -163,7 +161,7 @@ export default function Documentos() {
                   type="button"
                   onClick={onImportClick}
                   disabled={uploading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                  className="ananim-btn-primary"
                 >
                   {uploading ? 'Enviando...' : 'Importar documento'}
                 </button>
@@ -171,75 +169,103 @@ export default function Documentos() {
                   type="button"
                   onClick={onClearAll}
                   disabled={actionLoading === 'clear' || list.length === 0}
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50 text-sm font-medium"
+                  className="ananim-btn text-amber-100 border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/15 disabled:opacity-50"
                 >
                   {actionLoading === 'clear' ? 'Limpando...' : 'Limpar tudo'}
                 </button>
               </div>
             </>
+          ) : null
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Arquivos</p>
+          <p className="ananim-metric-value">{list.length}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Perfil</p>
+          <p className="ananim-metric-value">{isAdmin ? 'Administrador' : 'Leitura'}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Status</p>
+          <p className="ananim-metric-value">{loading ? 'Carregando' : 'Atualizado'}</p>
+        </div>
+      </div>
+
+      <div className="ananim-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4 md:p-5">
+          <h3 className="ananim-section-title">Lista de documentos cadastrados</h3>
+          {isAdmin && (
+            <span className="ananim-chip">Gestão completa</span>
           )}
         </div>
         {uploadError && (
-          <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-sm text-red-700">
+          <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {uploadError}
           </div>
         )}
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Carregando...</div>
+          <div className="p-8 text-center text-ananim-muted">Carregando...</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Arquivo</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Data de Upload</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-700">Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4">{row.arquivo}</td>
-                  <td className="py-3 px-4">{row.dataUpload}</td>
-                  <td className="py-3 px-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onDownload(row.id, row.arquivo)}
-                      disabled={downloading === row.id}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {downloading === row.id ? 'Baixando...' : 'Download'}
-                    </button>
-                    {isAdmin && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onEdit(row)}
-                          disabled={!!actionLoading}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white rounded text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
-                        >
-                          {actionLoading === row.id ? '...' : 'Editar'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(row)}
-                          disabled={!!actionLoading}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-                        >
-                          {actionLoading === row.id ? '...' : 'Excluir'}
-                        </button>
-                      </>
-                    )}
-                  </td>
+          <div className="ananim-table-wrap">
+            <table className="ananim-table">
+              <thead>
+                <tr>
+                  <th>Arquivo</th>
+                  <th>Data de Upload</th>
+                  <th>Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {list.map((row) => (
+                  <tr key={row.id}>
+                    <td className="font-medium text-ananim-text">{row.arquivo}</td>
+                    <td>{row.dataUpload}</td>
+                    <td>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onDownload(row.id, row.arquivo)}
+                          disabled={downloading === row.id}
+                          className="ananim-btn-soft"
+                        >
+                          {downloading === row.id ? 'Baixando...' : 'Download'}
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEdit(row)}
+                              disabled={!!actionLoading}
+                              className="ananim-btn-ghost"
+                            >
+                              {actionLoading === row.id ? '...' : 'Editar'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDelete(row)}
+                              disabled={!!actionLoading}
+                              className="ananim-btn text-red-200 border border-red-500/20 bg-red-500/10 hover:bg-red-500/15 disabled:opacity-50"
+                            >
+                              {actionLoading === row.id ? '...' : 'Excluir'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-        <div className="p-4 border-t border-gray-100 flex justify-end">
+        <div className="flex justify-end border-t border-white/10 p-4">
           <button
             type="button"
             onClick={() => window.history.back()}
-            className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+            className="ananim-btn-ghost"
           >
             Voltar
           </button>

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { services as api, type ServicesHealth, type HanaProcess, type ServiceItem, type AvailableServer } from '../api/client';
 import { useUser } from '../hooks/useUser';
+import { getHomeProjectSelection } from '../utils/homeProjectSelection';
+import PageHeader from '../components/PageHeader';
 
 const SAP_HEALTH_KEYS = ['hana', 'serviceLayer', 'sld', 'authentication', 'sql-server'] as const;
 const SAP_LABELS: Record<string, string> = {
@@ -15,35 +17,14 @@ const SAP_LABELS: Record<string, string> = {
 function getStatusColor(s: string): string {
   if (s === 'active') return 'green';
   if (s === 'inactive') return 'red';
+  if (s === 'error') return 'amber';
   return 'gray';
 }
 
-function formatServerName(name: string, host?: string | null): string {
-  if (!name || name === 'Não configurada') return name;
-  const isIp = host && /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
-  const baseForExtract = (host && !isIp) ? host : name;
-  let clean = baseForExtract.replace(/^(SA-BRAZIL-1_|SA-BRAZIL-1-)/i, '').trim();
-  
-  // Tenta extrair CLIENTE de CLIENTEWEB, CLIENTEHDB, etc.
-  const match = clean.match(/^(.*?)(WEB|HDB|HANA|SQL|SERVER|SVR|B1)?$/i);
-  let client = clean;
-  if (match && match[2] && match[1]) {
-    client = match[1];
-  }
-
-  const upperClient = client.toUpperCase();
-  const upperHost = host ? host.toUpperCase() : '';
-
-  if (isIp) {
-    return `${upperClient} - ${name.toUpperCase()} (${host})`;
-  }
-
-  // Se o host existir e não for igual ao nome do cliente extraído (ex: host ROLANDHDB != ROLAND)
-  if (host && upperHost !== upperClient) {
-    return `${upperClient} - ${upperHost}`;
-  }
-
-  return upperClient;
+function getServerKindLabel(kind?: 'web' | 'database' | 'hana', sqlMode?: boolean): string {
+  if (kind === 'web') return 'Servidor Web';
+  if (kind === 'hana') return 'Banco / HANA';
+  return sqlMode ? 'Banco' : 'Banco / HANA';
 }
 
 
@@ -62,18 +43,31 @@ export default function Servicos() {
   const [hanaProcesses, setHanaProcesses] = useState<HanaProcess[]>([]);
   const [hanaProcessesLoading, setHanaProcessesLoading] = useState(false);
   const [hanaProcessesError, setHanaProcessesError] = useState<string | null>(null);
-/** Quando o usuário tem mais de um servidor (ex.: Águas Pratas SQL + Servidor Web), qual está selecionado. */
-  const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
+  /** Quando o projeto oferece mais de um ambiente (web/banco), exibe as opções reais devolvidas pela API. */
   const [availableServers, setAvailableServers] = useState<AvailableServer[]>([]);
+  /** Quando o usuário tem mais de um servidor (ex.: Águas Pratas SQL + Servidor Web), qual está selecionado. */
+  const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
+  const [selectedServerLabel, setSelectedServerLabel] = useState<string>('');
+  const [selectedServerKind, setSelectedServerKind] = useState<'web' | 'database' | 'hana' | null>(null);
   const currentUser = useUser();
   const isAdmin = currentUser?.role === 'admin';
-  const clientKeyStorageKey = currentUser?.id ? `servicos.selectedClientKey.${currentUser.id}` : 'servicos.selectedClientKey';
   const fetchingRef = useRef(false);
+  const pendingHealthRef = useRef(false);
+  const homeSelection = getHomeProjectSelection();
+  const projectScope = homeSelection?.project
+    ? {
+        projectId: homeSelection.project.id,
+        projectName: homeSelection.project.name,
+        perfil: homeSelection.project.perfil,
+        region: homeSelection.project.region,
+        displayPerfil: homeSelection.project.displayPerfil,
+      }
+    : undefined;
 
   const healthKeys = sqlMode && serviceList?.length
     ? serviceList.map((s) => s.id)
     : [...SAP_HEALTH_KEYS];
-  /** Chaves exibidas nos cartões de status (sem "TUDO", que só aparece como botão em Ações de Controle). */
+  /** Chaves exibidas nos cartões da tela, sem a ação global "TUDO". */
   const statusKeysForDisplay = (healthKeys || []).filter((k) => k !== 'all');
   const labels: Record<string, string> = sqlMode && serviceList?.length
     ? serviceList.reduce((acc, s) => ({ ...acc, [s.id]: s.name }), {})
@@ -85,14 +79,19 @@ export default function Servicos() {
         { id: 'sld', name: 'SLD' },
         { id: 'hana', name: 'HANA (Cuidado)' },
         { id: 'authentication', name: 'Authentication' },
-        { id: 'all', name: 'TUDO' },
       ];
 
-  /** Cliente em uso: selecionado no dropdown (SQL ou vários HANA) ou inferido pelo backend quando único. */
   const effectiveClientKey = selectedClientKey || null;
+  const serviceScope = {
+    ...(effectiveClientKey ? { clientKey: effectiveClientKey } : {}),
+    ...(projectScope || {}),
+  };
 
   const fetchHealth = async () => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current) {
+      pendingHealthRef.current = true;
+      return;
+    }
     fetchingRef.current = true;
     try {
       setStatusLoading(true);
@@ -101,7 +100,7 @@ export default function Servicos() {
         timeoutId = setTimeout(() => reject(new Error('Tempo limite do health check excedido')), 30000);
       });
       try {
-        const data = await Promise.race([api.health(effectiveClientKey), timeoutPromise]);
+        const data = await Promise.race([api.health(serviceScope), timeoutPromise]);
         setStatus(data);
       } finally {
         clearTimeout(timeoutId!);
@@ -113,12 +112,16 @@ export default function Servicos() {
     } finally {
       setStatusLoading(false);
       fetchingRef.current = false;
+      if (pendingHealthRef.current) {
+        pendingHealthRef.current = false;
+        void fetchHealth();
+      }
     }
   };
 
   const fetchConnectionInfo = async () => {
     try {
-      const data = await api.connectionInfo(effectiveClientKey);
+      const data = await api.connectionInfo(serviceScope);
       setVmHost(data.configured ? data.vmHost : null);
       setVmDisplayName(data.vmDisplayName ?? null);
       if (data.mode === 'sql' || data.mode === 'hana') {
@@ -130,49 +133,34 @@ export default function Servicos() {
     }
   };
 
-  const fetchServiceList = async (clientKeyFromUser?: string | null) => {
+  const fetchServiceList = async () => {
     setListError(null);
     try {
-      const data = await api.list(clientKeyFromUser ?? undefined);
+      const data = await api.list(serviceScope);
       if (Array.isArray(data)) {
         setServiceList(data);
         setSqlMode(false);
         setAvailableServers([]);
         setSelectedClientKey(null);
+        setSelectedServerLabel('');
+        setSelectedServerKind('hana');
       } else if (data && 'list' in data && (data.mode === 'sql' || data.mode === 'hana')) {
         setServiceList(Array.isArray(data.list) ? data.list : []);
         setSqlMode(true);
         setSqlDisplayName('displayName' in data && data.displayName ? data.displayName : '');
-        const servers = 'availableServers' in data && Array.isArray(data.availableServers) ? data.availableServers : [];
-        setAvailableServers(servers);
+        setAvailableServers(Array.isArray(data.availableServers) ? data.availableServers : []);
+        setSelectedServerLabel('selectedServerLabel' in data && data.selectedServerLabel ? data.selectedServerLabel : '');
+        setSelectedServerKind('selectedServerKind' in data && data.selectedServerKind ? data.selectedServerKind : null);
         const fromBackend = 'clientKey' in data && typeof data.clientKey === 'string' ? data.clientKey : null;
-        const nextKey =
-          !isAdmin && fromBackend
-            ? fromBackend
-            : (clientKeyFromUser != null && clientKeyFromUser !== '' && servers.some((s) => s.clientKey === clientKeyFromUser))
-              ? clientKeyFromUser
-              : fromBackend || (servers.length ? servers[0].clientKey : null);
+        const nextKey = fromBackend || null;
         setSelectedClientKey(nextKey);
-        if (nextKey) {
-          try {
-            sessionStorage.setItem(clientKeyStorageKey, nextKey);
-          } catch (e) {
-            console.warn('[Servicos] Falha ao salvar clientKey no sessionStorage:', e);
-          }
-        }
-        // Garantir que a VM exibida seja a do cliente retornado pela lista
-        if (nextKey) {
-          try {
-            const conn = await api.connectionInfo(nextKey);
-            setVmHost(conn.configured ? conn.vmHost : null);
-            setVmDisplayName(conn.vmDisplayName ?? null);
-          } catch { /* ignora */ }
-        }
       } else {
         setServiceList(Array.isArray(data) ? data : []);
         setSqlMode(false);
         setAvailableServers([]);
         setSelectedClientKey(null);
+        setSelectedServerLabel('');
+        setSelectedServerKind(null);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '';
@@ -185,6 +173,8 @@ export default function Servicos() {
       setSqlMode(false);
       setAvailableServers([]);
       setSelectedClientKey(null);
+      setSelectedServerLabel('');
+      setSelectedServerKind(null);
     }
   };
 
@@ -192,7 +182,7 @@ export default function Servicos() {
     setHanaProcessesError(null);
     setHanaProcessesLoading(true);
     try {
-      const data = await api.hanaProcesses();
+      const data = await api.hanaProcesses(serviceScope);
       const list = data.processes || [];
       setHanaProcesses(list);
       if (list.length > 0) setHanaProcessesError(null);
@@ -206,36 +196,28 @@ export default function Servicos() {
   };
 
   useEffect(() => {
-    const savedKey = (() => {
-      try {
-        return sessionStorage.getItem(clientKeyStorageKey);
-      } catch {
-        return null;
-      }
-    })();
-    fetchServiceList(savedKey || undefined);
-  }, [clientKeyStorageKey]);
+    fetchServiceList();
+  }, [selectedClientKey, homeSelection?.project?.id, homeSelection?.project?.perfil, homeSelection?.project?.name]);
 
   useEffect(() => {
     fetchConnectionInfo();
-  }, [sqlMode, selectedClientKey]);
+  }, [sqlMode, selectedClientKey, homeSelection?.project?.id, homeSelection?.project?.perfil, homeSelection?.project?.name]);
 
 
   useEffect(() => {
     if (serviceList === null || listError) return;
     fetchHealth();
     const intervalHealth = setInterval(fetchHealth, 30000);
-    // Poll service list every 60s to catch new clients assigned by Admin without page refresh
-    const intervalList = setInterval(() => fetchServiceList(selectedClientKey), 60000);
+    const intervalList = setInterval(() => fetchServiceList(), 60000);
     return () => {
       clearInterval(intervalHealth);
       clearInterval(intervalList);
     };
-  }, [serviceList, listError, selectedClientKey]);
+  }, [serviceList, listError, selectedClientKey, homeSelection?.project?.id, homeSelection?.project?.perfil, homeSelection?.project?.name]);
 
   const onUpdateStatus = () => {
     fetchHealth();
-    fetchServiceList(selectedClientKey);
+    fetchServiceList();
     if (!sqlMode) fetchHanaProcesses();
   };
 
@@ -243,7 +225,7 @@ export default function Servicos() {
     setTestMessage(null);
     setTestLoading(true);
     try {
-      const data = await api.testConnection(effectiveClientKey);
+      const data = await api.testConnection(serviceScope);
       if (data.ok) {
         setTestMessage('Conexão SSH estabelecida com sucesso.');
         fetchConnectionInfo();
@@ -269,7 +251,7 @@ export default function Servicos() {
       return;
     setExecuting(serviceId);
     try {
-      await api.execute(serviceId, effectiveClientKey);
+      await api.execute(serviceId, serviceScope);
       alert('Comando enviado com sucesso! Aguarde alguns instantes e atualize o status.');
       setTimeout(fetchHealth, 5000);
     } catch (e: unknown) {
@@ -280,105 +262,171 @@ export default function Servicos() {
     }
   };
 
-  const onSelectServer = (clientKey: string) => {
-    setSelectedClientKey(clientKey);
-    try {
-      sessionStorage.setItem('servicos.selectedClientKey', clientKey);
-    } catch (e) {
-      console.warn('[Servicos] Falha ao salvar clientKey no sessionStorage:', e);
-    }
-    fetchServiceList(clientKey);
-  };
-
   if (listError) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <p className="font-medium text-amber-800">{listError}</p>
+      <div className="ananim-alert-warning">
+        <p className="font-medium">{listError}</p>
       </div>
     );
   }
 
   if (serviceList === null) {
     return (
-      <div className="flex items-center justify-center p-8 text-gray-400">
+      <div className="flex items-center justify-center rounded-3xl border border-white/10 bg-ananim-surface/70 p-8 text-ananim-muted">
         Carregando serviços...
       </div>
     );
   }
 
+  const serviceStatusValues = statusKeysForDisplay
+    .map((key) => status[key])
+    .filter((value): value is NonNullable<typeof value> => typeof value === 'string' && value.length > 0);
+  const hasLiveConnection = serviceStatusValues.some((value) => value === 'active' || value === 'inactive');
+  const hasConnectionFailure =
+    serviceStatusValues.length > 0 &&
+    serviceStatusValues.every((value) => value === 'error' || value === 'unconfigured');
+  const connectionState = testMessage
+    ? testMessage.includes('sucesso')
+      ? 'online'
+      : 'offline'
+    : hasLiveConnection
+      ? 'online'
+      : hasConnectionFailure
+        ? 'offline'
+        : 'checking';
+  const connectionLabel =
+    connectionState === 'online'
+      ? 'Conexão OK'
+      : connectionState === 'offline'
+        ? 'Sem conexão'
+        : 'Verificando';
+  const connectionButtonClass =
+    connectionState === 'online'
+      ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-100 hover:bg-emerald-500/18'
+      : connectionState === 'offline'
+        ? 'border-red-500/30 bg-red-500/10 text-red-100 hover:bg-red-500/16'
+        : 'border-white/10 bg-white/[0.04] text-ananim-text hover:bg-white/[0.08]';
+  const connectionDotClass =
+    connectionState === 'online'
+      ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+      : connectionState === 'offline'
+        ? 'bg-red-400 shadow-[0_0_12px_rgba(248,113,113,0.45)]'
+        : 'bg-slate-400';
+  const connectionHint = testMessage || vmDisplayName || vmHost || 'Host não configurado';
+  const hasServerSwitch = availableServers.length > 1;
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-xl font-semibold font-display text-white">
-          {sqlDisplayName ? `Servicos ${sqlDisplayName}` : selectedClientKey ? `Servicos ${selectedClientKey.toUpperCase()}` : 'Serviços'}
-          {(vmDisplayName || sqlDisplayName) && (vmDisplayName !== sqlDisplayName) && (vmDisplayName !== selectedClientKey) ? ` (${vmDisplayName || sqlDisplayName})` : ''}
-        </h2>
-        <span className="text-sm text-gray-400">
-          {sqlMode ? 'Serviços e status na VM / Servidor' : 'Serviços e status na VM SUSE'}
-        </span>
-        {(availableServers || []).length > 1 && (
-          <select
-            value={selectedClientKey ?? ''}
-            onChange={(e) => onSelectServer(e.target.value)}
-            className="ananim-input w-auto py-1.5 text-sm"
-            title="Trocar servidor"
-          >
-            {(availableServers || []).map((s) => (
-              <option key={s.clientKey} value={s.clientKey}>
-                {formatServerName(s.displayName)}
-              </option>
-            ))}
-          </select>
-        )}
-        {isAdmin && effectiveClientKey && (
-          <Link
-            to={`/clientes?editServices=${encodeURIComponent(effectiveClientKey)}`}
-            className="text-ananim-accent hover:underline text-sm"
-          >
-            Editar serviços deste cliente
-          </Link>
-        )}
-      </div>
+    <div className="ananim-page">
+      <PageHeader
+        badge="Serviços"
+        title={
+          selectedServerLabel
+            ? selectedServerLabel
+            : sqlDisplayName
+              ? `Serviços ${sqlDisplayName}`
+              : selectedClientKey
+                ? `Serviços ${selectedClientKey.toUpperCase()}`
+                : 'Serviços'
+        }
+        description={
+          sqlMode
+            ? 'Monitore status e reinício por ambiente com leitura mais limpa entre servidor web e banco.'
+            : 'Monitore status e processos HANA com melhor leitura em ambiente técnico.'
+        }
+        actions={
+          <div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
+            <div className="flex flex-wrap items-end justify-end gap-2 md:flex-nowrap md:gap-3">
+            {hasServerSwitch && (
+              <label className="flex min-w-[260px] flex-col gap-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ananim-muted">Ambiente</span>
+                <select
+                  value={selectedClientKey || ''}
+                  onChange={(event) => {
+                    const nextKey = event.target.value || null;
+                    const nextServer = availableServers.find((server) => server.clientKey === nextKey);
+                    setSelectedClientKey(nextKey);
+                    setSelectedServerLabel(nextServer?.displayName || '');
+                    setSelectedServerKind(nextServer?.kind || null);
+                    setTestMessage(null);
+                    setServiceList(null);
+                    setStatus({});
+                    setHanaProcesses([]);
+                    setHanaProcessesError(null);
+                  }}
+                  className="ananim-select h-11 min-w-[260px]"
+                >
+                  {availableServers.map((server) => (
+                    <option key={server.clientKey} value={server.clientKey}>
+                      {server.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={onTestConnection}
+              disabled={testLoading}
+              className={`inline-flex h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors disabled:opacity-60 ${connectionButtonClass}`}
+              title={connectionHint}
+              aria-label={`${connectionLabel}. ${connectionHint}. Clique para testar a conexão.`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${connectionDotClass}`} />
+              <span>{testLoading ? 'Testando...' : connectionLabel}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onUpdateStatus}
+              disabled={statusLoading}
+              className="ananim-btn-ghost min-w-[132px] justify-center"
+              title="Consultar status dos serviços na VM"
+            >
+              {statusLoading ? 'Atualizando...' : 'Atualizar status'}
+            </button>
+            {isAdmin && effectiveClientKey && (
+              <Link
+                to={`/clientes?editServices=${encodeURIComponent(effectiveClientKey)}`}
+                className="ananim-btn-soft min-w-[132px] justify-center"
+              >
+                Editar serviços
+              </Link>
+            )}
+          </div>
+          </div>
+        }
+      />
 
-      {/* Informações da VM e Ações Rápidas */}
-      <div className="ananim-card p-4 mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-300">Conectado em:</p>
-          <p className="text-white font-mono font-bold truncate" title={vmDisplayName ?? vmHost ?? undefined}>
-            {vmHost || vmDisplayName || 'Não configurada'}
-          </p>
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Estrutura ativa</p>
+          <p className="ananim-metric-value">{getServerKindLabel(selectedServerKind ?? undefined, sqlMode)}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={onTestConnection}
-            disabled={testLoading}
-            className="ananim-btn-primary"
-          >
-            {testLoading ? 'Testando...' : 'Testar conexão'}
-          </button>
-          <button
-            type="button"
-            onClick={onUpdateStatus}
-            disabled={statusLoading}
-            className="ananim-btn-ghost"
-            title="Consultar status dos serviços na VM"
-          >
-            {statusLoading ? 'Atualizando...' : 'Atualizar status'}
-          </button>
-          {testMessage && (
-            <span className={`text-sm ${testMessage.includes('sucesso') ? 'text-emerald-300' : 'text-red-300'}`}>
-              {testMessage}
-            </span>
-          )}
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Serviços monitorados</p>
+          <p className="ananim-metric-value">{statusKeysForDisplay.length}</p>
+        </div>
+        <div className="ananim-metric">
+          <p className="ananim-metric-label">Host</p>
+          <p className="ananim-metric-value truncate font-mono text-base">{vmDisplayName || vmHost || 'Não configurada'}</p>
         </div>
       </div>
+      {testMessage && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            testMessage.includes('sucesso')
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+              : 'border-red-500/30 bg-red-500/10 text-red-100'
+          }`}
+        >
+          {testMessage}
+        </div>
+      )}
 
-      {/* Status Grid + botão Validar em cada card */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-medium text-white">Status dos serviços</h3>
+      {/* Cards de status em layout horizontal, no mesmo padrão visual das ações */}
+      <div className="flex items-center justify-between">
+        <h3 className="ananim-section-title">Status dos serviços</h3>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="mb-8 grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2">
         {statusKeysForDisplay.map((key) => {
           const s = status[key] ?? '';
           const color = getStatusColor(s);
@@ -387,61 +435,84 @@ export default function Servicos() {
               ? 'border-l-green-500'
               : color === 'red'
                 ? 'border-l-red-500'
+                : color === 'amber'
+                  ? 'border-l-amber-500'
                 : 'border-l-gray-400';
+          const badgeLabel =
+            color === 'green'
+              ? 'Ativo'
+              : color === 'red'
+                ? 'Inativo'
+                : color === 'amber'
+                  ? 'Erro'
+                  : 'Verificando';
+          const description =
+            statusLoading && !status[key]
+              ? 'Verificando...'
+              : s === 'unconfigured'
+                ? 'Não configurado (SSH no .env do backend)'
+                : s === 'error'
+                  ? 'Falha ao consultar status'
+                  : s || 'Sem retorno';
           return (
             <div
               key={key}
-              className={`ananim-card p-4 border-l-4 ${borderColor}`}
+              className={`ananim-card flex h-full border-l-4 ${borderColor} bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.05]`}
             >
-              <div className="flex items-center justify-between">
-                <span className={`font-semibold ${sqlMode ? '' : 'capitalize'}`}>
-                  {labels[key] || key}
-                </span>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{
-                      backgroundColor:
-                        color === 'green'
-                          ? '#22c55e'
-                          : color === 'red'
-                            ? '#ef4444'
-                            : '#9ca3af',
-                    }}
-                    title={s || 'Verificando...'}
-                  />
-                  <span className="text-xs text-gray-300">
-                    {color === 'green' ? 'Ativo' : color === 'red' ? 'Inativo' : 'Verificando'}
+              <div className="flex w-full flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className={`text-base font-semibold text-white ${sqlMode ? '' : 'capitalize'}`}>
+                    {labels[key] || key}
+                  </p>
+                  <p
+                    className="mt-2 text-sm leading-6 text-ananim-muted"
+                    title={s === 'unconfigured' ? 'Configure as variáveis SSH no .env do backend (ex.: SSH_HANA_ROLAND_JUMP_* para ROLANDWEB, SSH_HANA_ROLAND_* para ROLANDHDB) e reinicie o backend.' : undefined}
+                  >
+                    {description}
+                  </p>
+                </div>
+                <div className="flex min-w-[280px] flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+                  <span className="flex min-w-[88px] items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-ananim-textSoft">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          color === 'green'
+                            ? '#22c55e'
+                            : color === 'red'
+                              ? '#ef4444'
+                              : color === 'amber'
+                                ? '#f59e0b'
+                                : '#9ca3af',
+                      }}
+                      title={s || 'Verificando...'}
+                    />
+                    {badgeLabel}
                   </span>
-                </span>
-              </div>
-              <p className="text-sm text-gray-400 mt-1" title={s === 'unconfigured' ? 'Configure as variáveis SSH no .env do backend (ex.: SSH_HANA_ROLAND_JUMP_* para ROLANDWEB, SSH_HANA_ROLAND_* para ROLANDHDB) e reinicie o backend.' : undefined}>
-                {statusLoading && !status[key] ? 'Verificando...' : s === 'unconfigured' ? 'Não configurado (SSH no .env do backend)' : s || '—'}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fetchHealth()}
-                  disabled={statusLoading}
-                  className="text-xs text-ananim-accent hover:text-white disabled:opacity-50"
-                >
-                  {statusLoading ? '…' : 'Validar status'}
-                </button>
-                {controlServices.some((c) => c.id === key) && (
                   <button
                     type="button"
-                    onClick={() => onExecute(key, labels[key] || key)}
-                    disabled={!!executing}
-                    className={`text-xs font-medium disabled:opacity-50 ${
-                      key === 'hana'
-                        ? 'text-red-300 hover:text-red-200'
-                        : 'text-ananim-accent hover:text-white'
-                    }`}
-                    title={`Reiniciar ${labels[key] || key}`}
+                    onClick={() => fetchHealth()}
+                    disabled={statusLoading}
+                    className="ananim-btn-ghost min-w-[108px] justify-center px-3 py-2 text-xs disabled:opacity-50"
                   >
-                    {executing === key ? '…' : 'Reiniciar'}
+                    {statusLoading ? 'Validando...' : 'Validar status'}
                   </button>
-                )}
+                  {controlServices.some((c) => c.id === key) && (
+                    <button
+                      type="button"
+                      onClick={() => onExecute(key, labels[key] || key)}
+                      disabled={!!executing}
+                      className={`min-w-[96px] rounded-xl border px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                        key === 'hana'
+                          ? 'border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/15'
+                          : 'border-ananim-accent/30 bg-ananim-accent/10 text-ananim-accent hover:bg-ananim-accent/15 hover:text-white'
+                      }`}
+                      title={`Reiniciar ${labels[key] || key}`}
+                    >
+                      {executing === key ? 'Reiniciando...' : 'Reiniciar'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -451,8 +522,8 @@ export default function Servicos() {
       {/* Processos HANA — oculto no modo SQL (Alfa Agro) */}
       {!sqlMode && (
       <div className="ananim-card overflow-hidden mb-8">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-lg font-medium text-white">Processos HANA</h3>
+        <div className="flex items-center justify-between gap-2 border-b border-white/10 p-5 md:p-6 flex-wrap">
+          <h3 className="ananim-section-title">Processos HANA</h3>
           <button
             type="button"
             onClick={fetchHanaProcesses}
@@ -472,21 +543,21 @@ export default function Servicos() {
           <p className="p-4 text-sm text-gray-400">Clique em &quot;Atualizar processos&quot; para carregar a lista.</p>
         )}
         {hanaProcesses.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-white/[0.04] border-b border-white/10">
+          <div className="ananim-table-wrap m-4 mt-0 md:m-6 md:mt-0">
+            <table className="ananim-table min-w-0">
+              <thead>
                 <tr>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Processo</th>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Descrição</th>
-                  <th className="text-left py-2 px-4 font-semibold text-gray-200">Status</th>
+                  <th>Processo</th>
+                  <th>Descrição</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {hanaProcesses.map((p) => (
-                  <tr key={p.name} className="border-b border-white/10 hover:bg-white/[0.03]">
-                    <td className="py-2 px-4 font-mono">{p.name}</td>
-                    <td className="py-2 px-4">{p.description}</td>
-                    <td className="py-2 px-4">
+                  <tr key={p.name}>
+                    <td className="font-mono text-ananim-text">{p.name}</td>
+                    <td>{p.description}</td>
+                    <td>
                       <span
                         className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                           p.status === 'up'
@@ -505,33 +576,6 @@ export default function Servicos() {
         )}
       </div>
       )}
-
-      {/* Ações de Controle — dinâmico: SAP ou só serviços SQL (Alfa Agro) */}
-      <h3 className="text-lg font-medium text-white mb-4">Ações de Controle</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {controlServices.map((svc) => (
-          <button
-            key={svc.id}
-            type="button"
-            onClick={() => onExecute(svc.id, svc.name)}
-            disabled={!!executing}
-            className={`p-4 rounded border flex items-center justify-center gap-2 disabled:opacity-50 ${
-              svc.id === 'hana'
-                ? 'bg-red-500/10 text-red-200 border-red-500/30 hover:bg-red-500/15'
-                : svc.id === 'all'
-                  ? 'bg-white/[0.06] text-white border-white/10 hover:bg-white/[0.10] md:col-span-2'
-                  : 'bg-ananim-accent/10 text-ananim-accent border-ananim-accent/30 hover:bg-ananim-accent/15'
-            } ${svc.id === 'all' ? 'md:col-span-2' : ''}`}
-          >
-            {executing === svc.id ? (
-              <span className="animate-pulse">⏳</span>
-            ) : (
-              <span>⚡</span>
-            )}
-            Reiniciar {svc.name}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

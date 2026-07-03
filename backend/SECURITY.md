@@ -56,7 +56,29 @@ A **Content-Security-Policy** está desativada (`contentSecurityPolicy: false`) 
 
 ---
 
-## 5. Validação de entrada
+## 5. Geolocalização, IP e bloqueio de origem
+
+- **Monitoramento por padrão**  
+  A validação geográfica agora fica **desabilitada por padrão**. O sistema segue registrando IP, user-agent e trilha de auditoria normal, mas não consulta geolocalização nem bloqueia acesso enquanto `SECURITY_GEO_ENABLED=false`.
+
+- **Ativação explícita**  
+  O recurso só volta a operar quando `SECURITY_GEO_ENABLED=true`. Mesmo nesse cenário, o bloqueio duro só acontece quando `SECURITY_GEO_ENFORCE=true`.
+
+- **Países permitidos**  
+  `SECURITY_ALLOWED_COUNTRIES=BR` define os países aceitos quando o modo de bloqueio estiver ativo. A comparação usa o código ISO retornado pela consulta geográfica.
+
+- **IPs liberados explicitamente**  
+  `SECURITY_ALLOWED_IPS` aceita IPs ou CIDRs separados por vírgula. Esses endereços são tratados como confiáveis mesmo fora da rede privada/local.
+
+- **Redes locais**  
+  Endereços `127.0.0.1`, `::1`, `localhost`, `10.x.x.x`, `172.16-31.x.x`, `192.168.x.x`, `169.254.x.x` e faixas locais IPv6 são tratados como internos e não passam por bloqueio geográfico.
+
+- **Logs de segurança**  
+  Com o recurso ativado, origem suspeita ou geolocalização não resolvida gera evento `security_geo_alert` em modo monitoramento e `security_geo_block` em modo enforce. Os registros incluem IP, user-agent, país, região e cidade.
+
+---
+
+## 6. Validação de entrada
 
 - **Login**  
   - E-mail obrigatório, formato válido e tamanho máximo 255 caracteres.  
@@ -85,7 +107,7 @@ A **Content-Security-Policy** está desativada (`contentSecurityPolicy: false`) 
 
 ---
 
-## 6. Banco de dados e auditoria
+## 7. Banco de dados e auditoria
 
 - **SQL**  
   Uso de **prepared statements** (placeholders) em todas as consultas ao SQLite, evitando injeção de SQL.
@@ -101,7 +123,7 @@ A **Content-Security-Policy** está desativada (`contentSecurityPolicy: false`) 
 
 ---
 
-## 7. Admin padrão e primeiro acesso
+## 8. Admin padrão e primeiro acesso
 
 - O usuário admin padrão (criado na primeira execução) **não** tem mais a senha exibida em log.  
 - A mensagem de log indica apenas que o usuário foi criado e que a senha deve ser **redefinida no primeiro acesso**.  
@@ -109,18 +131,21 @@ A **Content-Security-Policy** está desativada (`contentSecurityPolicy: false`) 
 
 ---
 
-## 8. Limite de tamanho do body
+## 9. Limite de tamanho do body
 
 - O body das requisições JSON está limitado a **512 KB** (`express.json({ limit: '512kb' })`), reduzindo risco de ataques com payloads muito grandes.
 
 ---
 
-## 9. Checklist para produção
+## 10. Checklist para produção
 
 - [ ] Definir `NODE_ENV=production`.
 - [ ] Definir `JWT_SECRET` no `.env` com **pelo menos 32 caracteres** (valor aleatório e forte).
 - [ ] Ajustar `JWT_EXPIRES_IN` se quiser tokens mais curtos (ex.: `1d` ou `24h`).
 - [ ] Definir `FRONTEND_ORIGIN` com a(s) URL(s) do frontend.
+- [ ] Manter `SECURITY_GEO_ENABLED=false` em servidores hospedados até a whitelist de IPs/CIDRs estar validada.
+- [ ] Se quiser reativar a camada geográfica, definir `SECURITY_GEO_ENABLED=true` e só depois avaliar `SECURITY_GEO_ENFORCE=true`.
+- [ ] Com bloqueio geográfico ativo, definir também `SECURITY_ALLOWED_COUNTRIES` e, se necessário, `SECURITY_ALLOWED_IPS`.
 - [ ] Ajustar `RATE_LIMIT_MAX` e `LOGIN_RATE_LIMIT_MAX` se necessário.
 - [ ] Servir a API atrás de **HTTPS** (reverse proxy com TLS, ex.: Nginx, Traefik).
 - [ ] Redefinir a senha do usuário admin padrão no primeiro acesso.
@@ -129,18 +154,19 @@ A **Content-Security-Policy** está desativada (`contentSecurityPolicy: false`) 
 
 ---
 
-## 10. Token no frontend (localStorage)
+## 11. Sessão no frontend e cookies
 
-O frontend armazena o token JWT em **localStorage**. Isso é prático, mas em caso de **XSS** (script malicioso na página) o token pode ser lido.
+O frontend não depende mais de token persistido em `localStorage`. A sessão autenticada usa **cookie HttpOnly** emitido pelo backend.
 
 **Recomendações:**
 
-- Manter o frontend atualizado e sem vulnerabilidades conhecidas (dependências, sanitização de entrada).
-- No futuro, considerar armazenar o token em **cookie HttpOnly** (definido pelo backend) para que o JavaScript não tenha acesso; o cookie seria enviado automaticamente nas requisições.
+- Manter `sameSite=strict` e `secure` em produção HTTPS.
+- Só habilitar persistência de cookie com `SECURITY_SESSION_COOKIE_PERSIST=true` quando houver necessidade real de manter sessão entre reinicializações do navegador.
+- Manter o frontend atualizado e sem vulnerabilidades conhecidas, porque XSS ainda pode disparar ações em nome do usuário autenticado, mesmo sem expor o token.
 
 ---
 
-## 11. Dependências de segurança
+## 12. Dependências de segurança
 
 - **helmet** — headers de segurança HTTP.  
 - **express-rate-limit** — limite de requisições por IP.  
@@ -159,7 +185,7 @@ e atualize dependências conforme a política do projeto. **Ao alterar dependên
 
 ---
 
-## 12. Rotas administrativas
+## 13. Rotas administrativas
 
 - **GET/POST /api/admin/clients** — apenas administradores (`requireAdmin`). Listagem de clientes (registry + chaves HANA/Control Center) e criação de novo cliente (gera JSONs em `config/hana-clients/`, `config/control-center/` e atualiza `dynamic-clients-registry.json`). O body aceita opcionalmente:
   - **assignToUserIds:** array de IDs de usuários; o cliente é adicionado ao `visibleProjects` deles para já aparecer na aba Serviços.
@@ -168,14 +194,15 @@ e atualize dependências conforme a política do projeto. **Ao alterar dependên
   - **huaweiPerfil** e **huaweiProjectId:** ao criar cliente a partir de um perfil Huawei existente, evita criar novo perfil; apenas nomes/IDs, sem credenciais.
   - No **IIS**, se config.enc existir, o snippet é mesclado automaticamente (não colar no .env). A resposta inclui **envKeysWritten** (nomes das chaves SSH/Jump gravadas) e **configEncUpdated** (true quando config.enc foi atualizado). Credenciais nunca são retornadas além do snippet; validar na aba Serviços com "Testar conexão". Ver README e DOCUMENTACAO.md.
 
-## 13. Segurança na implantação IIS
+## 14. Segurança na implantação IIS
 
 - **web.config:** o arquivo `installer/iis/web.config` usa **requestFiltering > hiddenSegments** para bloquear acesso HTTP direto a: `.env`, **`.encryption_key`**, **`config.enc`**, **`key.bin`**, `config`, `data`, `logs`, `lib`, `node_modules`. Assim, mesmo com handler repassando todas as requisições ao .exe, o IIS não entrega esses caminhos como recurso estático.
 - **Credenciais na pasta do programa:** em produção use **config.enc + .encryption_key** (ou key.bin) na raiz da pasta de instalação; **não** deixe .env com segredos. A chave e o config.enc são sensíveis: restrição de ACL (apenas Administradores e identidade do App Pool) na pasta do site.
+- **Geo policy:** em ambientes publicados, mantenha `SECURITY_GEO_ENABLED=false` até validar a origem real do tráfego. Só reative a camada geográfica quando houver whitelist confiável; se fizer isso, use `SECURITY_ALLOWED_IPS` e só depois considere `SECURITY_GEO_ENFORCE=true`.
 - **App Pool:** o .exe roda sob a identidade do App Pool (ex.: IIS AppPool\AnanimManagerPanel). O Setup-IIS.ps1 concede Modify a IIS_IUSRS para o app criar data/, logs e ananim.db; o restante da pasta deve ter permissões restritas.
 - **Listen 127.0.0.1:** sob IIS, o backend escuta apenas em 127.0.0.1; tráfego externo passa pelo IIS. Documentação de deploy: **IIS-DEPLOY.md** e **installer/README.md**.
 
-## 14. Última validação
+## 15. Última validação
 
 - **Data:** 2026-02-12  
 - **Backend:** JWT em produção, Helmet, CORS, rate limit (API + login), validação de entrada (login, usuários, admin/clients com serviços, assignToUserIds, huaweiPerfil/huaweiProjectId), senha do admin não em log, body 512 KB, prepared statements, auditoria, rotas admin protegidas, `.env` no .gitignore. Resposta de criação de cliente: envKeysWritten só com **nomes** de chaves; credenciais apenas no snippet (e no config.enc quando IIS).  
@@ -186,7 +213,7 @@ e atualize dependências conforme a política do projeto. **Ao alterar dependên
 
 ---
 
-## 15. Validação de segurança (checklist)
+## 16. Validação de segurança (checklist)
 
 | Área | Verificado |
 |------|------------|
@@ -201,9 +228,9 @@ e atualize dependências conforme a política do projeto. **Ao alterar dependên
 
 ---
 
-## 16. O que pode ser melhorado
+## 17. O que pode ser melhorado
 
-- **Token no frontend:** hoje o JWT fica em **localStorage**; em caso de XSS o token pode ser roubado. **Melhoria:** considerar cookie **HttpOnly** + **Secure** definido pelo backend (e CORS credentials), para o JavaScript não ter acesso ao token.
+- **Sessão:** a base já usa cookie **HttpOnly**. **Melhoria:** reduzir ainda mais a janela de sessão com `JWT_EXPIRES_IN` menor, timeout por inatividade e revogação centralizada.
 - **Content-Security-Policy:** está desativada para não quebrar o frontend. **Melhoria:** habilitar CSP restritiva e ajustar frontend (inline scripts, fontes) conforme necessário.
 - **Auditoria:** ações sensíveis são registradas em `audit_logs`; **melhoria:** incluir IP e user-agent nas entradas e garantir rotação/arquivamento de logs em produção.
 - **HTTPS:** em produção a API deve ser servida apenas via HTTPS (reverse proxy). **Melhoria:** documentar e, se possível, redirecionar HTTP → HTTPS no proxy.

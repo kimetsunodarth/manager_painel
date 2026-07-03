@@ -6,11 +6,12 @@ import { getServiceExecution, setServiceExecution, userStore } from '../data/sto
 import { logAction } from '../middleware/auditLog.js';
 import { getServiceList } from '../config/sapServices.js';
 import { getSqlClientKey, getSqlClientKeysForUser, getSqlServiceList, getSqlClientDisplayName, getSqlGroupServiceIds, getSqlClientConnectionType } from '../config/sqlClients.js';
-import { getHanaClientKey, getHanaClientKeysForUser, getHanaClientDisplayName, getHanaConnectionConfig, getHanaJumpConfig, getHanaProcessListCommand, getHanaServiceList, getHanaWindowsServiceGroup, isHanaClientConfigured } from '../config/hanaClients.js';
+import { getHanaClientKey, getHanaClientKeysForUser, getHanaClientDisplayName, getHanaConnectionConfig, getHanaJumpConfig, getHanaProcessListCommand, getHanaServiceList, getHanaServiceUnitName, getHanaWindowsServiceGroup, isHanaClientConfigured } from '../config/hanaClients.js';
 import { getClientCredentials, hasClientCredentials } from '../config/clientCredentials.js';
 import { sshExec, sshExecSql, sshExecSqlWithCredentials, sshExecWithConfig, sshExecWithConfigViaJump, getWebConnectionConfigFromCredentials, COMMANDS, HEALTH_COMMANDS, HEALTH_COMMANDS_SQL, getSqlHealthCommand, getSqlHealthGroupCommandBatches, getSqlRestartGroupCommand, isSshConfigured, isSqlConfigured, HANA_GET_PROCESS_LIST_CMD } from '../services/sshService.js';
 import { sendRestartNotification, isEmailConfigured } from '../services/emailService.js';
 import { getEnrichedVisibleProjects } from './huawei.js';
+import { normalizeAllowedServiceIds, normalizeServiceId } from '../utils/servicePermissions.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -100,55 +101,148 @@ function getEffectiveClientKey(u, clientKeyQuery) {
   return null;
 }
 
+function getServerKind(clientKey, fallbackType = null) {
+  if (String(clientKey || '').toLowerCase().endsWith('-web')) return 'web';
+  if (fallbackType === 'hana') return 'hana';
+  return 'database';
+}
+
+function formatServerLabel(displayName, kind) {
+  const clean = String(displayName || '').trim();
+  if (!clean) return kind === 'web' ? 'Servidor Web' : kind === 'hana' ? 'Banco / HANA' : 'Banco';
+  const suffix = kind === 'web' ? 'Servidor Web' : 'Banco / HANA';
+  return `${clean} • ${suffix}`;
+}
+
+const DEFAULT_HANA_SERVICE_UNITS = {
+  serviceLayer: (process.env.SSH_SERVICE_LAYER || 'b1s').trim(),
+  sld: (process.env.SSH_SERVICE_SLD || 'sapb1servertools.service').trim(),
+  authentication: (process.env.SSH_SERVICE_AUTHENTICATION || 'sapb1servertools-authentication.service').trim(),
+};
+
+function escapeBashSingle(value) {
+  return String(value || '').replace(/'/g, `'\\''`);
+}
+
+function getHanaServiceUnitCandidates(clientKey, serviceId) {
+  const configured = getHanaServiceUnitName(clientKey, serviceId);
+  const base = (configured || DEFAULT_HANA_SERVICE_UNITS[serviceId] || '').trim();
+  if (!base) return [];
+  const candidates = [base];
+  if (base.endsWith('.service')) candidates.push(base.replace(/\.service$/i, ''));
+  else candidates.push(`${base}.service`);
+  return [...new Set(candidates.filter(Boolean))];
+}
+
+function getHanaPreferredServiceUnit(clientKey, serviceId) {
+  const configured = getHanaServiceUnitName(clientKey, serviceId);
+  const base = (configured || DEFAULT_HANA_SERVICE_UNITS[serviceId] || '').trim();
+  return base || null;
+}
+
+function buildHanaHealthCommand(clientKey, serviceId) {
+  if (serviceId === 'hana') return `sudo su - ndbadm -c "HDB info"`;
+  const preferredUnit = getHanaPreferredServiceUnit(clientKey, serviceId);
+  if (preferredUnit) {
+    return `sudo systemctl is-active '${escapeBashSingle(preferredUnit)}'`;
+  }
+  const candidates = getHanaServiceUnitCandidates(clientKey, serviceId);
+  if (!candidates.length) return null;
+  const quoted = candidates.map((candidate) => `'${escapeBashSingle(candidate)}'`).join(' ');
+  return `sudo bash -lc 'for svc in ${quoted}; do if systemctl status "$svc" >/dev/null 2>&1; then systemctl is-active "$svc"; exit $?; fi; done; echo not-found; exit 0'`;
+}
+
+function buildHanaRestartCommand(clientKey, serviceId) {
+  if (serviceId === 'hana') return `sudo su - ndbadm -c "HDB restart"`;
+  if (serviceId === 'all') {
+    const layer = buildHanaRestartCommand(clientKey, 'serviceLayer');
+    const sld = buildHanaRestartCommand(clientKey, 'sld');
+    const auth = buildHanaRestartCommand(clientKey, 'authentication');
+    return [buildHanaRestartCommand(clientKey, 'hana'), layer, sld, auth].filter(Boolean).join(' && ');
+  }
+  const preferredUnit = getHanaPreferredServiceUnit(clientKey, serviceId);
+  if (preferredUnit) {
+    return `sudo systemctl restart '${escapeBashSingle(preferredUnit)}'`;
+  }
+  const candidates = getHanaServiceUnitCandidates(clientKey, serviceId);
+  if (!candidates.length) return null;
+  const quoted = candidates.map((candidate) => `'${escapeBashSingle(candidate)}'`).join(' ');
+  return `sudo bash -lc 'for svc in ${quoted}; do if systemctl status "$svc" >/dev/null 2>&1; then systemctl restart "$svc"; exit $?; fi; done; echo "service-unit-not-found"; exit 1'`;
+}
+
+function getScopedProjectFromRequest(source) {
+  const projectId = source?.projectId ? String(source.projectId).trim() : '';
+  const projectName = source?.projectName ? String(source.projectName).trim() : '';
+  const perfil = source?.perfil ? String(source.perfil).trim() : '';
+  const region = source?.region ? String(source.region).trim() : '';
+  const displayPerfil = source?.displayPerfil ? String(source.displayPerfil).trim() : '';
+  if (!projectId && !projectName && !perfil) return null;
+  return {
+    id: projectId || '',
+    name: projectName || projectId || '',
+    perfil: perfil || null,
+    region: region || null,
+    displayPerfil: displayPerfil || null,
+  };
+}
+
+async function getRequestScopedUser(u, req, source = req.query) {
+  const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
+  const scopedProject = getScopedProjectFromRequest(source);
+  if (!u) return u;
+  if (!scopedProject) return { ...u, visibleProjects };
+  return { ...u, visibleProjects: [scopedProject] };
+}
+
 router.get('/', async (req, res) => {
   try {
     const u = userStore.getById(req.user?.id);
     const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-    const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
-    const uWithProjects = u ? { ...u, visibleProjects } : u;
+    const uWithProjects = await getRequestScopedUser(u, req, req.query);
 
-    if (u?.role !== 'admin') {
-      const sqlKeys = getSqlClientKeysForUser(uWithProjects);
-      const hanaKeys = getHanaClientKeysForUser(uWithProjects);
-      const effective = getEffectiveClientKey(uWithProjects, clientKeyQuery);
-      if (effective) {
-        const list = effective.type === 'sql'
-          ? getSqlServiceList(effective.clientKey).map((s) => ({ ...s, lastExecution: getServiceExecution(s.id) }))
-          : getHanaServiceList(effective.clientKey).map((s) => ({ ...s, lastExecution: getServiceExecution(s.id) }));
-        const displayName = effective.type === 'sql'
-          ? getSqlClientDisplayName(effective.clientKey)
-          : getHanaClientDisplayName(effective.clientKey);
-        const preferredKey = u.preferredServiceClientKey;
-        const servers = [];
+    const sqlKeys = getSqlClientKeysForUser(uWithProjects);
+    const hanaKeys = getHanaClientKeysForUser(uWithProjects);
+    const effective = getEffectiveClientKey(uWithProjects, clientKeyQuery);
+    if (effective) {
+      const list = effective.type === 'sql'
+        ? getSqlServiceList(effective.clientKey).map((s) => ({ ...s, lastExecution: getServiceExecution(s.id) }))
+        : getHanaServiceList(effective.clientKey).map((s) => ({ ...s, lastExecution: getServiceExecution(s.id) }));
+      const displayName = effective.type === 'sql'
+        ? getSqlClientDisplayName(effective.clientKey)
+        : getHanaClientDisplayName(effective.clientKey);
+      const selectedServerKind = getServerKind(effective.clientKey, effective.type);
+      const preferredKey = u?.preferredServiceClientKey;
+      const servers = [];
 
-        for (const k of sqlKeys) {
-          if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
-          const dn = getSqlClientDisplayName(k);
-          servers.push({ clientKey: k, displayName: dn });
-        }
-        for (const k of hanaKeys) {
-          if (u.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
-          const dn = getHanaClientDisplayName(k);
-          servers.push({ clientKey: k, displayName: dn });
-        }
-
-        // Se houver displayName duplicado (ex.: "Roland" e "Roland-web"), desambiguar no label.
-        const counts = new Map();
-        for (const s of servers) counts.set(s.displayName, (counts.get(s.displayName) || 0) + 1);
-        const disambiguated = servers.map((s) => {
-          const c = counts.get(s.displayName) || 0;
-          if (c <= 1) return s;
-          const isWeb = String(s.clientKey || '').toLowerCase().endsWith('-web');
-          return { ...s, displayName: `${s.displayName} (${isWeb ? 'Web' : 'HDB'})` };
-        });
-        const payload = { list, mode: effective.type, displayName, clientKey: effective.clientKey };
-        if (disambiguated.length > 1) payload.availableServers = disambiguated;
-        return res.json(payload);
+      for (const k of sqlKeys) {
+        if (u?.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
+        const dn = getSqlClientDisplayName(k);
+        servers.push({ clientKey: k, displayName: dn, kind: getServerKind(k, 'sql') });
       }
+      for (const k of hanaKeys) {
+        if (u?.role !== 'admin' && preferredKey && k !== preferredKey && !k.startsWith(preferredKey)) continue;
+        const dn = getHanaClientDisplayName(k);
+        servers.push({ clientKey: k, displayName: dn, kind: getServerKind(k, 'hana') });
+      }
+
+      const labeledServers = servers.map((s) => ({
+        ...s,
+        displayName: formatServerLabel(s.displayName, s.kind),
+      }));
+      const payload = {
+        list,
+        mode: effective.type,
+        displayName,
+        clientKey: effective.clientKey,
+        selectedServerLabel: formatServerLabel(displayName, selectedServerKind),
+        selectedServerKind,
+      };
+      if (labeledServers.length > 1) payload.availableServers = labeledServers;
+      return res.json(payload);
     }
 
     if (u?.role !== 'admin' && !getEffectiveClientKey(uWithProjects, clientKeyQuery)) {
-      const allowed = u?.allowedServiceIds || [];
+      const allowed = normalizeAllowedServiceIds(u?.allowedServiceIds);
       const hasServiceAccess = allowed.length > 0;
       if (!hasServiceAccess) {
         const serviceList = getServiceList();
@@ -163,7 +257,7 @@ router.get('/', async (req, res) => {
       lastExecution: getServiceExecution(s.id),
     }));
     if (u?.role !== 'admin') {
-      const allowed = u?.allowedServiceIds || [];
+      const allowed = normalizeAllowedServiceIds(u?.allowedServiceIds);
       if (allowed.length > 0) {
         list = list.filter((s) => s.action === 'listar' || allowed.includes(s.id));
       } else {
@@ -214,13 +308,7 @@ router.post('/test-email', requirePermission('services:*'), async (req, res) => 
 router.get('/connection-info', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  let visibleProjects = [];
-  try {
-    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
-  } catch (e) {
-    console.error('[connection-info] Erro ao obter projetos visíveis:', e.message);
-  }
-  const uWithProjects = u ? { ...u, visibleProjects } : u;
+  const uWithProjects = await getRequestScopedUser(u, req, req.query);
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyQuery);
   if (sqlClientKey) {
     const displayName = getSqlClientDisplayName(sqlClientKey);
@@ -278,13 +366,7 @@ router.get('/connection-info', requirePermission('services:*'), async (req, res)
 router.post('/test-connection', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyBody = (req.body?.clientKey && String(req.body.clientKey).trim()) || null;
-  let visibleProjects = [];
-  try {
-    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
-  } catch (e) {
-    console.error('[test-connection] Erro ao obter projetos visíveis:', e.message);
-  }
-  const uWithProjects = u ? { ...u, visibleProjects } : u;
+  const uWithProjects = await getRequestScopedUser(u, req, req.body);
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyBody);
   if (sqlClientKey) {
     const connectionType = getSqlClientConnectionType(sqlClientKey);
@@ -422,10 +504,11 @@ const HANA_DEFAULT_GET_PROCESS_LIST = 'sudo su - ndbadm -c "/usr/sap/NDB/HDB00/e
 router.get('/hana-processes', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  if (getEffectiveSqlClientKey(u, clientKeyQuery)) {
+  const uWithProjects = await getRequestScopedUser(u, req, req.query);
+  if (getEffectiveSqlClientKey(uWithProjects, clientKeyQuery)) {
     return res.json({ processes: [], error: 'Não aplicável para ambiente SQL.' });
   }
-  const hanaClientKey = getEffectiveHanaClientKey(u, clientKeyQuery);
+  const hanaClientKey = getEffectiveHanaClientKey(uWithProjects, clientKeyQuery);
   if (hanaClientKey) {
     const cmd = getHanaProcessListCommand(hanaClientKey) || HANA_DEFAULT_GET_PROCESS_LIST;
     if (!cmd) {
@@ -487,18 +570,13 @@ router.get('/hana-processes', requirePermission('services:*'), async (req, res) 
 router.get('/health', requirePermission('services:*'), async (req, res) => {
   const u = userStore.getById(req.user?.id);
   const clientKeyQuery = (req.query.clientKey && String(req.query.clientKey).trim()) || null;
-  let visibleProjects = [];
-  try {
-    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
-  } catch (e) {
-    console.error('[health] Erro ao obter projetos visíveis:', e.message);
-  }
-  const uWithProjects = u ? { ...u, visibleProjects } : u;
+  const uWithProjects = await getRequestScopedUser(u, req, req.query);
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyQuery);
   const results = {};
 
   if (sqlClientKey) {
     const groups = getSqlServiceList(sqlClientKey);
+    for (const group of groups) results[group.id] = 'error';
     const connectionType = getSqlClientConnectionType(sqlClientKey);
     const useClientCreds = hasClientCredentials(sqlClientKey);
     const creds = useClientCreds ? getClientCredentials(sqlClientKey) : null;
@@ -554,6 +632,9 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
   const hanaClientKey = getEffectiveHanaClientKey(uWithProjects, clientKeyQuery);
   if (hanaClientKey) {
     const serviceList = getHanaServiceList(hanaClientKey);
+    for (const service of serviceList) {
+      if (service?.id && service.id !== 'all') results[service.id] = 'error';
+    }
     const windowsGroupIds = serviceList.filter((s) => getHanaWindowsServiceGroup(hanaClientKey, s.id)).map((s) => s.id);
     if (windowsGroupIds.length > 0) {
       const conn = hasClientCredentials(hanaClientKey)
@@ -594,9 +675,12 @@ router.get('/health', requirePermission('services:*'), async (req, res) => {
       return res.json(results);
     }
     try {
-      const entries = Object.entries(HEALTH_COMMANDS);
+      const entries = Object.entries(results).filter(([key]) => key !== 'all').map(([key]) => [key, buildHanaHealthCommand(hanaClientKey, key)]);
       const settled = await Promise.allSettled(
         entries.map(([key, cmd]) =>
+          !cmd
+            ? Promise.resolve({ key, out: { stdout: 'not-configured' } })
+            :
           (useCreds ? sshExecWithConfig(conn, cmd) : execHanaSsh(hanaClientKey, cmd)).then((out) => ({ key, out }))
         )
       );
@@ -671,16 +755,11 @@ router.get('/options', requirePermission('users:*'), (req, res) => {
 });
 
 router.post('/:serviceId/execute', requirePermission('services:*'), async (req, res) => {
-  const { serviceId } = req.params;
+  const rawServiceId = String(req.params.serviceId || '').trim();
+  const serviceId = normalizeServiceId(rawServiceId);
   const u = userStore.getById(req.user?.id);
   const clientKeyBody = (req.body?.clientKey && String(req.body.clientKey).trim()) || null;
-  let visibleProjects = [];
-  try {
-    visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
-  } catch (e) {
-    console.error('[execute] Erro ao obter projetos visíveis:', e.message);
-  }
-  const uWithProjects = u ? { ...u, visibleProjects } : u;
+  const uWithProjects = await getRequestScopedUser(u, req, req.body);
   const sqlClientKey = getEffectiveSqlClientKey(uWithProjects, clientKeyBody);
   const hanaClientKey = getEffectiveHanaClientKey(uWithProjects, clientKeyBody);
   let serviceList = getServiceList();
@@ -692,10 +771,10 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
     const hanaList = getHanaServiceList(hanaClientKey);
     if (hanaList.some((x) => x.id === serviceId)) serviceList = hanaList;
   }
-  const s = serviceList.find((x) => x.id === serviceId);
+  const s = serviceList.find((x) => normalizeServiceId(x.id) === serviceId);
   if (!s) return res.status(404).json({ error: 'Serviço não encontrado' });
   if (u?.role !== 'admin' && s.action === 'executar') {
-    const allowed = u?.allowedServiceIds || [];
+    const allowed = normalizeAllowedServiceIds(u?.allowedServiceIds);
     // Default-deny para clientes: só executa serviços explicitamente atribuídos.
     if (u?.role === 'client') {
       if (!allowed.includes(serviceId)) {
@@ -710,7 +789,8 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
     }
   }
   const isSqlGroup = sqlClientKey && getSqlGroupServiceIds(sqlClientKey, serviceId).length > 0;
-  const isHanaService = COMMANDS[serviceId];
+  const hanaCommand = hanaClientKey && !sqlClientKey ? buildHanaRestartCommand(hanaClientKey, serviceId) : null;
+  const isHanaService = !!hanaCommand || (!sqlClientKey && !!COMMANDS[serviceId]);
   const hanaWindowsGroupNames = hanaClientKey ? getHanaWindowsServiceGroup(hanaClientKey, serviceId) : null;
   const isHanaWindowsGroup = Array.isArray(hanaWindowsGroupNames) && hanaWindowsGroupNames.length > 0;
   const sqlConnectionType = sqlClientKey ? getSqlClientConnectionType(sqlClientKey) : 'sql';
@@ -758,13 +838,15 @@ router.post('/:serviceId/execute', requirePermission('services:*'), async (req, 
         if (!conn) return res.status(400).json({ error: 'SSH do cliente (ROLANDWEB) não configurado' });
         result = await sshExecWithConfig(conn, cmd);
       } else if (isHanaService && hanaClientKey) {
-        if (process.env.DEBUG_SSH) console.log('[services/execute] Iniciando comando SSH para HANA [%s]: %s', hanaClientKey, COMMANDS[serviceId]);
+        const restartCommand = hanaCommand || COMMANDS[serviceId];
+        if (!restartCommand) return res.status(400).json({ error: 'Comando HANA não configurado para este serviço' });
+        if (process.env.DEBUG_SSH) console.log('[services/execute] Iniciando comando SSH para HANA [%s]: %s', hanaClientKey, restartCommand);
         if (hasClientCredentials(hanaClientKey)) {
           const conn = hanaConnFromCredentials(getClientCredentials(hanaClientKey));
           if (!conn) return res.status(400).json({ error: 'Configuração do cliente HANA indisponível' });
-          result = await sshExecWithConfig(conn, COMMANDS[serviceId]);
+          result = await sshExecWithConfig(conn, restartCommand);
         } else {
-          result = await execHanaSsh(hanaClientKey, COMMANDS[serviceId]);
+          result = await execHanaSsh(hanaClientKey, restartCommand);
         }
       } else {
         if (process.env.DEBUG_SSH) console.log('[services/execute] Iniciando comando SSH em VM padrao:', COMMANDS[serviceId]);

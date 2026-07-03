@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { getServiceList } from './sapServices.js';
 import { getConfigDir } from '../appRoot.js';
+import { normalizeServiceId } from '../utils/servicePermissions.js';
 
 const HANA_CLIENTS_DIR = path.join(getConfigDir(), 'hana-clients');
 const DYNAMIC_REGISTRY_PATH = path.join(getConfigDir(), 'dynamic-clients-registry.json');
@@ -25,7 +26,7 @@ function loadClientConfig(clientKey) {
       return null;
     }
     const services = Array.isArray(data.services) && data.services.every((s) => s && typeof s.id === 'string' && typeof s.name === 'string' && ['listar', 'executar'].includes(s.action))
-      ? data.services
+      ? data.services.map((service) => ({ ...service, id: normalizeServiceId(service.id) }))
       : null;
     let windowsServiceGroups = null;
     if (data.windowsServiceGroups && typeof data.windowsServiceGroups === 'object' && !Array.isArray(data.windowsServiceGroups)) {
@@ -33,6 +34,13 @@ function loadClientConfig(clientKey) {
         ([_, arr]) => Array.isArray(arr) && arr.every((n) => typeof n === 'string')
       );
       if (entries.length) windowsServiceGroups = Object.fromEntries(entries);
+    }
+    let serviceUnits = null;
+    if (data.serviceUnits && typeof data.serviceUnits === 'object' && !Array.isArray(data.serviceUnits)) {
+      const entries = Object.entries(data.serviceUnits).filter(
+        ([_, value]) => typeof value === 'string' && value.trim()
+      );
+      if (entries.length) serviceUnits = Object.fromEntries(entries.map(([key, value]) => [key, value.trim()]));
     }
     const config = {
       clientKey: data.clientKey || clientKey,
@@ -50,6 +58,7 @@ function loadClientConfig(clientKey) {
       hanaSapcontrol: data.hanaSapcontrol || '/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00',
       services,
       windowsServiceGroups,
+      serviceUnits,
     };
     cache.set(clientKey, config);
     return config;
@@ -330,6 +339,14 @@ export function getHanaWindowsServiceGroup(clientKey, serviceId) {
   const groups = config?.windowsServiceGroups;
   if (!groups || typeof groups[serviceId] !== 'object' || !Array.isArray(groups[serviceId])) return null;
   return groups[serviceId];
+}
+
+/** Retorna nome customizado da unit systemd para um serviço HANA/SAP deste cliente. */
+export function getHanaServiceUnitName(clientKey, serviceId) {
+  const config = loadClientConfig(clientKey);
+  const units = config?.serviceUnits;
+  if (!units || typeof units[serviceId] !== 'string') return null;
+  return units[serviceId].trim() || null;
 }
 
 /**

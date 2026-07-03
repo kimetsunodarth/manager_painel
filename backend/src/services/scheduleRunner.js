@@ -7,6 +7,8 @@ import { listSchedules, shouldRunNow, isStopCanceledForDate, isStartCanceledForD
 import { startEcs, stopEcs, restartEcs, listEcsForProject } from './huawei-ecs.js';
 import { appendLog } from '../data/auditLog.js';
 import { closeOpenSession, getOpenSession, createManualStart } from '../data/extensionSessions.js';
+import { computeSessionBilling } from '../config/extensionBilling.js';
+import { notifyOvertimeStart, notifyOvertimeClose } from './emailNotifier.js';
 
 function dateStr(d) {
   const y = d.getFullYear();
@@ -44,7 +46,20 @@ async function runOne(schedule) {
   try {
     if (schedule.action === 'stop') {
       await stopEcs(schedule.projectId, schedule.region, schedule.serverId, schedule.perfil);
-      closeOpenSession(schedule.projectKey, schedule.serverId);
+      const closedSession = closeOpenSession(schedule.projectKey, schedule.serverId, {
+        userId: null,
+        userName: 'Sistema (Cron)',
+        userEmail: 'auto-schedule@ananim.com.br',
+      }, {
+        ip: '127.0.0.1',
+        geo: {
+          countryCode: null,
+          countryName: 'Rede interna',
+          regionName: null,
+          cityName: null,
+        },
+      });
+      if (closedSession) notifyOvertimeClose(computeSessionBilling(closedSession));
       console.log('[Schedule] STOP OK:', schedule.serverName, schedule.serverId);
     } else if (schedule.action === 'restart') {
       await restartEcs(schedule.projectId, schedule.region, schedule.serverId, schedule.perfil);
@@ -141,16 +156,43 @@ export async function monitorStatus() {
           // VM ligada fora do horário -> Abre sessão se não houver
           if (!openSession) {
             console.log(`[Monitor] VM ${s.serverName} ativa fora do horário. Abrindo sessão de extra hours.`);
-            createManualStart(s.projectKey, s.serverId, s.serverName, null, 'Sistema (Monitor)', 'auto-monitor@ananim.com.br');
+            const newSession = createManualStart(s.projectKey, s.serverId, s.serverName, null, 'Sistema (Monitor)', 'auto-monitor@ananim.com.br');
+            notifyOvertimeStart(newSession);
           }
         } else if (isRunning && shouldBeRunning && openSession) {
           // VM ligada e dentro do horário -> Fecha sessão se houver uma aberta de antes (madrugada/extensão)
           console.log(`[Monitor] VM ${s.serverName} dentro do horário programado. Encerrando sessão de extra hours.`);
-          closeOpenSession(s.projectKey, s.serverId);
+          const closedSession = closeOpenSession(s.projectKey, s.serverId, {
+            userId: null,
+            userName: 'Sistema (Monitor)',
+            userEmail: 'auto-monitor@ananim.com.br',
+          }, {
+            ip: '127.0.0.1',
+            geo: {
+              countryCode: null,
+              countryName: 'Rede interna',
+              regionName: null,
+              cityName: null,
+            },
+          });
+          if (closedSession) notifyOvertimeClose(computeSessionBilling(closedSession));
         } else if (!isRunning && openSession) {
           // VM desligada mas com sessão aberta -> Fecha sessão
           console.log(`[Monitor] VM ${s.serverName} desligada. Fechando sessão de extra hours.`);
-          closeOpenSession(s.projectKey, s.serverId);
+          const closedSession = closeOpenSession(s.projectKey, s.serverId, {
+            userId: null,
+            userName: 'Sistema (Monitor)',
+            userEmail: 'auto-monitor@ananim.com.br',
+          }, {
+            ip: '127.0.0.1',
+            geo: {
+              countryCode: null,
+              countryName: 'Rede interna',
+              regionName: null,
+              cityName: null,
+            },
+          });
+          if (closedSession) notifyOvertimeClose(computeSessionBilling(closedSession));
         }
       }
     } catch (err) {
