@@ -925,7 +925,10 @@ export interface SmtpConfig {
   host: string;
   port: number;
   user: string;
-  pass: string;
+  /** Nunca retornada pela API; enviar vazio mantém a senha atual. */
+  pass?: string;
+  /** Indica se há senha salva no servidor. */
+  passSet?: boolean;
   fromName: string;
 }
 

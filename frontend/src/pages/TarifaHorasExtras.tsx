@@ -56,7 +56,7 @@ export default function TarifaHorasExtras() {
       host: config.smtp?.host || '',
       port: config.smtp?.port || 587,
       user: config.smtp?.user || '',
-      pass: config.smtp?.pass || '',
+      pass: '',
       fromName: config.smtp?.fromName || 'Ananim Manager Painel',
     });
     setEditingSmtp(true);
@@ -601,7 +601,7 @@ export default function TarifaHorasExtras() {
                   type="password"
                   value={smtpForm.pass}
                   onChange={(e) => setSmtpForm((f) => ({ ...f, pass: e.target.value }))}
-                  placeholder="••••••••••••"
+                  placeholder={config?.smtp?.passSet ? 'Deixe vazio para manter a senha atual' : '••••••••••••'}
                   className="ananim-input"
                   autoComplete="new-password"
                 />
@@ -635,7 +635,7 @@ export default function TarifaHorasExtras() {
               { label: 'Porta', value: config?.smtp?.port ? String(config.smtp.port) : '—' },
               { label: 'Remetente', value: config?.smtp?.user || '—' },
               { label: 'Nome remetente', value: config?.smtp?.fromName || '—' },
-              { label: 'Senha', value: config?.smtp?.pass ? '••••••••' : 'Não configurada' },
+              { label: 'Senha', value: config?.smtp?.passSet || config?.smtp?.pass ? '••••••••' : 'Não configurada' },
             ].map(({ label, value }) => (
               <div key={label} className="ananim-metric">
                 <p className="ananim-metric-label">{label}</p>

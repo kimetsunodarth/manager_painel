@@ -18,7 +18,7 @@ import {
   getAgendamentosFilePath,
 } from '../config/vmScheduleV2.js';
 import { createCancelStop, createManualStart, closeOpenSession, getOpenSession, listSessions as listExtensionSessions, getTotalExtraHoursByProject } from '../data/extensionSessions.js';
-import { getExtensionBillingForProject, getBillingConfig, saveBillingConfig, computeSessionBilling, formatOvertimeSessionLabel } from '../config/extensionBilling.js';
+import { getExtensionBillingForProject, getBillingConfig, saveBillingConfig, sanitizeBillingConfig, computeSessionBilling, formatOvertimeSessionLabel } from '../config/extensionBilling.js';
 import { notifyOvertimeStart, notifyOvertimeClose, sendTestEmail } from '../services/emailNotifier.js';
 import { logAction } from '../middleware/auditLog.js';
 
@@ -855,7 +855,7 @@ router.get('/billing-config', (req, res) => {
     if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });
     const isAdminOrOperator = u.role === 'admin' || u.role === 'operator' || u.permissions?.includes('huawei:projects');
     if (!isAdminOrOperator) return res.status(403).json({ error: 'Acesso negado' });
-    res.json(getBillingConfig());
+    res.json(sanitizeBillingConfig(getBillingConfig()));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -880,7 +880,7 @@ router.patch('/billing-config', (req, res) => {
       ...(roundingMinutes !== undefined && { roundingMinutes }),
     });
     logAction(req, 'billing-config-update', { currency: updated.currency, defaultHourlyRate: updated.defaultHourlyRate });
-    res.json(updated);
+    res.json(sanitizeBillingConfig(updated));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -913,7 +913,7 @@ router.post('/billing-config/exceptions', (req, res) => {
       },
     });
     logAction(req, 'billing-exception-upsert', { projectKey: pk.trim(), hourlyRate: rate });
-    res.json(updated);
+    res.json(sanitizeBillingConfig(updated));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -934,7 +934,7 @@ router.delete('/billing-config/exceptions/:projectKey', (req, res) => {
     const { [pk]: _removed, ...remaining } = current.projectRates;
     const updated = saveBillingConfig({ ...current, projectRates: remaining });
     logAction(req, 'billing-exception-delete', { projectKey: pk });
-    res.json(updated);
+    res.json(sanitizeBillingConfig(updated));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -956,7 +956,7 @@ router.patch('/billing-config/smtp', (req, res) => {
       smtp: { ...(current.smtp || {}), ...(host !== undefined && { host }), ...(port !== undefined && { port }), ...(user !== undefined && { user }), ...(pass !== undefined && { pass }), ...(fromName !== undefined && { fromName }) },
     });
     logAction(req, 'billing-smtp-update', { host: updated.smtp?.host, user: updated.smtp?.user });
-    res.json(updated);
+    res.json(sanitizeBillingConfig(updated));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -977,7 +977,7 @@ router.patch('/billing-config/alert-emails', (req, res) => {
     const current = getBillingConfig();
     const updated = saveBillingConfig({ ...current, alertEmails: emails });
     logAction(req, 'billing-alert-emails-update', { count: updated.alertEmails?.length });
-    res.json(updated);
+    res.json(sanitizeBillingConfig(updated));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
