@@ -13,6 +13,11 @@
   "envJumpPortKey": "SSH_HANA_NOMECLIENTE_JUMP_PORT",
   "hanaSid": "NDB",
   "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "serviceUnits": {
+    "serviceLayer": "b1s",
+    "sld": "sapb1servertools.service",
+    "authentication": "sapb1servertools-authentication.service"
+  },
   "services": [
     { "id": "lista-backups-offsite", "name": "Lista de Backup's Off - Site", "action": "listar" },
     { "id": "serviceLayer", "name": "Reiniciar Service Layer", "action": "executar" },

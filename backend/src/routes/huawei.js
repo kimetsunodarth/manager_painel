@@ -18,6 +18,8 @@ import {
   getAgendamentosFilePath,
 } from '../config/vmScheduleV2.js';
 import { createCancelStop, createManualStart, closeOpenSession, getOpenSession, listSessions as listExtensionSessions, getTotalExtraHoursByProject } from '../data/extensionSessions.js';
+import { getExtensionBillingForProject, getBillingConfig, saveBillingConfig, computeSessionBilling, formatOvertimeSessionLabel } from '../config/extensionBilling.js';
+import { notifyOvertimeStart, notifyOvertimeClose, sendTestEmail } from '../services/emailNotifier.js';
 import { logAction } from '../middleware/auditLog.js';
 
 const router = Router();
@@ -98,6 +100,8 @@ function getClientNameFromEcs(servers) {
   if (prefix.length >= 2) return prefix.replace(/\b\w/g, (c) => c.toUpperCase());
   return null;
 }
+
+const enrichSessionForBilling = computeSessionBilling;
 
 /**
  * Retorna visibleProjects do usuário enriquecidos com displayPerfil (ANANIM_ROLAND etc.)
@@ -335,13 +339,19 @@ router.post('/projects/:projectId/ecs/:serverId/action', async (req, res) => {
         if (stopSchedule) {
           const stopAt = new Date(today.getFullYear(), today.getMonth(), today.getDate(), stopSchedule.hour || 18, stopSchedule.minute || 0, 0).getTime();
           if (today.getTime() > stopAt) {
-            createManualStart(key, serverId, stopSchedule.serverName || null, u?.id, u?.name, u?.email);
+            const newSession = createManualStart(key, serverId, stopSchedule.serverName || null, u?.id, u?.name, u?.email, req.securityContext);
+            notifyOvertimeStart(newSession);
           }
         }
       }
     } else if (action === 'stop') {
       await stopEcs(projectId, region, serverId, perfil);
-      closeOpenSession(key, serverId);
+      const closedSession = closeOpenSession(key, serverId, {
+        userId: u?.id || null,
+        userName: u?.name || null,
+        userEmail: u?.email || null,
+      }, req.securityContext);
+      if (closedSession) notifyOvertimeClose(computeSessionBilling(closedSession));
     } else {
       await restartEcs(projectId, region, serverId, perfil);
     }
@@ -596,7 +606,8 @@ router.post('/schedules/cancel-for-date', (req, res, next) => {
       if (stopSchedule) {
         const [y, m, d] = date.split('-').map(Number);
         const scheduledStopAt = new Date(y, (m || 1) - 1, d || 1, stopSchedule.hour || 18, stopSchedule.minute || 0, 0).toISOString();
-        createCancelStop(projectKey, serverId, stopSchedule.serverName || null, scheduledStopAt, u?.id, u?.name, u?.email);
+        const newSession = createCancelStop(projectKey, serverId, stopSchedule.serverName || null, scheduledStopAt, u?.id, u?.name, u?.email, req.securityContext);
+        notifyOvertimeStart(newSession);
       }
     }
     logAction(req, 'schedule_cancel_for_date', { projectKey, serverId, date, action: action || 'stop' });
@@ -648,6 +659,58 @@ router.get('/extension-sessions', requirePermission('huawei:projects'), async (r
     if (req.query.to) filters.to = req.query.to;
     const list = listExtensionSessions(projectKeys, filters);
     res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/client-extra-hours', async (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });
+
+    let projectKeys = null;
+    if (u.role !== 'admin') {
+      const visible = Array.isArray(u.visibleProjects) ? u.visibleProjects : [];
+      projectKeys = visible.map((p) => projectKey(p.id, p.perfil)).filter(Boolean);
+      if (projectKeys.length === 0) {
+        return res.json({
+          summary: { items: 0, extraHours: 0, billableHours: 0, totalAmountDue: null, currency: 'BRL' },
+          items: [],
+        });
+      }
+    }
+
+    const allowedByProject = u.allowedHuaweiEcsIds && typeof u.allowedHuaweiEcsIds === 'object' ? u.allowedHuaweiEcsIds : {};
+    const items = listExtensionSessions(projectKeys, {})
+      .filter((session) => {
+        const allowedIds = allowedByProject[session.projectKey];
+        if (Array.isArray(allowedIds) && allowedIds.length > 0) return allowedIds.includes(session.serverId);
+        return true;
+      })
+      .map(enrichSessionForBilling);
+
+    const summary = items.reduce((acc, item) => {
+      acc.items += 1;
+      acc.extraHours += item.actualHours || 0;
+      acc.billableHours += item.billableHours || 0;
+      if (typeof item.amountDue === 'number') {
+        acc.totalAmountDue = (acc.totalAmountDue || 0) + item.amountDue;
+      }
+      if (!acc.currency && item.currency) acc.currency = item.currency;
+      return acc;
+    }, { items: 0, extraHours: 0, billableHours: 0, totalAmountDue: null, currency: null });
+
+    res.json({
+      summary: {
+        items: summary.items,
+        extraHours: Math.round(summary.extraHours * 100) / 100,
+        billableHours: summary.billableHours,
+        totalAmountDue: summary.totalAmountDue == null ? null : Math.round(summary.totalAmountDue * 100) / 100,
+        currency: summary.currency || 'BRL',
+      },
+      items,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -776,6 +839,168 @@ router.post('/clear-visible-projects', requirePermission('huawei:projects'), asy
     userStore.update(u.id, { visibleProjects: [] });
     logAction(req, 'clear-visible-projects', {});
     res.json({ ok: true, visibleProjects: [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * GET /api/huawei/billing-config
+ * Retorna configuração global de tarifa + exceções por projeto.
+ * Admin e operador (huawei:projects) podem visualizar.
+ */
+router.get('/billing-config', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u) return res.status(401).json({ error: 'Usuário não encontrado' });
+    const isAdminOrOperator = u.role === 'admin' || u.role === 'operator' || u.permissions?.includes('huawei:projects');
+    if (!isAdminOrOperator) return res.status(403).json({ error: 'Acesso negado' });
+    res.json(getBillingConfig());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * PATCH /api/huawei/billing-config
+ * Atualiza configurações globais (currency, defaultHourlyRate, graceMinutes, roundingMinutes).
+ * Apenas admin.
+ */
+router.patch('/billing-config', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode editar a configuração de tarifa' });
+    const { currency, defaultHourlyRate, graceMinutes, roundingMinutes } = req.body || {};
+    const current = getBillingConfig();
+    const updated = saveBillingConfig({
+      ...current,
+      ...(currency !== undefined && { currency }),
+      ...(defaultHourlyRate !== undefined && { defaultHourlyRate }),
+      ...(graceMinutes !== undefined && { graceMinutes }),
+      ...(roundingMinutes !== undefined && { roundingMinutes }),
+    });
+    logAction(req, 'billing-config-update', { currency: updated.currency, defaultHourlyRate: updated.defaultHourlyRate });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/huawei/billing-config/exceptions
+ * Adiciona ou atualiza uma exceção de tarifa por projeto.
+ * Body: { projectKey, hourlyRate, active, note }
+ * Apenas admin.
+ */
+router.post('/billing-config/exceptions', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode editar exceções de tarifa' });
+    const { projectKey: pk, hourlyRate, active, note } = req.body || {};
+    if (!pk || typeof pk !== 'string' || !pk.trim()) {
+      return res.status(400).json({ error: 'projectKey é obrigatório' });
+    }
+    const rate = Number(hourlyRate);
+    if (!Number.isFinite(rate) || rate < 0) {
+      return res.status(400).json({ error: 'hourlyRate deve ser um número >= 0' });
+    }
+    const current = getBillingConfig();
+    const updated = saveBillingConfig({
+      ...current,
+      projectRates: {
+        ...current.projectRates,
+        [pk.trim()]: { hourlyRate: rate, active: active !== false, note: typeof note === 'string' ? note : '' },
+      },
+    });
+    logAction(req, 'billing-exception-upsert', { projectKey: pk.trim(), hourlyRate: rate });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * DELETE /api/huawei/billing-config/exceptions/:projectKey
+ * Remove exceção de tarifa por projeto.
+ * Apenas admin.
+ */
+router.delete('/billing-config/exceptions/:projectKey', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode remover exceções de tarifa' });
+    const pk = decodeURIComponent(req.params.projectKey);
+    const current = getBillingConfig();
+    if (!current.projectRates[pk]) return res.status(404).json({ error: 'Exceção não encontrada' });
+    const { [pk]: _removed, ...remaining } = current.projectRates;
+    const updated = saveBillingConfig({ ...current, projectRates: remaining });
+    logAction(req, 'billing-exception-delete', { projectKey: pk });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * PATCH /api/huawei/billing-config/smtp
+ * Atualiza configurações SMTP de notificação (host, port, user, pass, fromName).
+ * Apenas admin.
+ */
+router.patch('/billing-config/smtp', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode editar configurações SMTP' });
+    const { host, port, user, pass, fromName } = req.body || {};
+    const current = getBillingConfig();
+    const updated = saveBillingConfig({
+      ...current,
+      smtp: { ...(current.smtp || {}), ...(host !== undefined && { host }), ...(port !== undefined && { port }), ...(user !== undefined && { user }), ...(pass !== undefined && { pass }), ...(fromName !== undefined && { fromName }) },
+    });
+    logAction(req, 'billing-smtp-update', { host: updated.smtp?.host, user: updated.smtp?.user });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * PATCH /api/huawei/billing-config/alert-emails
+ * Substitui a lista de emails de alerta.
+ * Body: { emails: string[] }
+ * Apenas admin.
+ */
+router.patch('/billing-config/alert-emails', (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode editar emails de alerta' });
+    const emails = req.body?.emails;
+    if (!Array.isArray(emails)) return res.status(400).json({ error: 'emails deve ser um array de strings' });
+    const current = getBillingConfig();
+    const updated = saveBillingConfig({ ...current, alertEmails: emails });
+    logAction(req, 'billing-alert-emails-update', { count: updated.alertEmails?.length });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/huawei/billing-config/test-email
+ * Envia email de teste para verificar a configuração SMTP.
+ * Body: { to?: string } — se não informado, usa o primeiro email de alerta.
+ * Apenas admin.
+ */
+router.post('/billing-config/test-email', async (req, res) => {
+  try {
+    const u = userStore.getById(req.user?.id);
+    if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Apenas admin pode enviar email de teste' });
+    const config = getBillingConfig();
+    const to = (typeof req.body?.to === 'string' && req.body.to.trim())
+      ? req.body.to.trim()
+      : (config.alertEmails?.[0] || '');
+    if (!to) return res.status(400).json({ error: 'Informe um destinatário (to) ou configure alertEmails' });
+    await sendTestEmail(to);
+    logAction(req, 'billing-test-email', { to });
+    res.json({ ok: true, message: `Email de teste enviado para ${to}` });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

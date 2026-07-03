@@ -19,8 +19,16 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ### Alterado
 
+- **Home do cliente:** ao logar e abrir a página inicial, o painel passa a selecionar automaticamente a conta/projeto vinculado em `visibleProjects` e carregar a lista de ECS sem exigir clique manual em `Carregar`.
+- **Sessão do frontend:** `PrivateRoute` passa a sincronizar o `localStorage` com o retorno mais atual de `GET /auth/me`, mantendo `visibleProjects` e permissões em linha com o backend após refresh.
 - **Cron de agendamentos:** registro de **schedule_heartbeat** a cada 5 minutos (quando não há agendamentos devidos), formando um trail contínuo no log; evita “salto na data” e comprova que o processo estava ativo. Keep-alive interno reduzido para 60s.
 - **IIS:** mensagem no arranque lembrando de definir App Pool Idle Time-out = 0; CONFIG-README e INSTALACAO reforçam que o cron não depende do navegador e que Idle Time-out = 0 é obrigatório para agendamentos contínuos.
+
+### Corrigido
+
+- **Editar usuário:** o modal em `frontend/src/pages/Usuarios.tsx` volta a renderizar corretamente com largura maior, áreas internas organizadas em seções visuais e rolagem única no conteúdo.
+- **Editar usuário (ajuste final):** corrigido o encolhimento do modal por largura implícita do card e por falta de layout flex no formulário; agora o diálogo ocupa a largura prevista, mantém header/footer estáveis e exibe o conteúdo completo.
+- **Editar usuário (full-screen):** o fluxo de edição agora abre em tela cheia, renderizado via `portal` no `document.body`, seguindo o padrão visual do painel e evitando qualquer recorte pelo layout da página.
 
 ### Documentação
 
@@ -28,6 +36,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 - **README.md:** estrutura atualizada (log-encrypt.js, decrypt-logs.js, config-loader com decryptBinary); endpoint GET /api/logo e GET /api/health; logs criptografados e uso do Descriptografar-Logs.exe; botão Atualizar projetos; referência a RESUMO-DO-PROJETO.md.
 - **INSTALACAO.md:** logo.enc e Descriptografar-Logs.exe nos artefatos gerados; 502.3 – uso do Descriptografar-Logs.exe para ler startup-error.log.enc; comandos encrypt-logo e descriptografar logs.
 - **SEGURANCA.md:** logs de aplicação criptografados (app.log.enc, startup-error.log.enc), logo.enc e GET /api/logo; tabela resumo atualizada.
+- **docs/MEMORIA_INTERNA.md:** registro da correção do modal de edição de usuário e do carregamento automático do projeto vinculado para clientes.
 
 ---
 

@@ -1,6 +1,5 @@
 /** Em build para IIS use relativo '/api'. Para dev com backend em outra origem, defina VITE_API_URL. */
 const API_BASE = (import.meta.env.VITE_API_URL as string) || '/api';
-const AUTH_TOKEN_KEY = 'auth_token';
 
 /** True quando a API está na mesma origem (instalação IIS ou dev com proxy). */
 const isSameOriginApi = !API_BASE.startsWith('http');
@@ -19,10 +18,6 @@ export async function api<T>(
     'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string>),
   };
-  const storedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
-  if (storedToken && !(headers as Record<string, string>).Authorization) {
-    (headers as Record<string, string>).Authorization = `Bearer ${storedToken}`;
-  }
 
   let res: Response;
   try {
@@ -36,7 +31,6 @@ export async function api<T>(
     throw new Error(msg.includes('Failed') || msg.includes('NetworkError') ? backendMsg : msg);
   }
   if (res.status === 401 && !skipGlobalErrorHandler) {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Não autorizado');
@@ -59,17 +53,17 @@ export async function api<T>(
 
 export const auth = {
   login: (email: string, password: string) =>
-    api<{ ok: boolean; mfaRequired?: boolean; mfaSetupRequired?: boolean; setupToken?: string; qrDataUrl?: string; manualKey?: string; challengeToken?: string; delivery?: string; expiresIn?: number; token?: string; user?: User }>('/auth/login', {
+    api<{ ok: boolean; mfaRequired?: boolean; mfaSetupRequired?: boolean; setupToken?: string; qrDataUrl?: string; manualKey?: string; challengeToken?: string; delivery?: string; expiresIn?: number; user?: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
   verifyMfaSetup: (setupToken: string, code: string) =>
-    api<{ ok: boolean; mfaRequired?: boolean; token?: string; user: User }>('/auth/mfa/setup/verify', {
+    api<{ ok: boolean; mfaRequired?: boolean; user: User }>('/auth/mfa/setup/verify', {
       method: 'POST',
       body: JSON.stringify({ setupToken, code }),
     }),
   verifyMfa: (challengeToken: string, code: string) =>
-    api<{ ok: boolean; mfaRequired?: boolean; token?: string; user: User }>('/auth/login/mfa', {
+    api<{ ok: boolean; mfaRequired?: boolean; user: User }>('/auth/login/mfa', {
       method: 'POST',
       body: JSON.stringify({ challengeToken, code }),
     }),
@@ -109,47 +103,99 @@ export interface HanaProcess {
 export interface AvailableServer {
   clientKey: string;
   displayName: string;
+  kind?: 'web' | 'database' | 'hana';
 }
 
 /** Resposta da lista de serviços: array (SAP) ou objeto com mode SQL (cliente SQL) e opcional availableServers. */
 export type ServicesListResponse =
   | ServiceItem[]
-  | { list: ServiceItem[]; mode: 'sql'; displayName?: string; clientKey?: string; availableServers?: AvailableServer[] };
+  | {
+      list: ServiceItem[];
+      mode: 'sql' | 'hana';
+      displayName?: string;
+      clientKey?: string;
+      availableServers?: AvailableServer[];
+      selectedServerLabel?: string;
+      selectedServerKind?: 'web' | 'database' | 'hana';
+    };
 
-function withClientKey(path: string, clientKey?: string | null): string {
-  if (clientKey && clientKey.trim()) {
+export type ServiceScope =
+  | string
+  | null
+  | undefined
+  | {
+      clientKey?: string | null;
+      projectId?: string | null;
+      projectName?: string | null;
+      perfil?: string | null;
+      region?: string | null;
+      displayPerfil?: string | null;
+    };
+
+function normalizeServiceScope(scope?: ServiceScope) {
+  if (typeof scope === 'string') {
+    return { clientKey: scope.trim() || null };
+  }
+  return {
+    clientKey: scope?.clientKey?.trim() || null,
+    projectId: scope?.projectId?.trim() || null,
+    projectName: scope?.projectName?.trim() || null,
+    perfil: scope?.perfil?.trim() || null,
+    region: scope?.region?.trim() || null,
+    displayPerfil: scope?.displayPerfil?.trim() || null,
+  };
+}
+
+function withServiceScope(path: string, scope?: ServiceScope): string {
+  const normalized = normalizeServiceScope(scope);
+  const params = new URLSearchParams();
+  if (normalized.clientKey) params.set('clientKey', normalized.clientKey);
+  if (normalized.projectId) params.set('projectId', normalized.projectId);
+  if (normalized.projectName) params.set('projectName', normalized.projectName);
+  if (normalized.perfil) params.set('perfil', normalized.perfil);
+  if (normalized.region) params.set('region', normalized.region);
+  if (normalized.displayPerfil) params.set('displayPerfil', normalized.displayPerfil);
+  const query = params.toString();
+  if (query) {
     const sep = path.includes('?') ? '&' : '?';
-    return `${path}${sep}clientKey=${encodeURIComponent(clientKey.trim())}`;
+    return `${path}${sep}${query}`;
   }
   return path;
 }
 
+function getServiceScopeBody(scope?: ServiceScope): Record<string, string> {
+  const normalized = normalizeServiceScope(scope);
+  return Object.fromEntries(
+    Object.entries(normalized).filter(([, value]) => typeof value === 'string' && value.trim())
+  ) as Record<string, string>;
+}
+
 export const services = {
-  list: (clientKey?: string | null) =>
-    api<ServicesListResponse>(withClientKey('/services', clientKey)),
+  list: (scope?: ServiceScope) =>
+    api<ServicesListResponse>(withServiceScope('/services', scope)),
   /** Nome da VM de banco conectada (SSH; clientes SQL: VM Windows; clientes Web: servidor SSH_WEB; clientes HANA: VM SUSE). */
-  connectionInfo: (clientKey?: string | null) =>
+  connectionInfo: (scope?: ServiceScope) =>
     api<{ vmHost: string | null; vmDisplayName?: string | null; configured: boolean; mode?: 'sql' | 'hana'; displayName?: string }>(
-      withClientKey('/services/connection-info', clientKey)
+      withServiceScope('/services/connection-info', scope)
     ),
   /** Teste de conexão SSH via API. */
-  testConnection: (clientKey?: string | null) =>
+  testConnection: (scope?: ServiceScope) =>
     api<{ ok: boolean; message?: string; error?: string }>('/services/test-connection', {
       method: 'POST',
-      body: JSON.stringify(clientKey && clientKey.trim() ? { clientKey: clientKey.trim() } : {}),
+      body: JSON.stringify(getServiceScopeBody(scope)),
     }),
   /** Status dos serviços na VM SUSE (HANA, Service Layer, SLD, Authentication) ou grupos SQL/Web. */
-  health: (clientKey?: string | null) =>
-    api<ServicesHealth>(withClientKey('/services/health', clientKey)),
+  health: (scope?: ServiceScope) =>
+    api<ServicesHealth>(withServiceScope('/services/health', scope)),
   /** Lista de processos HANA (GetProcessList) — quais subiram e quais não. */
-  hanaProcesses: () =>
-    api<{ processes: HanaProcess[]; error?: string }>('/services/hana-processes'),
+  hanaProcesses: (scope?: ServiceScope) =>
+    api<{ processes: HanaProcess[]; error?: string }>(withServiceScope('/services/hana-processes', scope)),
   /** Lista de serviços executáveis (para formulário de usuário — conforme documento SAP). */
   options: () => api<{ id: string; name: string }[]>('/services/options'),
-  execute: (serviceId: string, clientKey?: string | null) =>
+  execute: (serviceId: string, scope?: ServiceScope) =>
     api<{ ok: boolean; lastExecution: { at: string; status: string } }>(`/services/${serviceId}/execute`, {
       method: 'POST',
-      body: JSON.stringify(clientKey && clientKey.trim() ? { clientKey: clientKey.trim() } : {}),
+      body: JSON.stringify(getServiceScopeBody(scope)),
     }),
 };
 
@@ -246,6 +292,10 @@ export interface AuditLogEntry {
   details: Record<string, unknown> | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  regionName?: string | null;
+  cityName?: string | null;
   createdAt: string;
 }
 
@@ -560,6 +610,29 @@ export const huawei = {
     const q = search.toString() ? `?${search.toString()}` : '';
     return api<ExtensionSession[]>(`/huawei/extension-sessions${q}`);
   },
+  clientExtraHours: () =>
+    api<ClientExtraHoursResponse>('/huawei/client-extra-hours'),
+  /** Configuração de tarifa de horas extras (admin e operador). */
+  getBillingConfig: () =>
+    api<BillingConfig>('/huawei/billing-config'),
+  /** Atualiza configurações globais de tarifa (apenas admin). */
+  updateBillingConfig: (data: Partial<Pick<BillingConfig, 'currency' | 'defaultHourlyRate' | 'graceMinutes' | 'roundingMinutes'>>) =>
+    api<BillingConfig>('/huawei/billing-config', { method: 'PATCH', body: JSON.stringify(data) }),
+  /** Adiciona ou atualiza exceção de tarifa por projeto (apenas admin). */
+  upsertBillingException: (data: { projectKey: string; hourlyRate: number; active: boolean; note: string }) =>
+    api<BillingConfig>('/huawei/billing-config/exceptions', { method: 'POST', body: JSON.stringify(data) }),
+  /** Remove exceção de tarifa por projeto (apenas admin). */
+  deleteBillingException: (projectKey: string) =>
+    api<BillingConfig>(`/huawei/billing-config/exceptions/${encodeURIComponent(projectKey)}`, { method: 'DELETE' }),
+  /** Atualiza configuração SMTP de notificações (apenas admin). */
+  updateSmtpConfig: (data: Partial<SmtpConfig>) =>
+    api<BillingConfig>('/huawei/billing-config/smtp', { method: 'PATCH', body: JSON.stringify(data) }),
+  /** Substitui lista de emails de alerta (apenas admin). */
+  updateAlertEmails: (emails: string[]) =>
+    api<BillingConfig>('/huawei/billing-config/alert-emails', { method: 'PATCH', body: JSON.stringify({ emails }) }),
+  /** Envia email de teste para verificar configuração SMTP (apenas admin). */
+  testEmail: (to: string) =>
+    api<{ ok: boolean; message: string }>('/huawei/billing-config/test-email', { method: 'POST', body: JSON.stringify({ to }) }),
   /** Todas as programações e flags de cancelar stop (admin). */
   programacao: () =>
     api<{
@@ -665,7 +738,45 @@ export interface ExtensionSession {
   userId: string | null;
   userName: string | null;
   userEmail: string | null;
+  userIp?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  regionName?: string | null;
+  cityName?: string | null;
+  endedByUserId?: string | null;
+  endedByUserName?: string | null;
+  endedByUserEmail?: string | null;
+  endedByUserIp?: string | null;
+  endedByCountryCode?: string | null;
+  endedByCountryName?: string | null;
+  endedByRegionName?: string | null;
+  endedByCityName?: string | null;
   createdAt: string;
+}
+
+export interface ClientExtraHourItem extends ExtensionSession {
+  fromAt: string;
+  toAt: string | null;
+  currentToAt: string;
+  actualMinutes: number;
+  actualHours: number;
+  billableHours: number;
+  hourlyRate: number | null;
+  currency: string;
+  amountDue: number | null;
+  scheduleLabel: string;
+  status: 'open' | 'closed';
+}
+
+export interface ClientExtraHoursResponse {
+  summary: {
+    items: number;
+    extraHours: number;
+    billableHours: number;
+    totalAmountDue: number | null;
+    currency: string;
+  };
+  items: ClientExtraHourItem[];
 }
 
 /** Agendamento por VM (modelo ANANIMCLOUD). */
@@ -802,4 +913,28 @@ export interface DocumentItem {
   id: string;
   arquivo: string;
   dataUpload: string;
+}
+
+export interface BillingException {
+  hourlyRate: number | null;
+  active: boolean;
+  note: string;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  fromName: string;
+}
+
+export interface BillingConfig {
+  currency: string;
+  defaultHourlyRate: number | null;
+  graceMinutes: number;
+  roundingMinutes: number;
+  projectRates: Record<string, BillingException>;
+  smtp: SmtpConfig | null;
+  alertEmails: string[];
 }

@@ -62,6 +62,7 @@ import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
 import { extractIp } from './utils/validation.js';
+import { geoSecurityMiddleware } from './services/geoSecurity.js';
 
 initDb();
 
@@ -122,6 +123,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  next();
+});
 
 app.use((req, res, next) => {
   const started = Date.now();
@@ -141,6 +146,10 @@ app.use((req, res, next) => {
         userAgent: req.headers['user-agent'] || null,
         userId: req.user?.id || null,
         userEmail: req.user?.email || null,
+        countryCode: req.securityContext?.geo?.countryCode || null,
+        countryName: req.securityContext?.geo?.countryName || null,
+        regionName: req.securityContext?.geo?.regionName || null,
+        cityName: req.securityContext?.geo?.cityName || null,
       };
       appendEncryptedLine(path.join(process.cwd(), 'logs', 'requests.log'), payload, {
         appDir: process.cwd(),
@@ -159,6 +168,10 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => req.path === '/health',
   keyGenerator: (req) => extractIp(req),
+});
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  return geoSecurityMiddleware(req, res, next);
 });
 app.use('/api', apiLimiter);
 

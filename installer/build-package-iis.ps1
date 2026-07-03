@@ -92,14 +92,22 @@ Write-Host "Copiado: Ananim-Manager-Painel-API.exe"
 Copy-Item $decryptExePath (Join-Path $packageIisTmp "Descriptografar-Logs.exe") -Force
 Write-Host "Copiado: Descriptografar-Logs.exe"
 
-# lib/node_modules/better-sqlite3 (exe usa NODE_PATH=lib; nao colocar node_modules na raiz)
+# lib/node_modules para dependencias nativas/externalizadas do exe
 $pkgLib = Join-Path $packageIisTmp "lib"
 $pkgLibNodeModules = Join-Path $pkgLib "node_modules"
 New-Item -ItemType Directory -Path $pkgLibNodeModules -Force | Out-Null
-$bs3 = Join-Path $backend "node_modules\better-sqlite3"
-if (Test-Path $bs3) {
-    Copy-Item $bs3 (Join-Path $pkgLibNodeModules "better-sqlite3") -Recurse -Force
-    Write-Host "Copiado: lib/node_modules/better-sqlite3"
+$runtimePackages = @(
+    "better-sqlite3",
+    "ssh2",
+    "asn1",
+    "bcrypt-pbkdf"
+)
+foreach ($runtimePackage in $runtimePackages) {
+    $srcPackage = Join-Path $backend "node_modules\$runtimePackage"
+    if (Test-Path $srcPackage) {
+        Copy-Item $srcPackage (Join-Path $pkgLibNodeModules $runtimePackage) -Recurse -Force
+        Write-Host "Copiado: lib/node_modules/$runtimePackage"
+    }
 }
 
 # config.enc e .encryption_key (obrigatorio para JWT em producao)
@@ -164,44 +172,7 @@ if (Test-Path $ccWorkerSrc) {
     Write-Host "Aviso: worker Control Center não encontrado em $ccWorkerSrc" -ForegroundColor Yellow
 }
 
-$configReadme = @"
-Ananim Manager Painel - Instalacao IIS (como Huawei Cloud Panel)
-
-Estrutura: exe da API, exe GUI (launchers), public/, lib/, config/, data/, logs/.
-Nao ha pasta backend nem api - nao expoe codigo.
-
---- O que faz cada exe ---
-
-  Ananim-Manager-Painel-API.exe
-    Executavel principal da API. Nao deve ser iniciado manualmente: o IIS (HttpPlatformHandler) inicia este exe quando ha requisicoes ao site. Ele serve a API (/api) e o frontend (public/). Roda em segundo plano.
-
-  Ananim-Abrir-Painel.exe
-    Launcher GUI: abre o painel no navegador padrao em http://localhost:8890/. Use este exe ou o atalho do menu Iniciar "Abrir Painel" para acessar a aplicacao apos o site estar rodando.
-
-  Ananim-Configurar-IIS.exe
-    Launcher GUI: executa o Configurar-IIS.bat na pasta de instalacao (cria/atualiza o site ananim-manager-painel e o App Pool no IIS, porta 8890). Execute como Administrador quando precisar (re)configurar o site. Equivalente a abrir Configurar-IIS.bat.
-
---- Configuracao ---
-
-1. Requisitos: IIS, HttpPlatformHandler, URL Rewrite (opcional; instalador pode instalar).
-
-2. Configuracao: na pasta da instalacao use config.enc + .encryption_key (recomendado) ou .env com JWT_SECRET (min. 32 caracteres). Copie config.enc e a chave do projeto (backend/) para a pasta do programa.
-
-3. Apos instalar, execute Ananim-Configurar-IIS.exe (ou Configurar-IIS.bat) como Administrador (cria site na porta 8890).
-
-4. URL: http://localhost:8890/   Login demo: joao@example.com / admin123
-
-5. Se 502.3 (Bad Gateway): use Descriptografar-Logs.exe para ler logs\api-stdout.log, logs\startup-error.log, logs\requests.log e logs\action-log.log.
-   Exemplo:
-     Descriptografar-Logs.exe --file logs\api-stdout.log --format line --pretty
-     Descriptografar-Logs.exe --file logs\requests.log --format line --json
-   Confirme tambem lib\node_modules\better-sqlite3 e config.enc + chave na pasta.
-
-SEGURANCA IIS:
-- O web.config bloqueia acesso HTTP direto a: .env, .encryption_key, config.enc, key.bin, config, data, logs, lib, node_modules.
-- Mantenha ACL restritas na pasta do site (apenas Administradores + identidade do App Pool). Nao exponha config.enc nem a chave fora do servidor.
-- Documentacao: IIS-DEPLOY.md e backend/SECURITY.md na raiz do projeto.
-"@
+$configReadme = "Ananim Manager Painel - veja IIS-DEPLOY.md, backend/SECURITY.md e use Configurar-IIS.bat para configurar o site."
 Set-Content -Path (Join-Path $packageIisTmp "CONFIG-README.txt") -Value $configReadme -Encoding UTF8
 
 # 4) Remover pastas que NAO devem ir na instalacao (caso tenham sido criadas por engano)
@@ -247,8 +218,9 @@ try {
     if (Test-Path $packageIis) { Remove-Item $packageIis -Recurse -Force -ErrorAction Stop }
     Rename-Item -Path $packageIisTmp -NewName "package-iis" -ErrorAction Stop
 } catch {
-    Write-Host "Pasta package-iis em uso. Pacote esta em: $packageIisTmp" -ForegroundColor Yellow
-    exit 1
+    Write-Host "Pasta package-iis em uso. Pacote atualizado ficou em: $packageIisTmp" -ForegroundColor Yellow
+    Write-Host "O compile-installer-iis.ps1 agora detecta automaticamente a pasta mais nova e pode usar package-iis-tmp." -ForegroundColor Yellow
+    exit 0
 }
 
 Write-Host "Pacote IIS preparado em: $packageIis (exe + public + lib + logs, sem config/data/node_modules)" -ForegroundColor Green

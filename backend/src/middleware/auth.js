@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
+const ALLOW_BEARER_AUTH = String(process.env.SECURITY_ALLOW_BEARER_AUTH || 'false').toLowerCase() === 'true';
 
 /** Lê JWT_SECRET em tempo de execução (evita falha no load do módulo antes do config.enc). */
 function getJwtSecret() {
@@ -25,7 +26,7 @@ export function authMiddleware(req, res, next) {
 
   if (req.cookies && req.cookies.token) {
     token = req.cookies.token;
-  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+  } else if (ALLOW_BEARER_AUTH && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     token = req.headers.authorization.slice(7);
   }
 

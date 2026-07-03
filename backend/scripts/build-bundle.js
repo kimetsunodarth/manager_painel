@@ -33,6 +33,7 @@ await esbuild.build({
   },
   external: [
     'better-sqlite3',
+    'ssh2',
     'playwright',
     'playwright-core',
     'cpu-features',

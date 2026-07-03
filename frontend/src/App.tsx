@@ -8,6 +8,7 @@ import DetalhesBackups from './pages/DetalhesBackups';
 import Licencas from './pages/Licencas';
 import Programacao from './pages/Programacao';
 import ExtensaoHorario from './pages/ExtensaoHorario';
+import HorasExtrasCliente from './pages/HorasExtrasCliente';
 import Documentos from './pages/Documentos';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
@@ -15,15 +16,17 @@ import Logs from './pages/Logs';
 import { api } from './api/client';
 
 function PrivateRoute({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<'loading' | 'ok' | 'invalid'>(() =>
-    localStorage.getItem('user') ? 'loading' : 'invalid'
-  );
+  const [status, setStatus] = useState<'loading' | 'ok' | 'invalid'>('loading');
 
   useEffect(() => {
-    api<{ ok: boolean }>('/auth/me', { skipGlobalErrorHandler: true })
-      .then(() => setStatus('ok'))
+    api<{ ok: boolean; user?: unknown }>('/auth/me', { skipGlobalErrorHandler: true })
+      .then((res) => {
+        if (res?.user) {
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+        setStatus('ok');
+      })
       .catch(() => {
-        localStorage.removeItem('auth_token');
         localStorage.removeItem('user');
         setStatus('invalid');
       });
@@ -86,6 +89,7 @@ export default function App() {
         <Route path="licencas" element={<Licencas />} />
         <Route path="programacao" element={<Programacao />} />
         <Route path="extensao-horario" element={<ExtensaoHorario />} />
+        <Route path="horas-extras" element={<HorasExtrasCliente />} />
         <Route path="documentos" element={<Documentos />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="usuarios" element={<Usuarios />} />

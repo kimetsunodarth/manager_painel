@@ -9,6 +9,11 @@
   "envPrivateKeyPathKey": "SSH_HANA_PREVENDAS_PRIVATE_KEY_PATH",
   "hanaSid": "NDB",
   "hanaSapcontrol": "/usr/sap/NDB/HDB00/exe/sapcontrol -nr 00",
+  "serviceUnits": {
+    "serviceLayer": "b1s",
+    "sld": "sapb1servertools.service",
+    "authentication": "sapb1servertools-authentication.service"
+  },
   "services": [
     { "id": "serviceLayer", "name": "Service Layer", "action": "executar" },
     { "id": "sld", "name": "SLD", "action": "executar" },

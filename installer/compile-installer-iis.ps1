@@ -6,9 +6,11 @@
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Split-Path -Parent $scriptDir
-$packageIis = Join-Path $rootDir "package-iis"
-$exePath = Join-Path $packageIis "Huawei-Cloud-Panel-API.exe"
+$packageIis = Join-Path $scriptDir "package-iis"
+$packageIisTmp = Join-Path $scriptDir "package-iis-tmp"
+$exePath = Join-Path $packageIis "Ananim-Manager-Painel-API.exe"
 $issPath = Join-Path $scriptDir "installer-iis.iss"
+$versionPath = Join-Path $rootDir "VERSION"
 
 $possiblePaths = @(
   "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
@@ -24,15 +26,61 @@ if (-not $iscc) {
   exit 1
 }
 
-if (-not (Test-Path $exePath)) {
+function Get-PackageIndexPath([string]$packageDir) {
+  return Join-Path $packageDir "public\index.html"
+}
+
+function Get-PackageTimestamp([string]$packageDir) {
+  $indexPath = Get-PackageIndexPath $packageDir
+  if (Test-Path $indexPath) {
+    return (Get-Item $indexPath).LastWriteTime
+  }
+  if (Test-Path $packageDir) {
+    return (Get-Item $packageDir).LastWriteTime
+  }
+  return [datetime]::MinValue
+}
+
+$packageDirName = "package-iis"
+$selectedPackageDir = $packageIis
+$selectedExePath = $exePath
+
+$hasPackage = Test-Path $exePath
+$hasTmpPackage = Test-Path (Join-Path $packageIisTmp "Ananim-Manager-Painel-API.exe")
+
+if ($hasTmpPackage) {
+  $packageTime = Get-PackageTimestamp $packageIis
+  $tmpTime = Get-PackageTimestamp $packageIisTmp
+  if (-not $hasPackage -or $tmpTime -gt $packageTime) {
+    $packageDirName = "package-iis-tmp"
+    $selectedPackageDir = $packageIisTmp
+    $selectedExePath = Join-Path $selectedPackageDir "Ananim-Manager-Painel-API.exe"
+  }
+}
+
+if (-not (Test-Path $selectedExePath)) {
   Write-Host "Pacote IIS nao encontrado. Execute antes (na raiz do projeto): .\build-package-iis.ps1" -ForegroundColor Red
   exit 1
 }
 
-Write-Host "Compilando instalador Inno Setup..." -ForegroundColor Cyan
+$version = $null
+if (Test-Path $versionPath) {
+  $version = (Get-Content $versionPath -Raw).Trim()
+}
+$outputDir = Join-Path $scriptDir "Output"
+$outputFile = $null
+if ($version -and $version -match '^\d+\.\d+\.\d+$') {
+  $outputFile = Join-Path $outputDir ("Ananim-Manager-Painel-IIS-Setup-{0}.exe" -f $version)
+  if (Test-Path $outputFile) {
+    Write-Host "Removendo instalador anterior da mesma versao: $outputFile" -ForegroundColor Yellow
+    Remove-Item $outputFile -Force
+  }
+}
+
+Write-Host "Compilando instalador Inno Setup com pacote: $packageDirName" -ForegroundColor Cyan
 Push-Location $scriptDir
 try {
-  & $iscc $issPath
+  & $iscc "/DPackageDir=$packageDirName" $issPath
   $exitCode = $LASTEXITCODE
 } finally {
   Pop-Location
@@ -41,8 +89,8 @@ if ($exitCode -eq 0) {
   $outDir = Join-Path $scriptDir "Output"
   Write-Host "Instalador gerado em: $outDir" -ForegroundColor Green
   # Copiar config.enc e key.bin para a pasta do instalador (ao lado do .exe gerado) - NAO vao dentro do setup
-  $configEnc = Join-Path $packageIis "config.enc"
-  $keyBin = Join-Path $packageIis "key.bin"
+  $configEnc = Join-Path $selectedPackageDir "config.enc"
+  $keyBin = Join-Path $selectedPackageDir "key.bin"
   if (Test-Path $configEnc) {
     Copy-Item $configEnc (Join-Path $outDir "config.enc") -Force
     Write-Host "  config.enc copiado para $outDir (copie para a pasta do app apos instalar)" -ForegroundColor Gray
@@ -51,7 +99,7 @@ if ($exitCode -eq 0) {
     Copy-Item $keyBin (Join-Path $outDir "key.bin") -Force
     Write-Host "  key.bin copiado para $outDir (copie para a pasta do app apos instalar)" -ForegroundColor Gray
   }
-  $logoEnc = Join-Path $packageIis "logo.enc"
+  $logoEnc = Join-Path $selectedPackageDir "logo.enc"
   if (Test-Path $logoEnc) {
     Copy-Item $logoEnc (Join-Path $outDir "logo.enc") -Force
     Write-Host "  logo.enc copiado para $outDir (opcional: copie para a pasta do app se quiser logo criptografado)" -ForegroundColor Gray

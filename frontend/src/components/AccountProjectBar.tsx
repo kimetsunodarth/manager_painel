@@ -32,14 +32,14 @@ export default function AccountProjectBar({
   const canLoad = !!selectedAccount && (!requireProject || !!selectedProject) && !loading && !disabled;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-end gap-3 flex-wrap">
       <div className="flex flex-col gap-0.5">
-        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Conta</span>
+        <span className="ananim-label mb-1">Conta</span>
         <select
           value={selectedAccount}
           onChange={(e) => onChangeAccount(e.target.value)}
           disabled={disabled || loading}
-          className="h-8 px-2 pr-6 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-200 outline-none focus:border-[#00C8E0]/50 disabled:opacity-50 min-w-[140px]"
+          className="ananim-select min-w-[180px] text-sm"
         >
           <option value="">Conta…</option>
           {accounts.map((a) => (
@@ -52,12 +52,12 @@ export default function AccountProjectBar({
 
       {!hideProject && (projects.length > 0 || selectedAccount) ? (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Projeto</span>
+          <span className="ananim-label mb-1">Projeto</span>
           <select
             value={selectedProject}
             onChange={(e) => onChangeProject(e.target.value)}
             disabled={!selectedAccount || disabled || loading}
-            className="h-8 px-2 pr-6 text-xs rounded-lg bg-gray-800 border border-gray-700 text-gray-200 outline-none focus:border-[#00C8E0]/50 disabled:opacity-50 min-w-[160px]"
+            className="ananim-select min-w-[220px] text-sm"
           >
             <option value="">Projeto…</option>
             {projects.map((p) => (
@@ -70,24 +70,23 @@ export default function AccountProjectBar({
       ) : null}
 
       <div className="flex flex-col gap-0.5">
-        <span className="text-[9px] font-bold text-transparent uppercase tracking-wider select-none">_</span>
+        <span className="ananim-label mb-1 text-transparent select-none">ação</span>
         <button
           type="button"
           onClick={onLoad}
           disabled={!canLoad}
-          className="h-8 px-4 rounded-lg bg-[#00C8E0]/15 border border-[#00C8E0]/30 text-[#00C8E0] text-xs font-bold hover:bg-[#00C8E0]/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="ananim-btn-primary px-4"
         >
-          {loading ? 'Carregando…' : '▶ Carregar'}
+          {loading ? 'Carregando…' : 'Carregar'}
         </button>
       </div>
 
       {extraActions && (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-bold text-transparent uppercase tracking-wider select-none">_</span>
+          <span className="ananim-label mb-1 text-transparent select-none">extra</span>
           <div className="flex gap-2">{extraActions}</div>
         </div>
       )}
     </div>
   );
 }
-

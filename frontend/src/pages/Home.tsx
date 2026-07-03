@@ -4,7 +4,9 @@ import { ClipboardList, Calendar, RefreshCw } from 'lucide-react';
 import { huawei, users as usersApi, type HuaweiProject, type HuaweiEcsServer, type User, type DiscoveryAccount, type DiscoveredProject, type ScheduleVm } from '../api/client';
 import { useUser } from '../hooks/useUser';
 import { getErrorMessage } from '../utils/errorMessage';
+import { saveHomeProjectSelection } from '../utils/homeProjectSelection';
 import AccountProjectBar from '../components/AccountProjectBar';
+import PageHeader from '../components/PageHeader';
 
 const HUAWEI_CACHE_KEY = 'huawei_projects_cache';
 
@@ -232,6 +234,9 @@ export default function Home() {
   const user = useUser();
   const canHuaweiAdmin = user?.role === 'admin' || (Array.isArray(user?.permissions) && user?.permissions.includes('huawei:projects'));
   const isAdmin = canHuaweiAdmin;
+  const shouldAutoLoadBoundProject =
+    user?.role === 'client' || (user?.role !== 'admin' && (user?.visibleProjects?.length ?? 0) === 1);
+  const hideAutoLoadedProjectFilter = !isAdmin && shouldAutoLoadBoundProject;
 
   const [huaweiProjects, setHuaweiProjects] = useState<HuaweiProject[] | null>(() => {
     try {
@@ -261,6 +266,7 @@ export default function Home() {
   // Barra "Conta / Projeto" (modelo do portal antigo)
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
+  const [autoProjectApplied, setAutoProjectApplied] = useState(false);
   const [ecsClienteFilter, setEcsClienteFilter] = useState('');
   const [selectedEcsIds, setSelectedEcsIds] = useState<string[]>([]);
   const [showAssignEcsModal, setShowAssignEcsModal] = useState(false);
@@ -380,6 +386,61 @@ export default function Home() {
     selectedProjectFromBar && accountIdFromPerfil(selectedProjectFromBar.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(selectedProjectFromBar)
       ? (huaweiProjects || []).find((p) => isMooveTenantProject(p)) || selectedProjectFromBar
       : selectedProjectFromBar;
+
+  const loadableProjects = (huaweiProjects || [])
+    .filter((p) => {
+      const isMooveTenant = accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveTenantProject(p);
+      if (isMooveTenant) return true;
+      return !isRegionLikeProjectName(p.name) && !isRegionLikeProjectName(p.id);
+    })
+    .filter((p) => !(accountIdFromPerfil(p.perfil) === 'MOOVE_RAMOSISTEMAS' && isMooveMosProject(p)));
+
+  useEffect(() => {
+    if (!shouldAutoLoadBoundProject || autoProjectApplied || isAdmin) return;
+    if (!huaweiProjects || huaweiProjects.length === 0) return;
+
+    const preferredKeys = new Set((user?.visibleProjects || []).map((p) => projectKey(p as HuaweiProject)));
+    const defaultProject =
+      loadableProjects.find((p) => preferredKeys.has(projectKey(p))) ||
+      loadableProjects[0] ||
+      huaweiProjects.find((p) => preferredKeys.has(projectKey(p))) ||
+      huaweiProjects[0] ||
+      null;
+
+    if (!defaultProject) return;
+
+    const accountId = accountOptionsRaw.length > 0
+      ? (accountIdFromPerfil(defaultProject.perfil) || accountOptionsRaw[0]?.id || '')
+      : '';
+
+    setSelectedAccount(accountId);
+    setSelectedProjectKey(projectKey(defaultProject));
+    setAutoProjectApplied(true);
+    loadEcsForProject(defaultProject);
+  }, [
+    accountOptionsRaw,
+    autoProjectApplied,
+    huaweiProjects,
+    isAdmin,
+    loadableProjects,
+    shouldAutoLoadBoundProject,
+    user?.visibleProjects,
+  ]);
+
+  useEffect(() => {
+    saveHomeProjectSelection({
+      accountId: effectiveAccount === '__single__' ? null : effectiveAccount,
+      project: effectiveSelectedProject
+        ? {
+            id: effectiveSelectedProject.id,
+            name: effectiveSelectedProject.name,
+            perfil: effectiveSelectedProject.perfil || null,
+            region: effectiveSelectedProject.region || null,
+            displayPerfil: effectiveSelectedProject.displayPerfil || null,
+          }
+        : null,
+    });
+  }, [effectiveAccount, effectiveSelectedProject]);
 
   const openAddUserModal = async () => {
     setShowAddUserModal(true);
@@ -717,59 +778,77 @@ export default function Home() {
   // Removido: limpar/listar projetos (mantemos apenas Descobrir + seletor Conta/Projeto).
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-10 bg-white/95 rounded overflow-hidden flex items-center justify-center">
-          <img src="/ananim-mark.png" alt="Ananim" className="h-full w-full object-cover" />
-        </div>
-        <h2 className="text-xl font-semibold font-display text-white">Página inicial</h2>
-      </div>
+    <div className="ananim-page">
+      <PageHeader
+        badge="Home"
+        title="Página inicial"
+        description="Acompanhe projetos Huawei, ECS e programação com uma visão mais limpa, legível e pronta para operação."
+      />
 
       {(isAdmin || huaweiProjects !== null) && (
-        <div className="ananim-card p-4 mb-6">
-          <h3 className="text-lg font-medium text-white mb-2">
-            {isAdmin ? 'Projetos Huawei (API real) — apenas administradores' : 'Meus projetos Huawei'}
-          </h3>
-          <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="ananim-card p-5 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <h3 className="ananim-section-title">
+                {isAdmin ? 'Projetos Huawei (API real) — apenas administradores' : 'Meus projetos Huawei'}
+              </h3>
+              <p className="ananim-section-subtitle">
+                Selecione conta e projeto para carregar ECS, status e ações operacionais com melhor contraste e leitura.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:min-w-[280px]">
+              <div className="ananim-metric">
+                <p className="ananim-metric-label">Contas</p>
+                <p className="ananim-metric-value">{accountOptionsRaw.length || 1}</p>
+              </div>
+              <div className="ananim-metric">
+                <p className="ananim-metric-label">Projetos</p>
+                <p className="ananim-metric-value">{huaweiProjects?.length || 0}</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             {isAdmin && (
               <button
                 type="button"
                 onClick={openDiscoverModal}
-                className="ananim-btn bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/25 px-4 py-2"
+                className="ananim-btn border border-purple-500/30 bg-purple-500/15 px-4 text-purple-100 hover:bg-purple-500/20"
               >
                 Descobrir Projetos Automaticamente
               </button>
             )}
           </div>
           {huaweiError && (
-            <p className="mt-3 text-sm text-red-400">{huaweiError}</p>
+            <div className="mt-4 ananim-alert-danger">{huaweiError}</div>
           )}
            {huaweiProjects && (
              <>
-               <div className="mt-4 flex flex-wrap items-center gap-3">
-                 <div className="flex items-center gap-3 flex-wrap">
-                   <div className="rounded-2xl bg-black/20 border border-white/10 p-3">
-                       <AccountProjectBar
-                         accounts={accountOptions}
-                         projects={projectOptions}
-                         selectedAccount={effectiveAccount}
-                         selectedProject={selectedProjectKey}
-                         onChangeAccount={(id) => {
-                         setSelectedAccount(id === '__single__' ? '' : id);
-                          setSelectedProjectKey('');
-                        }}
-                         onChangeProject={(id) => setSelectedProjectKey(id)}
-                         onLoad={() => {
-                           if (effectiveSelectedProject) loadEcsForProject(effectiveSelectedProject);
-                         }}
-                         loading={huaweiEcsLoading || huaweiLoading}
-                         requireProject
-                       />
+               {!hideAutoLoadedProjectFilter && (
+                 <div className="mt-5 flex flex-wrap items-center gap-3">
+                   <div className="flex items-center gap-3 flex-wrap">
+                     <div className="rounded-3xl border border-white/10 bg-black/15 p-4 shadow-panel-sm">
+                         <AccountProjectBar
+                           accounts={accountOptions}
+                           projects={projectOptions}
+                           selectedAccount={effectiveAccount}
+                           selectedProject={selectedProjectKey}
+                           onChangeAccount={(id) => {
+                           setSelectedAccount(id === '__single__' ? '' : id);
+                            setSelectedProjectKey('');
+                          }}
+                           onChangeProject={(id) => setSelectedProjectKey(id)}
+                           onLoad={() => {
+                             if (effectiveSelectedProject) loadEcsForProject(effectiveSelectedProject);
+                           }}
+                           loading={huaweiEcsLoading || huaweiLoading}
+                           requireProject
+                         />
+                     </div>
                    </div>
                  </div>
-               </div>
+               )}
               {isAdmin && (
-                <p className="mt-2 text-xs text-gray-400">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
+                <p className="mt-3 text-sm text-ananim-muted">Marque o checkbox para enviar o projeto para a tabela abaixo. Clique na linha para ver as ECS.</p>
               )}
 
               {isAdmin && selectedProjects.length > 0 && (
@@ -781,53 +860,53 @@ export default function Home() {
                   >
                     Adicionar usuário à visão
                   </button>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-ananim-muted">
                     {selectedProjects.length} projeto(s) selecionado(s) — escolha o usuário que poderá ver estes projetos ao logar.
                   </span>
                 </div>
               )}
 
               {isAdmin && selectedProjects.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-white/10">
-                  <h4 className="text-base font-medium text-white mb-2">Projetos selecionados</h4>
-                  <div className="overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
-                    <table className="w-full text-sm">
-                      <thead className="bg-white/[0.04] border-b border-white/10">
+                <div className="mt-6 border-t border-white/10 pt-5">
+                  <h4 className="ananim-section-title">Projetos selecionados</h4>
+                  <div className="ananim-table-wrap mt-3">
+                    <table className="ananim-table">
+                      <thead>
                         <tr>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Perfil</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Projeto</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Região</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Status do Ambiente</th>
-                          <th className="text-left py-2 px-3 font-semibold text-gray-200">Ações</th>
+                          <th>Perfil</th>
+                          <th>Projeto</th>
+                          <th>Região</th>
+                          <th>Status do ambiente</th>
+                          <th>Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedProjects.map((p) => (
-                          <tr key={projectKey(p)} className="border-b border-white/10 hover:bg-white/[0.03]">
-                            <td className="py-2 px-3 font-medium">{p.displayPerfil ?? displayPerfil(p.perfil)}</td>
-                            <td className="py-2 px-3">{p.name || '(sem nome)'}</td>
-                            <td className="py-2 px-3 text-gray-300">{p.region || '—'}</td>
-                            <td className="py-2 px-3 capitalize">{p.enabled !== false ? 'Ativo' : 'Desativado'}</td>
-                            <td className="py-2 px-3">
+                          <tr key={projectKey(p)}>
+                            <td className="font-medium text-ananim-text">{p.displayPerfil ?? displayPerfil(p.perfil)}</td>
+                            <td>{p.name || '(sem nome)'}</td>
+                            <td>{p.region || '—'}</td>
+                            <td className="capitalize">{p.enabled !== false ? 'Ativo' : 'Desativado'}</td>
+                            <td>
                               <span className="inline-flex gap-1 items-center">
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
-                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-ananim-muted hover:text-white transition-colors"
                                   title="Ver ECS"
                                 >
                                   <ClipboardList className="w-4 h-4" aria-hidden="true" />
                                 </button>
                                 <Link
                                   to="/programacao"
-                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors inline-flex"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-ananim-muted hover:text-white transition-colors inline-flex"
                                   title="Programação"
                                 >
                                   <Calendar className="w-4 h-4" aria-hidden="true" />
                                 </Link>
                                 <button
                                   type="button"
-                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-gray-400 hover:text-white transition-colors"
+                                  className="p-1.5 rounded hover:bg-white/[0.06] border border-transparent hover:border-white/10 text-ananim-muted hover:text-white transition-colors"
                                   title="Atualizar"
                                   onClick={(e) => { e.stopPropagation(); loadEcsForProject(p); }}
                                 >
@@ -844,17 +923,17 @@ export default function Home() {
               )}
 
               {selectedProject && (
-                <div className="mt-6 pt-4 border-t border-white/10">
-                  <h4 className="text-base font-medium text-white mb-2">
+                <div className="mt-6 border-t border-white/10 pt-5">
+                  <h4 className="ananim-section-title">
                     ECS do projeto: {ecsProjectTitle(selectedProject, huaweiEcs)}
                     {huaweiEcs?.[0]?.schedule?.start != null && huaweiEcs[0].schedule?.end != null && (
-                      <span className="ml-2 text-sm font-normal text-gray-400">
+                      <span className="ml-2 text-sm font-normal text-ananim-muted">
                         (Horário geral: {huaweiEcs[0].schedule.start}–{huaweiEcs[0].schedule.end})
                       </span>
                     )}
                   </h4>
                   {schedulesVmForProject.length > 0 && (
-                    <p className="text-sm text-gray-300 mb-2">
+                    <p className="mb-3 text-sm text-ananim-textSoft">
                       Agendamentos por VM (igual à página Programação):{' '}
                       {schedulesVmForProject
                         .map(
@@ -864,15 +943,15 @@ export default function Home() {
                         .join('; ')}
                     </p>
                   )}
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <label className="text-sm font-medium text-gray-200">Filtrar por cliente (como CBR):</label>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <label className="ananim-label mb-0">Filtrar por cliente (como CBR)</label>
                     <input
                       type="search"
                       value={ecsClienteFilter}
                       onChange={(e) => setEcsClienteFilter(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadEcsForProject(selectedProject)}
                       placeholder="centro_custo, metadata.cliente ou nome da ECS"
-                      className="ananim-input flex-1 min-w-[180px] max-w-sm text-sm"
+                      className="ananim-input min-w-[220px] max-w-sm flex-1 text-sm"
                     />
                     <button
                       type="button"
@@ -885,7 +964,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={openCancelScheduleModal}
-                      className="ananim-btn bg-amber-500/10 text-amber-200 border border-amber-500/30 hover:bg-amber-500/15 px-3 py-2"
+                      className="ananim-btn border border-amber-500/30 bg-amber-500/10 px-3 text-amber-100 hover:bg-amber-500/15"
                       title="Cancelar programação (start ou stop) para um dia específico"
                     >
                       Cancelar programação
@@ -902,7 +981,7 @@ export default function Home() {
                         </button>
                     {huaweiEcs?.[0]?.schedule?.start && huaweiEcs[0].schedule?.end && (
                           skipNextStop ? (
-                            <span className="px-3 py-2 rounded text-sm font-medium bg-emerald-500/10 text-emerald-200 border border-emerald-500/20" title="O próximo stop programado foi cancelado">
+                            <span className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" title="O próximo stop programado foi cancelado">
                               Stop cancelado (prorrogação)
                             </span>
                           ) : (
@@ -910,7 +989,7 @@ export default function Home() {
                               type="button"
                               onClick={onCancelStop}
                               disabled={cancelStopLoading}
-                              className="ananim-btn bg-emerald-500/10 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/15 px-3 py-2 disabled:opacity-50"
+                              className="ananim-btn border border-emerald-500/30 bg-emerald-500/10 px-3 text-emerald-100 hover:bg-emerald-500/15 disabled:opacity-50"
                               title="Cancela o próximo stop programado (extensão de horário)"
                             >
                               {cancelStopLoading ? '...' : 'Cancelar stop'}
@@ -919,7 +998,7 @@ export default function Home() {
                         )}
                         {selectedEcsIds.length > 0 && (
                           <>
-                            <span className="text-xs text-gray-400">{selectedEcsIds.length} ECS selecionada(s)</span>
+                            <span className="text-xs text-ananim-muted">{selectedEcsIds.length} ECS selecionada(s)</span>
                             <button
                               type="button"
                               onClick={openAssignEcsModal}
@@ -932,28 +1011,28 @@ export default function Home() {
                       </>
                     )}
                   </div>
-                  {huaweiEcsLoading && <p className="text-sm text-gray-400">Carregando ECS...</p>}
-                  {huaweiEcsError && <p className="text-sm text-red-400">{huaweiEcsError}</p>}
+                  {huaweiEcsLoading && <p className="text-sm text-ananim-muted">Carregando ECS...</p>}
+                  {huaweiEcsError && <div className="ananim-alert-danger mt-3">{huaweiEcsError}</div>}
                   {huaweiEcs && !huaweiEcsLoading && (
-                    <div className="overflow-x-auto border border-white/10 rounded-lg bg-white/[0.02]">
-                      <table className="w-full text-sm">
-                        <thead className="bg-white/[0.04] border-b border-white/10">
+                    <div className="ananim-table-wrap mt-4">
+                      <table className="ananim-table">
+                        <thead>
                           <tr>
-                            {isAdmin && <th className="w-10 py-2 px-2 text-center font-semibold text-gray-200"> </th>}
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Nome</th>
-                            {isAdmin && <th className="text-left py-2 px-3 font-semibold text-gray-200">ID</th>}
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Cliente (metadata)</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Status</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Flavor</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Disco(s)</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">IPs</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200" title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
-                            <th className="text-left py-2 px-3 font-semibold text-gray-200">Ações</th>
+                            {isAdmin && <th className="w-10 text-center"> </th>}
+                            <th>Nome</th>
+                            {isAdmin && <th>ID</th>}
+                            <th>Cliente (metadata)</th>
+                            <th>Status</th>
+                            <th>Flavor</th>
+                            <th>Disco(s)</th>
+                            <th>IPs</th>
+                            <th title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
+                            <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {huaweiEcs.length === 0 ? (
-                            <tr><td colSpan={isAdmin ? 10 : 8} className="py-4 px-3 text-gray-400 text-center">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
+                            <tr><td colSpan={isAdmin ? 10 : 8} className="py-5 text-center text-ananim-muted">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
                           ) : (
                             huaweiEcs.map((s) => {
                               const ips = s.addresses
@@ -962,29 +1041,29 @@ export default function Home() {
                               const metaCliente = s.metadata?.centro_custo || s.metadata?.centrodecusto || s.metadata?.cost_center || s.metadata?.cliente || s.metadata?.client || '—';
                               const loading = huaweiEcsActionLoading !== null;
                               return (
-                                <tr key={s.id} className="border-b border-white/10 hover:bg-white/[0.03]">
+                                <tr key={s.id}>
                                   {isAdmin && (
-                                    <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <td className="text-center" onClick={(e) => e.stopPropagation()}>
                                       <input
                                         type="checkbox"
                                         checked={isEcsSelected(s.id)}
                                         onChange={() => toggleEcsSelection(s.id)}
-                                        className="rounded border-gray-300"
+                                        className="rounded border-white/20 bg-transparent"
                                         title="Selecionar para atribuir a um usuário"
                                       />
                                     </td>
                                   )}
-                                  <td className="py-2 px-3 font-medium">{s.name || s.id}</td>
-                                  {isAdmin && <td className="py-2 px-3 font-mono text-xs">{s.id}</td>}
-                                  <td className="py-2 px-3 text-gray-300">{metaCliente}</td>
-                                  <td className="py-2 px-3"><EcsStatusBadge status={s.status} /></td>
-                                  <td className="py-2 px-3 text-gray-300">{formatFlavor(s.flavor)}</td>
-                                  <td className="py-2 px-3 text-gray-300">{formatDiskSize(s)}</td>
-                                  <td className="py-2 px-3 text-gray-300">{ips || '—'}</td>
-                                  <td className="py-2 px-3 text-gray-200 font-medium" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
+                                  <td className="font-medium text-ananim-text">{s.name || s.id}</td>
+                                  {isAdmin && <td className="font-mono text-xs">{s.id}</td>}
+                                  <td>{metaCliente}</td>
+                                  <td><EcsStatusBadge status={s.status} /></td>
+                                  <td>{formatFlavor(s.flavor)}</td>
+                                  <td>{formatDiskSize(s)}</td>
+                                  <td>{ips || '—'}</td>
+                                  <td className="font-medium text-ananim-text" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
                                     {formatMinutes(s.extraHours ? Math.round(Number(s.extraHours) * 60) : undefined)}
                                   </td>
-                                  <td className="py-2 px-3">
+                                  <td>
                                     <span className="inline-flex flex-wrap gap-1">
                                       <button
                                         type="button"
@@ -1035,7 +1114,7 @@ export default function Home() {
                     ? `Programação — ${selectedEcsIds.length} VM(s) selecionada(s)`
                     : 'Programação geral do projeto'}
                 </h3>
-                <p className="text-sm text-gray-300 mb-3">
+                <p className="text-sm text-ananim-textSoft mb-3">
                   {scheduleMode === 'vm'
                     ? `Cria agendamentos de Start e Stop para as ${selectedEcsIds.length} VM(s) selecionadas. Aparecem na página Programação.`
                     : 'Horário em que as VMs deste projeto ficam ligadas. Fora desse intervalo, o marcador "Horas a mais" acumula.'}
@@ -1043,7 +1122,7 @@ export default function Home() {
                 {scheduleError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{scheduleError}</div>}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-1">Início (HH:mm)</label>
+                    <label className="ananim-label">Início (HH:mm)</label>
                     <input
                       type="time"
                       value={scheduleStart}
@@ -1052,7 +1131,7 @@ export default function Home() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-1">Fim (HH:mm)</label>
+                    <label className="ananim-label">Fim (HH:mm)</label>
                     <input
                       type="time"
                       value={scheduleEnd}
@@ -1094,11 +1173,11 @@ export default function Home() {
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowCancelScheduleModal(false)}>
               <div className="ananim-card p-6 max-w-lg w-full max-h-[90vh] flex flex-col shadow-lg shadow-black/30" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-lg font-medium text-white mb-2">Cancelar programação para um dia</h3>
-                <p className="text-sm text-gray-300 mb-3">
+                <p className="text-sm text-ananim-textSoft mb-3">
                   No dia escolhido o agendamento não será executado. No dia seguinte a programação oficial volta a valer.
                 </p>
                 <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-200 mb-1">Data</label>
+                  <label className="ananim-label">Data</label>
                   <input
                     type="date"
                     value={cancelScheduleDate}
@@ -1106,9 +1185,9 @@ export default function Home() {
                     className="ananim-input"
                   />
                 </div>
-                {cancelScheduleLoading && <p className="text-sm text-gray-400 mb-2">Carregando agendamentos...</p>}
+                {cancelScheduleLoading && <p className="text-sm text-ananim-muted mb-2">Carregando agendamentos...</p>}
                 {!cancelScheduleLoading && cancelScheduleList.length === 0 && (
-                  <p className="text-sm text-gray-400 mb-3">Nenhum agendamento por VM neste projeto. Crie em Programação.</p>
+                  <p className="text-sm text-ananim-muted mb-3">Nenhum agendamento por VM neste projeto. Crie em Programação.</p>
                 )}
                 {!cancelScheduleLoading && cancelScheduleList.length > 0 && (
                   <div className="flex-1 overflow-y-auto border border-white/10 rounded-lg mb-4 bg-white/[0.02]">
@@ -1152,13 +1231,13 @@ export default function Home() {
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
               <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30">
                 <h3 className="text-lg font-medium text-white mb-2">Adicionar usuário à visão</h3>
-                <p className="text-sm text-gray-300 mb-3">
+                <p className="text-sm text-ananim-textSoft mb-3">
                   O usuário selecionado poderá ver estes {selectedProjects.length} projeto(s) sempre que logar.
                 </p>
                 {huaweiEcsError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{huaweiEcsError}</div>}
                 <div className="mb-4 max-h-48 overflow-y-auto border border-white/10 rounded-lg bg-white/[0.02]">
                   {usersList.length === 0 ? (
-                    <p className="p-3 text-sm text-gray-400">Nenhum usuário encontrado.</p>
+                    <p className="p-3 text-sm text-ananim-muted">Nenhum usuário encontrado.</p>
                   ) : (
                     <ul className="divide-y divide-white/10">
                       {usersList.map((u) => (
@@ -1200,13 +1279,13 @@ export default function Home() {
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
               <div className="ananim-card p-6 max-w-md w-full shadow-lg shadow-black/30">
                 <h3 className="text-lg font-medium text-white mb-2">Atribuir ECS ao usuário</h3>
-                <p className="text-sm text-gray-300 mb-3">
+                <p className="text-sm text-ananim-textSoft mb-3">
                   O usuário selecionado verá apenas estas {selectedEcsIds.length} ECS neste projeto ({ecsProjectTitle(selectedProject, huaweiEcs)}) e poderá fazer start/stop/restart nelas.
                 </p>
                 {huaweiEcsError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{huaweiEcsError}</div>}
                 <div className="mb-4 max-h-48 overflow-y-auto border border-white/10 rounded-lg bg-white/[0.02]">
                   {usersList.length === 0 ? (
-                    <p className="p-3 text-sm text-gray-400">Nenhum usuário encontrado.</p>
+                    <p className="p-3 text-sm text-ananim-muted">Nenhum usuário encontrado.</p>
                   ) : (
                     <ul className="divide-y divide-white/10">
                       {usersList.map((u) => (
@@ -1251,12 +1330,12 @@ export default function Home() {
                   <h3 className="text-lg font-medium text-white">
                     {discoverStep === 'account' ? 'Selecionar Conta para Descoberta' : `Projetos Descobertos para: ${discoverSelectedAccount?.toLowerCase() || ''}`}
                   </h3>
-                  <button type="button" onClick={() => { setShowDiscoverModal(false); setDiscoverStep('account'); }} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                  <button type="button" onClick={() => { setShowDiscoverModal(false); setDiscoverStep('account'); }} className="text-ananim-muted hover:text-white text-xl leading-none">&times;</button>
                 </div>
                 {discoverError && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 text-red-200 rounded-lg text-sm">{discoverError}</div>}
                 {discoverStep === 'account' && (
                   <>
-                    <p className="text-sm text-gray-300 mb-3">Selecione a conta para descobrir projetos:</p>
+                    <p className="text-sm text-ananim-textSoft mb-3">Selecione a conta para descobrir projetos:</p>
                     <div className="flex flex-col gap-2 mb-4 max-h-48 overflow-y-auto">
                       {discoveryAccounts.map((acc) => (
                         <label key={acc.id} className={`flex items-center gap-2 p-2 rounded-lg border border-white/10 bg-white/[0.02] cursor-pointer ${!acc.available ? 'opacity-60' : ''}`}>
@@ -1268,7 +1347,7 @@ export default function Home() {
                             disabled={!acc.available}
                           />
                           <span className="text-sm">{acc.label}</span>
-                          {acc.projectId && <span className="text-xs text-gray-400">(Região: {acc.region}, Project ID: {acc.projectId.slice(0, 8)}…)</span>}
+                          {acc.projectId && <span className="text-xs text-ananim-muted">(Região: {acc.region}, Project ID: {acc.projectId.slice(0, 8)}…)</span>}
                         </label>
                       ))}
                     </div>
@@ -1280,15 +1359,15 @@ export default function Home() {
                 )}
                 {discoverStep === 'projects' && (
                   <>
-                    <div className="flex-1 overflow-auto border border-white/10 rounded-lg mb-4 bg-white/[0.02]">
-                      <table className="w-full text-sm">
-                        <thead className="bg-white/[0.04] border-b border-white/10 sticky top-0">
+                    <div className="ananim-table-wrap flex-1 overflow-auto mb-4">
+                      <table className="ananim-table min-w-[720px]">
+                        <thead className="sticky top-0">
                           <tr>
-                            <th className="text-left py-2 px-2 w-10 text-gray-200 font-semibold">Adicionar</th>
-                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Nome do Perfil</th>
-                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Project ID</th>
-                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Região</th>
-                            <th className="text-left py-2 px-3 text-gray-200 font-semibold">Status</th>
+                            <th className="w-10">Adicionar</th>
+                            <th>Nome do Perfil</th>
+                            <th>Project ID</th>
+                            <th>Região</th>
+                            <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>

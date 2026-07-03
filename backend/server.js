@@ -637,8 +637,68 @@ app.get("/api", (req, res) => {
       "GET /api/action-log": "Log de ações (admin); ?limit=200",
       "GET /api/health": "Health/ping (keep-alive); não requer auth",
       "GET /api/logo": "Logo do painel (logo.enc descriptografado ou logo.png); não requer auth",
+      "POST /api/coc/schedules": "Criar agendamento no Huawei COC usando AK/SK"
     },
   });
+});
+
+// ==========================================
+// ROTA COC (Huawei Cloud Operations Center)
+// ==========================================
+app.post("/api/coc/schedules", requireAuth, async (req, res) => {
+  const { signRequest } = require("./huaweiSigner");
+  const fetch = require("node-fetch");
+  const body = req.body || {};
+  const { accountId, region, task_name, enterprise_project_id, execute_strategy, job_config, risk_level } = body;
+
+  if (!accountId || !region || !task_name || !job_config) {
+    return res.status(400).json({ error: "accountId, region, task_name, job_config sao obrigatorios" });
+  }
+
+  const creds = getCredentials(accountId);
+  if (!creds) {
+    return res.status(400).json({ error: "Conta nao encontrada ou credenciais nao configuradas" });
+  }
+
+  try {
+    const url = `https://coc.${region}.myhuaweicloud.com/v1/jobs/scheduled-tasks`;
+    
+    const payload = {
+      task_name,
+      enterprise_project_id: enterprise_project_id || "0",
+      description: "Agendamento criado via Ananim Huawei Painel (Automacao)",
+      execute_strategy,
+      job_config,
+      iam_agency: "ServiceAgencyForCOC",
+      risk_level: risk_level || "MEDIUM"
+    };
+
+    const bodyStr = JSON.stringify(payload);
+    const bodyBuffer = Buffer.from(bodyStr, "utf8");
+    const headers = signRequest("POST", url, bodyBuffer, creds.ak, creds.sk);
+
+    const cocRes = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyStr,
+    });
+
+    if (!cocRes.ok) {
+      const text = await cocRes.text();
+      throw new Error(text || `HTTP ${cocRes.status}`);
+    }
+
+    const data = await cocRes.json();
+    const user = req.session && req.session.user ? req.session.user.email : null;
+    actionLog.append(user, "coc_schedule_create", { accountId, region, task_name, success: true });
+    
+    res.status(201).json({ success: true, data });
+  } catch (e) {
+    console.error("Erro no COC:", e);
+    const user = req.session && req.session.user ? req.session.user.email : null;
+    actionLog.append(user, "coc_schedule_create", { accountId, region, task_name, success: false, error: e.message || String(e) });
+    res.status(502).json({ error: e.message || String(e) });
+  }
 });
 
 // Servir o painel (frontend): em pkg/produção usa pasta "public" ao lado do exe; senão frontend/

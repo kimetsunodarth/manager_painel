@@ -18,6 +18,10 @@ export function logAction(req, action, details = null) {
     details: details && typeof details === 'object' ? details : { value: details },
     ipAddress: extractIp(req),
     userAgent: req.headers && req.headers['user-agent'] ? req.headers['user-agent'] : null,
+    countryCode: req.securityContext?.geo?.countryCode || null,
+    countryName: req.securityContext?.geo?.countryName || null,
+    regionName: req.securityContext?.geo?.regionName || null,
+    cityName: req.securityContext?.geo?.cityName || null,
     createdAt: new Date().toISOString(),
   });
 }

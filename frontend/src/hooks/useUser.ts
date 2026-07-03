@@ -4,6 +4,10 @@ interface User {
   name?: string;
   email?: string;
   permissions?: string[];
+  visibleProjects?: Array<{ id: string; perfil?: string | null; name?: string | null; region?: string | null }>;
+  allowedHuaweiEcsIds?: Record<string, string[]>;
+  allowedServiceIds?: string[];
+  preferredServiceClientKey?: string | null;
 }
 
 export function useUser(): User | null {

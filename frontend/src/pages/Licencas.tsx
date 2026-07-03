@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { licenses as api, type LicenseSummary, type AddonItem } from '../api/client';
+import PageHeader from '../components/PageHeader';
+import { licenses as api, type AddonItem, type LicenseSummary } from '../api/client';
 import { useUser } from '../hooks/useUser';
 
 const LABELS: Record<string, string> = {
@@ -8,20 +9,24 @@ const LABELS: Record<string, string> = {
   financials: 'Financials',
   logistics: 'Logistics',
   professional: 'Professional',
-  licencasIndiretas: 'Licenças Indiretas',
-  totalUsuariosLicenciados: 'Total de usuários licenciados',
+  licencasIndiretas: 'Licenças indiretas',
+  totalUsuariosLicenciados: 'Usuários licenciados',
   totalLicencas: 'Total de licenças',
 };
 
-const BAR_COLORS: Record<string, string> = {
-  crm: 'bg-gray-200',
-  financials: 'bg-orange-500',
-  logistics: 'bg-yellow-500',
-  professional: 'bg-teal-600',
-  licencasIndiretas: 'bg-blue-600',
-  totalUsuariosLicenciados: 'bg-gray-400',
-  totalLicencas: 'bg-purple-600',
+const BAR_STYLES: Record<string, string> = {
+  crm: 'from-cyan-400 to-sky-500',
+  financials: 'from-amber-400 to-orange-500',
+  logistics: 'from-yellow-300 to-amber-500',
+  professional: 'from-emerald-400 to-teal-500',
+  licencasIndiretas: 'from-blue-400 to-indigo-500',
+  totalUsuariosLicenciados: 'from-slate-400 to-slate-500',
+  totalLicencas: 'from-fuchsia-400 to-violet-500',
 };
+
+function sumAddonCount(addons: AddonItem[]) {
+  return addons.reduce((total, addon) => total + (Number(addon.count) || 0), 0);
+}
 
 export default function Licencas() {
   const user = useUser();
@@ -43,13 +48,17 @@ export default function Licencas() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [s, a, lic] = await Promise.all([api.summary(), api.addons(), api.addonsLicense()]);
-        setSummary(s);
-        setAddons(a);
-        setLicencaAddons(lic.licencaAddons ?? '');
-      } catch (e) {
-        console.error(e);
-        setLoadError('Não foi possível carregar. Verifique se o backend está rodando (porta 3001 ou a indicada no terminal).');
+        const [summaryData, addonsData, licenseData] = await Promise.all([
+          api.summary(),
+          api.addons(),
+          api.addonsLicense(),
+        ]);
+        setSummary(summaryData);
+        setAddons(addonsData);
+        setLicencaAddons(licenseData.licencaAddons ?? '');
+      } catch (error) {
+        console.error(error);
+        setLoadError('Não foi possível carregar. Verifique se o backend está rodando na porta esperada.');
       } finally {
         setLoading(false);
       }
@@ -64,8 +73,8 @@ export default function Licencas() {
       await api.updateSummary(summary);
       setSaveMessage('Quantidades salvas com sucesso.');
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       setSaveMessage('Erro ao salvar quantidades.');
     } finally {
       setSummarySaving(false);
@@ -79,8 +88,8 @@ export default function Licencas() {
       await api.updateAddons(addons);
       setSaveMessage('Add-ons salvos com sucesso.');
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       setSaveMessage('Erro ao salvar add-ons.');
     } finally {
       setAddonsSaving(false);
@@ -91,255 +100,308 @@ export default function Licencas() {
   const maxVal = summaryEntries.length
     ? Math.max(
         1,
-        ...summaryEntries
-          .filter(([k]) => k !== 'totalLicencas' && k !== 'totalUsuariosLicenciados')
-          .map(([, v]) => Number(v) || 0),
-        Number((summary as LicenseSummary)?.totalLicencas) || 0
+        ...summaryEntries.map(([, value]) => Number(value) || 0)
       )
     : 1;
 
+  const totalLicencas = Number(summary?.totalLicencas) || 0;
+  const totalUsuariosLicenciados = Number(summary?.totalUsuariosLicenciados) || 0;
+  const occupancyPercent = totalLicencas > 0 ? Math.min(100, Math.round((totalUsuariosLicenciados / totalLicencas) * 100)) : 0;
+  const addonsCount = addons.length;
+  const addonsUnits = sumAddonCount(addons);
+
+  const addonGradient = useMemo(() => {
+    if (!addons.length) return 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))';
+    const total = Math.max(1, addons.length);
+    return `conic-gradient(${addons
+      .map((addon, index) => `${addon.color} ${(index / total) * 360}deg ${((index + 1) / total) * 360}deg`)
+      .join(', ')})`;
+  }, [addons]);
+
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Licenças SAP e Add-ons</h2>
+    <div className="ananim-page">
+      <PageHeader
+        badge="Licenças"
+        title="Licenças SAP e add-ons"
+        description="Concentre capacidade contratada, ocupação atual, add-ons instalados e a licença operacional em um painel mais limpo."
+        actions={
+          <Link to="/servicos" className="ananim-btn-ghost">
+            Abrir Serviços
+          </Link>
+        }
+      />
 
       {loading ? (
-        <div className="p-8 text-center text-gray-500">Carregando...</div>
+        <div className="ananim-card p-10 text-center text-ananim-muted">Carregando licenças...</div>
       ) : loadError ? (
-        <div className="p-8 bg-amber-50 border border-amber-200 rounded-lg text-center">
-          <p className="text-amber-800 mb-2">{loadError}</p>
-          <p className="text-sm text-gray-600 mb-1">Se o backend estiver em outra porta (ex.: 3002), pare o frontend (Ctrl+C) e suba de novo com a porta certa:</p>
-          <p className="text-sm font-mono bg-gray-200 px-2 py-1 rounded inline-block mt-1">npm run dev:3002</p>
+        <div className="ananim-card border-amber-400/20 bg-amber-500/10 p-8 text-center">
+          <p className="text-sm font-medium text-amber-200">{loadError}</p>
+          <p className="mt-3 text-sm text-ananim-textSoft">Se o backend estiver em outra porta, reinicie o frontend com a porta correta.</p>
+          <code className="mt-3 inline-flex rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-ananim-text">npm run dev:3002</code>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white px-4 py-3 font-medium">
-              Quantidade de licenças SAP
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="ananim-metric">
+              <p className="ananim-metric-label">Total contratado</p>
+              <p className="ananim-metric-value">{totalLicencas}</p>
             </div>
-            <div className="p-4 space-y-3">
-              {summaryEntries.map(([key, value]) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-700 w-48 flex-shrink-0">
-                      {LABELS[key] || key}:
-                    </span>
-                    {isAdmin ? (
-                      <input
-                        type="number"
-                        min={0}
-                        value={value}
-                        onChange={(e) =>
-                          setSummary((s) =>
-                            s ? { ...s, [key]: Math.max(0, parseInt(String(e.target.value), 10) || 0) } : s
-                          )
-                        }
-                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm"
-                      />
-                    ) : (
-                      <span className="text-sm font-medium w-8">{value}</span>
-                    )}
-                    <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden min-w-0">
-                      <div
-                        className={`h-full rounded-full ${BAR_COLORS[key] || 'bg-gray-400'}`}
-                        style={{
-                          width: maxVal > 0 ? `${((Number(value) || 0) / maxVal) * 100}%` : '0%',
-                        }}
-                      />
+            <div className="ananim-metric">
+              <p className="ananim-metric-label">Usuários licenciados</p>
+              <p className="ananim-metric-value">{totalUsuariosLicenciados}</p>
+            </div>
+            <div className="ananim-metric">
+              <p className="ananim-metric-label">Add-ons ativos</p>
+              <p className="ananim-metric-value">{addonsUnits}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+            <section className="ananim-card p-6">
+              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h3 className="ananim-section-title">Capacidade por módulo</h3>
+                  <p className="ananim-section-subtitle">Acompanhe distribuição, ocupação e ajuste os totais sem sair do painel.</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-right">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ananim-muted">Ocupação geral</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{occupancyPercent}%</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {summaryEntries.map(([key, value]) => {
+                  const numericValue = Number(value) || 0;
+                  const percent = maxVal > 0 ? (numericValue / maxVal) * 100 : 0;
+                  return (
+                    <div key={key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium text-ananim-text">{LABELS[key] || key}</p>
+                            {!isAdmin && <span className="text-lg font-semibold text-white">{numericValue}</span>}
+                          </div>
+                          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${BAR_STYLES[key] || 'from-slate-400 to-slate-500'}`}
+                              style={{ width: `${Math.max(6, percent)}%` }}
+                            />
+                          </div>
+                        </div>
+                        {isAdmin ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase tracking-[0.16em] text-ananim-muted">Qtd.</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={numericValue}
+                              onChange={(event) =>
+                                setSummary((current) =>
+                                  current
+                                    ? { ...current, [key]: Math.max(0, parseInt(String(event.target.value), 10) || 0) }
+                                    : current
+                                )
+                              }
+                              className="ananim-input w-24 text-center"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+
               {isAdmin && summary && (
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onSaveSummary}
-                    disabled={summarySaving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
-                  >
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={onSaveSummary} disabled={summarySaving} className="ananim-btn-primary disabled:opacity-60">
                     {summarySaving ? 'Salvando...' : 'Salvar quantidades'}
                   </button>
-                  {saveMessage && (
-                    <span className={`text-sm ${saveMessage.includes('salv') ? 'text-green-600' : 'text-red-600'}`}>
-                      {saveMessage}
-                    </span>
+                  {saveMessage && <span className={`text-sm ${saveMessage.includes('sucesso') ? 'text-emerald-300' : 'text-red-300'}`}>{saveMessage}</span>}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-6">
+              <div className="ananim-card p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="ananim-section-title">Mapa de add-ons</h3>
+                    <p className="ananim-section-subtitle">{addonsCount} tipo(s) cadastrados, total de {addonsUnits} unidade(s).</p>
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-ananim-muted">
+                    Distribuição
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-5">
+                  <div className="flex h-44 w-44 items-center justify-center rounded-full border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.35)]" style={{ background: addonGradient }}>
+                    <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full border border-white/10 bg-[#09111f]/90 backdrop-blur">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-ananim-muted">Itens</span>
+                      <span className="mt-1 text-2xl font-semibold text-white">{addonsUnits}</span>
+                    </div>
+                  </div>
+
+                  {isAdmin ? (
+                    <div className="w-full space-y-3">
+                      {addons.map((addon, index) => (
+                        <div key={index} className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 md:grid-cols-[1fr_90px_60px_auto] md:items-center">
+                          <input
+                            type="text"
+                            value={addon.name}
+                            onChange={(event) =>
+                              setAddons((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
+                            }
+                            placeholder="Nome do add-on"
+                            className="ananim-input"
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            value={addon.count}
+                            onChange={(event) =>
+                              setAddons((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, count: Math.max(0, parseInt(String(event.target.value), 10) || 0) } : item
+                                )
+                              )
+                            }
+                            className="ananim-input text-center"
+                          />
+                          <input
+                            type="color"
+                            value={addon.color}
+                            onChange={(event) =>
+                              setAddons((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, color: event.target.value } : item)))
+                            }
+                            className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-transparent"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAddons((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                            className="ananim-btn bg-red-500/10 text-red-200 border border-red-500/20 hover:bg-red-500/15"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setAddons((current) => [...current, { name: '', count: 0, color: '#38bdf8' }])}
+                          className="ananim-btn-ghost"
+                        >
+                          Adicionar add-on
+                        </button>
+                        <button type="button" onClick={onSaveAddons} disabled={addonsSaving} className="ananim-btn-primary disabled:opacity-60">
+                          {addonsSaving ? 'Salvando...' : 'Salvar add-ons'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full space-y-2">
+                      {addons.map((addon, index) => (
+                        <div key={index} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                          <span className="flex items-center gap-3 text-sm text-ananim-text">
+                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: addon.color }} />
+                            {addon.name}
+                          </span>
+                          <span className="text-sm font-semibold text-white">{addon.count}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white px-4 py-3 font-medium">
-              Add-on(s) detalhes
-            </div>
-            <div className="p-4 flex flex-col items-center">
-              <div
-                className="w-40 h-40 rounded-full border-4 border-gray-200 flex items-center justify-center text-sm text-gray-600"
-                style={{
-                  background: addons.length
-                    ? `conic-gradient(${addons
-                        .map(
-                          (a, i) =>
-                            `${a.color} ${(i / addons.length) * 360}deg ${((i + 1) / addons.length) * 360}deg`
-                        )
-                        .join(', ')})`
-                    : 'gray',
-                }}
-              >
-                {addons.length === 0 && 'Nenhum'}
               </div>
-              {isAdmin ? (
-                <div className="mt-4 w-full space-y-2">
-                  {addons.map((a, i) => (
-                    <div key={i} className="flex items-center gap-2 flex-wrap">
-                      <input
-                        type="text"
-                        value={a.name}
-                        onChange={(e) =>
-                          setAddons((prev) =>
-                            prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x))
-                          )
-                        }
-                        placeholder="Nome"
-                        className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        value={a.count}
-                        onChange={(e) =>
-                          setAddons((prev) =>
-                            prev.map((x, j) =>
-                              j === i ? { ...x, count: Math.max(0, parseInt(String(e.target.value), 10) || 0) } : x
-                            )
-                          )
-                        }
-                        className="w-16 border border-gray-300 rounded px-2 py-1 text-sm"
-                      />
-                      <input
-                        type="color"
-                        value={a.color}
-                        onChange={(e) =>
-                          setAddons((prev) => prev.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))
-                        }
-                        className="w-10 h-8 rounded cursor-pointer"
-                      />
+
+              <div className="ananim-card p-6">
+                <h3 className="ananim-section-title">Licença de add-ons</h3>
+                <p className="ananim-section-subtitle">Texto operacional usado para consulta e conferência de contrato.</p>
+                {isAdmin ? (
+                  <>
+                    <textarea
+                      value={licencaAddons}
+                      onChange={(event) => setLicencaAddons(event.target.value)}
+                      rows={6}
+                      className="ananim-input mt-4 min-h-[160px] resize-y"
+                      placeholder="Texto da licença de add-ons"
+                    />
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setAddons((prev) => prev.filter((_, j) => j !== i))}
-                        className="px-2 py-1 text-red-600 hover:bg-red-50 rounded text-sm"
+                        onClick={async () => {
+                          setLicencaAddonsMessage(null);
+                          setLicencaAddonsSaving(true);
+                          try {
+                            await api.updateAddonsLicense(licencaAddons);
+                            setLicencaAddonsMessage('Salvo com sucesso.');
+                            setTimeout(() => setLicencaAddonsMessage(null), 3000);
+                          } catch (error: unknown) {
+                            const err = error as { response?: { data?: { error?: string } }; message?: string };
+                            setLicencaAddonsMessage(err.response?.data?.error || err.message || 'Erro ao salvar.');
+                          } finally {
+                            setLicencaAddonsSaving(false);
+                          }
+                        }}
+                        disabled={licencaAddonsSaving}
+                        className="ananim-btn-primary disabled:opacity-60"
                       >
-                        Remover
+                        {licencaAddonsSaving ? 'Salvando...' : 'Salvar licença'}
                       </button>
+                      {licencaAddonsMessage && <span className={`text-sm ${licencaAddonsMessage.includes('sucesso') ? 'text-emerald-300' : 'text-red-300'}`}>{licencaAddonsMessage}</span>}
                     </div>
-                  ))}
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setAddons((prev) => [...prev, { name: '', count: 0, color: '#2196f3' }])}
-                      className="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                    >
-                      + Adicionar add-on
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onSaveAddons}
-                      disabled={addonsSaving}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
-                    >
-                      {addonsSaving ? 'Salvando...' : 'Salvar add-ons'}
-                    </button>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-ananim-text whitespace-pre-wrap min-h-[140px]">
+                    {licencaAddons || '(Nenhum texto cadastrado)'}
                   </div>
-                </div>
-              ) : (
-                <ul className="mt-4 space-y-1 text-sm">
-                  {addons.map((a, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: a.color }}
-                      />
-                      {a.name} ({a.count})
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                )}
+              </div>
+            </section>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white px-4 py-3 font-medium">
-              Reinício de serviços (SAP/HANA)
-            </div>
-            <div className="p-4">
-              <p className="text-sm text-gray-600 mb-3">
-                Ações de reinício pré-definidas para ambiente HANA. Execute na tela Serviços.
-              </p>
-              <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                <li>• Reiniciar Banco HANA</li>
-                <li>• Reiniciar EDS HANA</li>
-                <li>• Reiniciar Service Layer HANA</li>
-                <li>• Reiniciar SLD HANA</li>
-              </ul>
-              <Link
-                to="/servicos"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
-              >
-                Ir para Serviços (restart)
+          <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="ananim-card p-6">
+              <h3 className="ananim-section-title">Reinício de serviços</h3>
+              <p className="ananim-section-subtitle">Ações operacionais de suporte HANA disponíveis no módulo de serviços.</p>
+              <div className="mt-4 space-y-3">
+                {[
+                  'Reiniciar Banco HANA',
+                  'Reiniciar EDS HANA',
+                  'Reiniciar Service Layer HANA',
+                  'Reiniciar SLD HANA',
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-ananim-text">
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <Link to="/servicos" className="ananim-btn-primary mt-5 inline-flex">
+                Ir para Serviços
               </Link>
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white px-4 py-3 font-medium">
-              Licença de add-ons
-            </div>
-            <div className="p-4">
-              {isAdmin ? (
-                <>
-                  <textarea
-                    value={licencaAddons}
-                    onChange={(e) => setLicencaAddons(e.target.value)}
-                    rows={4}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Texto da licença de add-ons (editável apenas por admin)"
-                  />
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setLicencaAddonsMessage(null);
-                        setLicencaAddonsSaving(true);
-                        try {
-                          await api.updateAddonsLicense(licencaAddons);
-                          setLicencaAddonsMessage('Salvo com sucesso.');
-                          setTimeout(() => setLicencaAddonsMessage(null), 3000);
-                        } catch (e: unknown) {
-                          const err = e as { response?: { data?: { error?: string } }; message?: string };
-                          setLicencaAddonsMessage(err.response?.data?.error || err.message || 'Erro ao salvar.');
-                        } finally {
-                          setLicencaAddonsSaving(false);
-                        }
-                      }}
-                      disabled={licencaAddonsSaving}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
-                    >
-                      {licencaAddonsSaving ? 'Salvando...' : 'Salvar'}
-                    </button>
-                    {licencaAddonsMessage && (
-                      <span className={`text-sm ${licencaAddonsMessage.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>
-                        {licencaAddonsMessage}
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-gray-700 whitespace-pre-wrap min-h-[6rem]">
-                  {licencaAddons || '(Nenhum texto cadastrado)'}
-                </p>
-              )}
+            <div className="ananim-card p-6">
+              <h3 className="ananim-section-title">Leitura rápida</h3>
+              <p className="ananim-section-subtitle">Visão resumida para gestão sem poluição visual.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ananim-muted">Capacidade livre</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{Math.max(0, totalLicencas - totalUsuariosLicenciados)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ananim-muted">Tipos de add-on</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{addonsCount}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ananim-muted">Diretriz operacional</p>
+                  <p className="mt-2 text-sm leading-6 text-ananim-textSoft">
+                    Use esta tela para manter números de contrato e inventário consistentes. Execução de restart continua separada em `Serviços`, sem misturar ações de infraestrutura com gestão de licenças.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
