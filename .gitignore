@@ -16,3 +16,30 @@ backend/.pkg-cache/
 package-iis/
 installer/Output/
 node_modules/
+
+# Dados sensíveis / runtime (nunca versionar)
+backend/users.json
+*.db
+*.db-wal
+*.db-shm
+backend/src/data/documents-store.json
+backend/src/data/huawei-project-region-cache.json
+backend/src/config/dynamic-clients-registry.json
+
+# Artefatos de build / debug
+*.tsbuildinfo
+backend/control-center-*.png
+ENTREGA-EXE/
+
+# Scripts de investigação locais
+backend/scan_*.cjs
+backend/scan_report.json
+backend/test_coc*.cjs
+backend/decrypt_config.js
+backend/decrypt_config.cjs
+frontend/coc.js
+
+# Ferramentas locais
+.codex/
+.vscode/
+ananim-video/
