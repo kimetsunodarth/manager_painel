@@ -1,1 +1,0 @@
-const Database = require('C:/Program Files/Ananim Manager Painel/lib/node_modules/better-sqlite3'); const db = new Database('./db_temp.db'); console.log(db.prepare('SELECT id, name, username, role, visibleProjects, allowedHuaweiEcsIds FROM users WHERE name LIKE ?').get('%Edmar%'));
