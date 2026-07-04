@@ -8,6 +8,10 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+---
+
+## [1.2.70] – 2026-07-04
+
 ### Corrigido
 
 - **Segurança — senha SMTP:** a API de billing (`/api/huawei/billing-config*`) não retorna mais `smtp.pass`; respostas passam por `sanitizeBillingConfig` e expõem apenas `smtp.passSet`. No frontend, o campo de senha inicia vazio e enviar vazio mantém a senha atual.
@@ -16,6 +20,12 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 - **Higiene do repositório:** `backend/users.json` (hashes/e-mails reais), `db_temp.db`, screenshots de debug e `tsconfig.tsbuildinfo` removidos do versionamento; `.gitignore` ampliado (dados runtime, scripts de investigação locais).
 - **README.md** reescrito para refletir a arquitetura real (`backend/src/` Express 5 + `frontend/src/` React/TS); estrutura antiga (server.js, app.js) marcada como legado.
+
+### Removido
+
+- **Backend legado v1.0:** `backend/*.js` soltos (server, config, users, actionLog, schedules, ecsClient, huaweiClient, huaweiSigner), `backend/utils/` legado e protótipo Python (`app.py`, `config.py`, `huawei_client.py`, `huawei_signer.py`, `requirements.txt`). Código de produção vive em `backend/src/`.
+- **Duplicatas na raiz:** `Setup-IIS-v2.ps1`, `Configurar-IIS-v2.bat`, `RESUMO-PROJETO.md`, `LINUX-DEPLOY.md`, scripts de build antigos (`build-exe.js`, `installer.js`, `installer-iis.js`, `build-package-iis.ps1` — canônicos em `installer/`), `installer-iis-tmp.iss`, `installer/iis-v2/`.
+- **Dependências npm acidentais** no backend: `e`, `install`, `npx`, `chromium` (standalone; Playwright traz o próprio Chromium).
 
 ---
 
