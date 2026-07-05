@@ -10,6 +10,19 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.2.71] – 2026-07-04
+
+### Adicionado
+
+- **Segurança — sessão de navegador:** fechar o navegador agora exige credenciais ao reabrir. Duas camadas: (1) frontend marca a sessão em `sessionStorage` + BroadcastChannel (`utils/browserSession.ts`) — aba nova adota sessão de aba já logada (multi-abas não desloga), mas navegador reaberto sem aba logada descarta o cookie via `/auth/logout`; (2) backend com renovação deslizante do JWT no `authMiddleware` — cookie re-emitido quando passa da metade da validade, então usuário ativo não é deslogado, e sessão de navegador restaurada expira em até `JWT_EXPIRES_IN` sem atividade.
+
+### Alterado
+
+- **`JWT_EXPIRES_IN` padrão: 12h → 1h** (com renovação deslizante; configurável via env/config.enc).
+- **Dependências:** nodemailer 8 → 9.0.3 (GHSA-p6gq-j5cr-w38f), form-data e vite (7.3.6) atualizados — `npm audit` zerado em backend e frontend.
+
+---
+
 ## [1.2.70] – 2026-07-04
 
 ### Corrigido
