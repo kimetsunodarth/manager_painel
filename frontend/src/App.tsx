@@ -13,24 +13,41 @@ import Documentos from './pages/Documentos';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
 import Logs from './pages/Logs';
-import { api } from './api/client';
+import { api, auth } from './api/client';
+import { ensureBrowserSession } from './utils/browserSession';
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<'loading' | 'ok' | 'invalid'>('loading');
 
   useEffect(() => {
-    api<{ ok: boolean; user?: unknown }>('/auth/me', { skipGlobalErrorHandler: true })
-      .then((res) => {
+    let cancelled = false;
+    (async () => {
+      // Navegador fechado e reaberto (sem outra aba logada): descarta o cookie
+      // restaurado e exige credenciais novamente.
+      const sessionActive = await ensureBrowserSession();
+      if (!sessionActive) {
+        try {
+          await auth.logout();
+        } catch (_) {}
+        localStorage.removeItem('user');
+        if (!cancelled) setStatus('invalid');
+        return;
+      }
+      try {
+        const res = await api<{ ok: boolean; user?: unknown }>('/auth/me', { skipGlobalErrorHandler: true });
         if (res?.user) {
           localStorage.setItem('user', JSON.stringify(res.user));
         }
-        setStatus('ok');
-      })
-      .catch(() => {
+        if (!cancelled) setStatus('ok');
+      } catch {
         localStorage.removeItem('user');
-        setStatus('invalid');
-      });
+        if (!cancelled) setStatus('invalid');
+      }
+    })();
     // Run only once on mount
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (status === 'loading') return null;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { auth, getApiBaseUrl } from '../api/client';
 import { getErrorMessage } from '../utils/errorMessage';
+import { markBrowserSessionActive } from '../utils/browserSession';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -36,6 +37,7 @@ export default function Login() {
       }
       if (res.user) {
         localStorage.setItem('user', JSON.stringify(res.user));
+        markBrowserSessionActive();
         navigate('/');
       }
     } catch (err: any) {
@@ -52,6 +54,7 @@ export default function Login() {
     try {
       const { user } = await auth.verifyMfaSetup(setupToken, mfaCode);
       localStorage.setItem('user', JSON.stringify(user));
+      markBrowserSessionActive();
       navigate('/');
     } catch (err: any) {
       setError(getErrorMessage(err));
@@ -67,6 +70,7 @@ export default function Login() {
     try {
       const { user } = await auth.verifyMfa(challengeToken, mfaCode);
       localStorage.setItem('user', JSON.stringify(user));
+      markBrowserSessionActive();
       navigate('/');
     } catch (err: any) {
       setError(getErrorMessage(err));

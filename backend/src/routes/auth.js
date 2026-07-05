@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
-import { JWT_SECRET as getJwtSecret, authMiddleware } from '../middleware/auth.js';
+import { JWT_SECRET as getJwtSecret, authMiddleware, JWT_EXPIRES_IN, parseJwtExpiryToMs, getCookieOptions } from '../middleware/auth.js';
 import { appendLog } from '../data/auditLog.js';
 import { extractIp } from '../utils/validation.js';
 import { confirmSetupSession, createLoginChallenge, createSetupSession, getSetupQrDataUrl, verifyLoginChallenge } from '../services/mfaService.js';
@@ -16,39 +16,9 @@ router.use((req, res, next) => {
   next();
 });
 
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h';
 const MFA_REQUIRED = String(process.env.MFA_REQUIRED || 'false').toLowerCase() === 'true';
 const LOGIN_LOCK_MAX_ATTEMPTS = Number(process.env.LOGIN_LOCK_MAX_ATTEMPTS || 5);
 const LOGIN_LOCK_MINUTES = Number(process.env.LOGIN_LOCK_MINUTES || 15);
-
-function parseJwtExpiryToMs() {
-  let maxAge = 12 * 60 * 60 * 1000;
-  const match = String(JWT_EXPIRES_IN).match(/^(\d+)([dhms])$/);
-  if (!match) return maxAge;
-  const val = parseInt(match[1], 10);
-  const unit = match[2];
-  if (unit === 'd') maxAge = val * 24 * 60 * 60 * 1000;
-  else if (unit === 'h') maxAge = val * 60 * 60 * 1000;
-  else if (unit === 'm') maxAge = val * 60 * 1000;
-  else if (unit === 's') maxAge = val * 1000;
-  return maxAge;
-}
-
-function getCookieOptions(req, maxAge) {
-  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
-  const isHttps = req.secure || forwardedProto.includes('https');
-  const host = String(req.headers.host || '').toLowerCase();
-  const isLocalhost = host.includes('localhost') || host.startsWith('127.0.0.1');
-  const options = {
-    httpOnly: true,
-    secure: isHttps && !isLocalhost,
-    sameSite: 'strict',
-  };
-  if (typeof maxAge === 'number' && String(process.env.SECURITY_SESSION_COOKIE_PERSIST || 'false').toLowerCase() === 'true') {
-    options.maxAge = maxAge;
-  }
-  return options;
-}
 
 function buildAuditContext(req, action, details = {}) {
   return {
