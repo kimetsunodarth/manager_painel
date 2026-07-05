@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { auth } from '../api/client';
 import { useUser } from '../hooks/useUser';
+import { clearBrowserSession } from '../utils/browserSession';
 
 const menuItems: { path: string; label: string; icon: LucideIcon; adminOnly?: boolean; permission?: string }[] = [
   { path: '/', label: 'Home', icon: Home },
@@ -58,6 +59,7 @@ export default function Layout() {
       console.warn('Erro ao chamar logout na API:', err);
     }
     localStorage.removeItem('user');
+    clearBrowserSession();
     navigate('/login');
   };
 
