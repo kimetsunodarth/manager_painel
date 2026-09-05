@@ -311,6 +311,20 @@ export default function Usuarios() {
     }
   };
 
+  const handleResetMfa = async (u: User) => {
+    if (!window.confirm(`Resetar o MFA de "${u.name}" (${u.email})? Ele(a) vai configurar um novo autenticador (QR code) no próximo login.`)) return;
+    setError('');
+    setActionLoading(u.id);
+    try {
+      await api.resetMfa(u.id);
+      setSuccess('MFA resetado — o usuário vai configurar um novo no próximo login.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao resetar MFA.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const openEdit = async (u: User) => {
     setEditingUserId(u.id);
     setError('');
@@ -516,6 +530,18 @@ export default function Usuarios() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.permissions?.includes('backups:list') ?? false} onChange={() => togglePermission('backups:list')} className="rounded border-white/20 bg-transparent"/>
                     <span className="text-sm">Visualizar Backups</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('coc:schedule:toggle') ?? false} onChange={() => togglePermission('coc:schedule:toggle')} className="rounded border-white/20 bg-transparent"/>
+                    <span className="text-sm">Pausar/retomar programação COC (Automações)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('coc:schedule:delete') ?? false} onChange={() => togglePermission('coc:schedule:delete')} className="rounded border-white/20 bg-transparent"/>
+                    <span className="text-sm">Remover programação COC (Automações)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.permissions?.includes('cloud8:schedule:manage') ?? false} onChange={() => togglePermission('cloud8:schedule:manage')} className="rounded border-white/20 bg-transparent"/>
+                    <span className="text-sm">Criar/alterar programação Cloud8 (Automações)</span>
                   </label>
                 </div>
               </div>
@@ -748,6 +774,17 @@ export default function Usuarios() {
                         >
                           Reset
                         </button>
+                        {canToggleMfa && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetMfa(u)}
+                            disabled={!!actionLoading}
+                            className="text-orange-300 hover:text-orange-100 font-medium text-xs disabled:opacity-50"
+                            title="Resetar MFA (usuário configura um novo autenticador no próximo login)"
+                          >
+                            Reset MFA
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDelete(u)}
@@ -911,6 +948,9 @@ export default function Usuarios() {
                           { perm: 'services:*', label: 'Acessar aba Serviços SAP/HANA' },
                           { perm: 'huawei:projects', label: 'Gerenciar projetos Huawei (Home)' },
                           { perm: 'backups:list', label: 'Visualizar backups' },
+                          { perm: 'coc:schedule:toggle', label: 'Pausar/retomar programação COC (Automações)' },
+                          { perm: 'coc:schedule:delete', label: 'Remover programação COC (Automações)' },
+                          { perm: 'cloud8:schedule:manage', label: 'Criar/alterar programação Cloud8 (Automações)' },
                         ].map(({ perm, label }) => (
                           <label key={perm} className="flex items-center gap-2 cursor-pointer select-none">
                             <input type="checkbox" checked={editForm.permissions?.includes(perm) ?? false} onChange={() => toggleEditPermission(perm)} className="rounded border-white/20 bg-transparent" />

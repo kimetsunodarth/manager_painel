@@ -3,13 +3,16 @@ import { Link } from 'react-router-dom';
 import { Server, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import {
   huawei,
+  cloud8,
   type HuaweiProject,
   type HuaweiEcsServer,
   type ScheduleVm,
   type ScheduleVmCreate,
+  type Cloud8Config,
 } from '../api/client';
 import { getHomeProjectKey, getHomeProjectSelection } from '../utils/homeProjectSelection';
 import PageHeader from '../components/PageHeader';
+import { useUser } from '../hooks/useUser';
 
 const DAYS_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STORAGE_PROJECTS_KEY = 'ananim_programacao_projects';
@@ -145,6 +148,40 @@ export default function Programacao() {
   const [saving, setSaving] = useState(false);
   const [diagnostic, setDiagnostic] = useState<Awaited<ReturnType<typeof huawei.schedulesDiagnostic>> | null>(null);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+
+  const currentUser = useUser();
+  const isAdmin = currentUser?.role === 'admin';
+  const [cloud8Config, setCloud8Config] = useState<Cloud8Config | null>(null);
+  const [cloud8Username, setCloud8Username] = useState('');
+  const [cloud8Password, setCloud8Password] = useState('');
+  const [cloud8Saving, setCloud8Saving] = useState(false);
+  const [cloud8Message, setCloud8Message] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    cloud8
+      .config()
+      .then((cfg) => {
+        setCloud8Config(cfg);
+        setCloud8Username(cfg.username);
+      })
+      .catch(() => {});
+  }, [isAdmin]);
+
+  const saveCloud8Config = async () => {
+    setCloud8Saving(true);
+    setCloud8Message(null);
+    try {
+      const updated = await cloud8.saveConfig({ username: cloud8Username, password: cloud8Password });
+      setCloud8Config(updated);
+      setCloud8Password('');
+      setCloud8Message('Credenciais salvas. Próximo passo: validar o login com a automação (em desenvolvimento).');
+    } catch (e) {
+      setCloud8Message(e instanceof Error ? e.message : 'Erro ao salvar credenciais do Cloud8.');
+    } finally {
+      setCloud8Saving(false);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -386,6 +423,63 @@ export default function Programacao() {
           <p className="ananim-metric-value">{totalSchedules}</p>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="mt-6 ananim-card p-5 text-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="ananim-section-title">Integração Cloud8</h3>
+              <p className="ananim-section-subtitle">
+                Usuário de serviço para o Ananim ler as VMs e agendamentos registrados no Cloud8 (app.cloud8.com.br).
+                Salvo cifrado no servidor — nunca aparece em texto puro depois de salvo.
+              </p>
+            </div>
+            {cloud8Config?.configured && (
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                Credenciais salvas
+              </span>
+            )}
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <label className="text-xs text-ananim-muted">
+              Usuário Cloud8
+              <input
+                type="text"
+                value={cloud8Username}
+                onChange={(e) => setCloud8Username(e.target.value)}
+                placeholder="usuario@ananim.com.br"
+                className="ananim-input mt-1 w-full"
+              />
+            </label>
+            <label className="text-xs text-ananim-muted">
+              Senha Cloud8
+              <input
+                type="password"
+                value={cloud8Password}
+                onChange={(e) => setCloud8Password(e.target.value)}
+                placeholder={cloud8Config?.passwordSet ? 'Deixe vazio para manter a senha atual' : '••••••••••••'}
+                className="ananim-input mt-1 w-full"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={saveCloud8Config}
+                disabled={cloud8Saving}
+                className="ananim-btn-primary w-full disabled:opacity-50"
+              >
+                {cloud8Saving ? 'Salvando...' : 'Salvar credenciais'}
+              </button>
+            </div>
+          </div>
+          {cloud8Message && <p className="mt-3 text-xs text-ananim-accentStrong">{cloud8Message}</p>}
+          {!cloud8Config?.keyAvailable && (
+            <p className="mt-3 text-xs text-amber-300">
+              Chave de criptografia (.encryption_key/key.bin) não encontrada — configure-a antes de salvar credenciais aqui.
+            </p>
+          )}
+        </div>
+      )}
 
       {diagnostic && (
         <div className="mt-6 ananim-card p-5 text-sm">

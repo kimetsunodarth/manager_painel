@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { userStore } from '../data/store.js';
-import { authMiddleware, requirePermission } from '../middleware/auth.js';
+import { authMiddleware, requirePermission, requireAdmin } from '../middleware/auth.js';
 import { logAction } from '../middleware/auditLog.js';
 import { EMAIL_REGEX, isValidEmail } from '../utils/validation.js';
 import { normalizeAllowedServiceIds } from '../utils/servicePermissions.js';
@@ -150,6 +150,21 @@ router.post('/:id/reset-password', requirePermission('users:*'), async (req, res
   userStore.setPassword(req.params.id, passwordHash);
   logAction(req, 'Senha redefinida', { targetUserId: req.params.id, targetEmail: existing.email });
   res.json({ ok: true, message: 'Senha alterada com sucesso' });
+});
+
+/**
+ * POST /api/users/:id/reset-mfa
+ * Apenas administradores (requireAdmin, checagem por role — não por permissão, pra não depender
+ * de quem tem `users:*` marcado). Limpa o segredo TOTP: no próximo login (se MFA continuar exigido
+ * pra esse usuário), o painel mostra um QR code novo pra reconfigurar do zero — útil quando o
+ * usuário perdeu o celular/autenticador e não tem mais como gerar o código atual.
+ */
+router.post('/:id/reset-mfa', requireAdmin, (req, res) => {
+  const existing = userStore.getById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Usuário não encontrado' });
+  userStore.resetMfa(req.params.id);
+  logAction(req, 'MFA resetado', { targetUserId: req.params.id, targetEmail: existing.email });
+  res.json({ ok: true, message: 'MFA resetado — o usuário vai configurar um novo no próximo login.' });
 });
 
 export default router;

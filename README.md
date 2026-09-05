@@ -4,12 +4,15 @@ Painel web interno da Ananim para **operar e faturar infraestrutura de clientes*
 
 ## O que o painel faz
 
-- **Huawei Cloud (ECS):** listagem de contas/projetos/servidores, Start/Stop/Restart manual e **agendado** (cron interno a cada 60s). Contas: RAMO_SISTEMAS, ANANIMCLOUD, RSDONE, MOOVE_RAMOSISTEMAS.
+- **Huawei Cloud (ECS):** listagem de contas/projetos/servidores, Start/Stop/Restart manual e **agendado** (cron interno a cada 60s, motor próprio — "Portal"). Contas: RAMO_SISTEMAS, ANANIMCLOUD, RSDONE, MOOVE_RAMOSISTEMAS.
+- **Huawei COC (Cloud Operations Center):** integração nativa com o Scheduled O&M da Huawei (`GET/POST/PUT /api/coc/schedules`, `.../enable`, `.../disable`, `DELETE`) — cria, lista, ativa/desativa, altera e remove tarefas de liga/desliga/reinício direto na conta Huawei, fora do cron do Portal. AK/SK assinado (com token IAM de domínio como plano B). Pausar/remover uma tarefa direto da tela de Automações usa permissões granulares próprias (`coc:schedule:toggle`/`coc:schedule:delete`), independentes da permissão ampla `huawei:projects`.
+- **Cloud8 (app.cloud8.com.br):** leitura do inventário via Playwright (paginado, "Componentes Atuais") e dos agendamentos via a API JSON interna da própria SPA (`GET /scheduleevents/list`, mesma sessão logada) — nome do agendamento, horário real e recorrência, sem depender de decodificar posição de pixel em calendário. Criar, alterar, suspender e remover agendamento direto pelo painel (`POST/PUT/DELETE /api/cloud8/schedules[/:id]`, `POST .../suspend`), atrás da permissão granular `cloud8:schedule:manage`. "Suspender" e "Remover" funcionam em qualquer agendamento (recorrente ou não — suspender reenvia o registro bruto da API, preservando a recorrência); "Criar"/"Editar" só suportam execução única (não recorrente).
+- **Origem das Automações (`/automacoes`):** cruza as VMs reais com Cloud8 × Portal × COC por nome de servidor — mostra quem está cobrindo cada VM, com o horário real do agendamento, o que não tem cobertura nenhuma, e sinaliza conflito quando duas fontes tentam agendar a mesma VM. Os botões de ação (criar/editar/suspender/remover programação) são segregados por origem — só aparecem os da fonte que realmente cobre aquela linha (Cloud8, COC ou Portal). Quando a identidade Huawei da VM é conhecida (via Portal ou COC), tem botões pra ligar/parar/reiniciar direto da tela (mesma autorização por projeto/ECS da Home).
 - **SAP Business One / HANA:** gestão de serviços (HANA/SQL/Web) por cliente, start/stop via **SSH** (`ssh2`), ativação de Support User no Control Center via **Playwright/Chromium**.
 - **Backups (CBR):** consulta de backups Huawei CBR.
 - **Horas extras / Extensão de horário:** sessões de VM fora do horário com **cobrança** (arredondamento configurável, padrão 30 min) e notificação por e-mail (SMTP Office 365).
 - **Licenças e Documentos** por cliente (upload até 70 MB).
-- **Usuários:** roles `admin` / `operator` / `client`, permissões granulares, **MFA TOTP** (ligado por padrão), auditoria com geolocalização de IP.
+- **Usuários:** roles `admin` / `operator` / `client`, permissões granulares, **MFA TOTP** (ligado por padrão), reset de MFA por administrador (limpa o TOTP do usuário, próximo login pede um QR code novo), auditoria com geolocalização de IP.
 
 Usado pela equipe interna (admin/operador) e por **clientes finais** (role `client`, home restrita aos projetos vinculados).
 
@@ -21,12 +24,15 @@ Ananim_manager_painel/
 │   └── src/
 │       ├── index.js        # Bootstrap, middlewares, cron (scheduleRunner a cada 60s)
 │       ├── routes/         # /api/auth, /users, /ecs, /services, /huawei, /backups,
-│       │                   # /licenses, /documents, /audit-logs, /admin, /health
+│       │                   # /licenses, /documents, /audit-logs, /admin, /health,
+│       │                   # /coc (Scheduled O&M Huawei), /cloud8 (config, vms, reconciliation)
 │       ├── services/       # huawei-ecs/iam/cbr, huawei-signer (AK/SK), sshService,
 │       │                   # controlCenterService (Playwright), scheduleRunner,
-│       │                   # emailNotifier, geoSecurity, mfaService
+│       │                   # emailNotifier, geoSecurity, mfaService,
+│       │                   # cocService (Scheduled O&M), cloud8Service (Playwright + API JSON interna)
 │       ├── config/         # configLoader (config.enc/key.bin — Fernet),
-│       │                   # extensionBilling, hanaClients, clients/<cliente>/
+│       │                   # extensionBilling, hanaClients, clients/<cliente>/,
+│       │                   # cloud8Config (credenciais do usuário de serviço Cloud8)
 │       ├── db/database.js  # SQLite (better-sqlite3, WAL) — users, audit_logs,
 │       │                   # extension_sessions
 │       └── data/           # ananim.db (runtime, não versionado) + stores
@@ -35,7 +41,8 @@ Ananim_manager_painel/
 │       ├── api/client.ts   # Cliente REST centralizado (cookie HttpOnly + credentials)
 │       └── pages/          # Home, Programacao, Servicos, Usuarios, Clientes,
 │                           # ExtensaoHorario, HorasExtrasCliente, TarifaHorasExtras,
-│                           # Licencas, Documentos, Logs, DetalhesBackups, Login
+│                           # Licencas, Documentos, Logs, DetalhesBackups, Login,
+│                           # Automacoes (reconciliação Cloud8 x Portal x COC)
 ├── installer/              # Empacotamento IIS (Inno Setup) e Linux
 ├── docs/                   # HANDOFF_AGENTE.md, MEMORIA_INTERNA.md (contexto vivo),
 │                           # PROCESSO_HORAS_EXTRAS.md, ERROS-E-TROUBLESHOOTING.md

@@ -52,20 +52,28 @@ export async function api<T>(
 }
 
 export const auth = {
+  // skipGlobalErrorHandler nas três: são chamadas feitas ENQUANTO já se está na tela de login,
+  // sem sessão nenhuma ainda — um 401 aqui é resposta esperada (senha/código errado), não uma
+  // sessão expirada. Sem essa flag, o handler global de 401 do api() limpa localStorage e faz
+  // window.location.href='/login' (reload completo) antes do formulário conseguir mostrar a
+  // mensagem de erro real ("Código MFA incorreto" etc.) — parece que "nada aconteceu".
   login: (email: string, password: string) =>
     api<{ ok: boolean; mfaRequired?: boolean; mfaSetupRequired?: boolean; setupToken?: string; qrDataUrl?: string; manualKey?: string; challengeToken?: string; delivery?: string; expiresIn?: number; user?: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+      skipGlobalErrorHandler: true,
     }),
   verifyMfaSetup: (setupToken: string, code: string) =>
     api<{ ok: boolean; mfaRequired?: boolean; user: User }>('/auth/mfa/setup/verify', {
       method: 'POST',
       body: JSON.stringify({ setupToken, code }),
+      skipGlobalErrorHandler: true,
     }),
   verifyMfa: (challengeToken: string, code: string) =>
     api<{ ok: boolean; mfaRequired?: boolean; user: User }>('/auth/login/mfa', {
       method: 'POST',
       body: JSON.stringify({ challengeToken, code }),
+      skipGlobalErrorHandler: true,
     }),
   logout: () =>
     api<{ ok: boolean }>('/auth/logout', {
@@ -419,6 +427,9 @@ export const users = {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
     }),
+  /** Apenas admin. Limpa o TOTP do usuário — próximo login (se MFA continuar exigido) pede um novo QR code. */
+  resetMfa: (id: string) =>
+    api<{ ok: boolean; message: string }>(`/users/${id}/reset-mfa`, { method: 'POST' }),
 };
 
 /** Cache de agendamentos VM: evita recarregar a cada visita à Programação ou ao modal Cancelar programação. */
@@ -672,6 +683,204 @@ export const huawei = {
       { method: 'DELETE' }
     ),
 };
+
+/**
+ * Huawei Cloud Operations Center (COC) — Scheduled O&M nativo da Huawei (start/stop/restart
+ * agendado direto pela conta, fora do cron do Portal). Ver docs/HANDOFF_AGENTE.md.
+ */
+export const coc = {
+  /** Nomes dos runbooks COMMUNAL pré-definidos (Start_ECS/Stop_ECS/Restart_ECS). */
+  jobs: () => api<{ jobs: string[] }>('/coc/jobs'),
+  /** Lista as tarefas de Scheduled O&M já cadastradas no COC para a conta (perfil). */
+  schedules: (perfil: string) =>
+    api<{ tasks: CocScheduledTask[] }>(`/coc/schedules?${new URLSearchParams({ perfil }).toString()}`),
+  /** Cria uma tarefa de Scheduled O&M no COC. Nasce ativada na Huawei — a API já desativa antes de responder. */
+  createSchedule: (payload: CocCreateSchedulePayload) =>
+    api<{ ok: boolean; data: { taskId: string; disabled: boolean } }>('/coc/schedules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  /** Altera uma tarefa existente. A Huawei exige o payload completo (não é um PATCH parcial). */
+  updateSchedule: (taskId: string, payload: CocCreateSchedulePayload) =>
+    api<{ ok: boolean; data: unknown }>(`/coc/schedules/${encodeURIComponent(taskId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  enableSchedule: (perfil: string, taskId: string) =>
+    api<{ ok: boolean; data: unknown }>(`/coc/schedules/${encodeURIComponent(taskId)}/enable?${new URLSearchParams({ perfil }).toString()}`, { method: 'POST' }),
+  disableSchedule: (perfil: string, taskId: string) =>
+    api<{ ok: boolean; data: unknown }>(`/coc/schedules/${encodeURIComponent(taskId)}/disable?${new URLSearchParams({ perfil }).toString()}`, { method: 'POST' }),
+  deleteSchedule: (perfil: string, taskId: string) =>
+    api<{ ok: boolean; data: unknown }>(`/coc/schedules/${encodeURIComponent(taskId)}?${new URLSearchParams({ perfil }).toString()}`, { method: 'DELETE' }),
+};
+
+/**
+ * Periódico (dias da semana em period: "2,3,4,5,6" — 1=Dom..7=Sáb) ou execução única.
+ * `time_zone` é obrigatório em ambos — confirmado contra conta real: a Huawei rejeita ONCE sem
+ * time_zone ("trigger_time.time_zone 不得为 null").
+ */
+export type CocTriggerTime =
+  | { policy: 'PERIODIC'; periodic_scheduled_time: string; period: string; time_zone: string }
+  | { policy: 'ONCE'; single_scheduled_time: number; time_zone: string };
+
+export interface CocTargetServer {
+  resourceId: string;
+  regionId: string;
+  hostName: string;
+  fixedIp?: string;
+  zoneId?: string;
+  projectId: string;
+}
+
+export interface CocCreateSchedulePayload {
+  perfil: string;
+  taskName: string;
+  jobName: 'Start_ECS' | 'Stop_ECS' | 'Restart_ECS';
+  triggerTime: CocTriggerTime;
+  /** ECS alvo — todas precisam estar na mesma região (regionId). */
+  targetServers: CocTargetServer[];
+  /** Padrão LOW (mesmo padrão do processo real). */
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+export interface CocScheduledTask {
+  id?: string;
+  name?: string;
+  associated_task_id?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
+/** Cloud8 (app.cloud8.com.br) — usuário de serviço para leitura das VMs registradas lá, por cliente. */
+export const cloud8 = {
+  // Rota é "/credentials", não "/config" — o web.config bloqueia qualquer URL com "config" como
+  // segmento (hiddenSegments protege a pasta config/ da instalação, e IIS casa por segmento
+  // exato, não path completo). Confirmado em produção: "/cloud8/config" nunca chegava no Express.
+  config: () => api<Cloud8Config>('/cloud8/credentials'),
+  saveConfig: (payload: { username?: string; password?: string }) =>
+    api<Cloud8Config>('/cloud8/credentials', { method: 'PATCH', body: JSON.stringify(payload) }),
+  /** Leitura ao vivo (Playwright) do inventário do Cloud8, agrupado por cliente. Pode demorar (paginação de ~750 recursos). */
+  vms: (maxPages?: number) =>
+    api<{ ok: boolean; clients: Cloud8Client[]; vms: Cloud8Vm[]; totalRowsFound?: number }>(
+      `/cloud8/vms${maxPages ? `?maxPages=${maxPages}` : ''}`
+    ),
+  /** Cruza Cloud8 x Portal x Huawei COC por nome de VM, agrupado por cliente. */
+  reconciliation: (maxPages?: number) =>
+    api<{
+      ok: boolean;
+      clients: Cloud8ReconciliationClient[];
+      vms: Cloud8ReconciliationVm[];
+      summary: Cloud8ReconciliationSummary;
+      totalRowsFound?: number;
+      cocErrors?: { perfil: string; error: string }[];
+    }>(`/cloud8/reconciliation${maxPages ? `?maxPages=${maxPages}` : ''}`),
+  /** Cria um agendamento de execução única (liga/desliga/reinicia) direto no Cloud8. Recorrência ainda não suportada. */
+  createSchedule: (payload: Cloud8SchedulePayload) =>
+    api<{ ok: boolean; data: unknown }>('/cloud8/schedules', { method: 'POST', body: JSON.stringify(payload) }),
+  /** Altera um agendamento existente no Cloud8 — exige o payload completo (não é PATCH parcial). */
+  updateSchedule: (id: number, payload: Cloud8SchedulePayload & { scheduleId?: number }) =>
+    api<{ ok: boolean; data: unknown }>(`/cloud8/schedules/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  /** Suspende (pausa sem apagar) um agendamento existente — reenvia o registro bruto quase intacto (funciona com recorrência). `raw` vem de `Cloud8ScheduleEntry.raw`. */
+  suspendSchedule: (id: number, raw: unknown) =>
+    api<{ ok: boolean; data: unknown }>(`/cloud8/schedules/${id}/suspend`, { method: 'POST', body: JSON.stringify({ raw }) }),
+  /** Apaga um agendamento do Cloud8 — confirmado contra teste real. */
+  deleteSchedule: (id: number) =>
+    api<{ ok: boolean; data: unknown }>(`/cloud8/schedules/${id}`, { method: 'DELETE' }),
+};
+
+export interface Cloud8SchedulePayload {
+  name: string;
+  /** Ids numéricos do Cloud8 (sem o sufixo "s" — o backend adiciona). */
+  resourceIds: string[];
+  taskTypes: ('ev_serverstart' | 'ev_serverstop' | 'ev_serverreboot')[];
+  /** ISO com offset, ex.: "2026-09-05T16:06:04-03:00". */
+  startDate: string;
+  endDate: string;
+  email?: string;
+}
+
+export interface Cloud8Config {
+  configured: boolean;
+  username: string;
+  passwordSet: boolean;
+  keyAvailable: boolean;
+}
+
+export interface Cloud8ScheduleEntry {
+  scheduleId: number | string;
+  /** Id da OCORRÊNCIA (diferente de scheduleId) — é o que a rota PUT/DELETE usa na URL. */
+  id: number | string | null;
+  /** Nome/rótulo do agendamento tal como cadastrado no Cloud8 (ex.: "[R-One] Desliga - VM1, VM2"). */
+  name: string | null;
+  /** Próxima execução real (ISO), lida direto da API do Cloud8 — não é mais um booleano genérico. */
+  nextRun: string;
+  /** dtbegin/dtend crus da API (UTC, sufixo "+0000") — usados pra pré-preencher o formulário de editar. */
+  startDate: string | null;
+  endDate: string | null;
+  isrecurrent: boolean;
+  taskType: string | null;
+  taskTypes: string[];
+  /** Ids numéricos do Cloud8 (sem sufixo "s") cobertos por essa mesma programação. */
+  resourceIds: string[];
+  /** Registro bruto tal como veio de `/scheduleevents/list` — usado só pra "Suspender" (reenvia quase intacto, preserva recorrência). Não usar pra mais nada, formato interno do Cloud8. */
+  raw: unknown;
+}
+
+export interface Cloud8Vm {
+  provider: string;
+  name: string;
+  recordId: string;
+  tipo: string;
+  region: string;
+  ipExterno: string;
+  ipLocal: string;
+  hasSchedule: boolean;
+  /** Agendamentos reais desse servidor no Cloud8 (pode ter mais de um — ex.: Ligar + Desligar separados). */
+  schedules?: Cloud8ScheduleEntry[];
+  /** UUID do recurso na nuvem de origem (ex.: ECS na Huawei), quando o provedor é Huawei — usado pra resolver `vmIdentity` sem Portal/COC. */
+  cloudinstanceid?: string | null;
+}
+
+export interface Cloud8Client {
+  provider: string;
+  vms: Cloud8Vm[];
+}
+
+export interface Cloud8ReconciliationVm extends Cloud8Vm {
+  inPortal: boolean;
+  /** Coberto por uma tarefa HABILITADA do Huawei COC (cruzado por nome de host). */
+  inCoc: boolean;
+  /** Todas as fontes que cobrem essa VM — 2+ = conflito. */
+  sources: ('cloud8' | 'portal' | 'coc')[];
+  origin: 'cloud8' | 'portal' | 'coc' | 'conflict' | 'none';
+  /** Detalhe da tarefa COC que cobre essa VM (1ª encontrada), quando inCoc. Cloud8 não expõe esse nível de detalhe — só o booleano `hasSchedule`. */
+  cocSchedule: {
+    perfil: string;
+    taskId?: string;
+    taskName?: string;
+    jobName?: string;
+    triggerTime: CocTriggerTime | null;
+    resourceId?: string | null;
+    regionId?: string | null;
+    projectId?: string | null;
+  } | null;
+  /** Identidade Huawei (projeto/região/ECS) resolvida via Portal ou COC — permite ligar/desligar/reiniciar a VM direto da tela. Null quando a VM só existe no Cloud8 (nenhuma nuvem/projeto conhecido). */
+  vmIdentity: { projectId: string; region: string | null; serverId: string; perfil: string } | null;
+}
+
+export interface Cloud8ReconciliationClient {
+  provider: string;
+  vms: Cloud8ReconciliationVm[];
+}
+
+export interface Cloud8ReconciliationSummary {
+  total: number;
+  cloud8: number;
+  portal: number;
+  coc: number;
+  conflict: number;
+  none: number;
+}
 
 export interface DiscoveryAccount {
   id: string;

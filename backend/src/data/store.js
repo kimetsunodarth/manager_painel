@@ -228,6 +228,11 @@ export const userStore = {
     });
   },
 
+  /** Limpa o segredo TOTP do usuário — próximo login (se MFA continuar exigido) mostra um QR code novo pra reconfigurar do zero (perda do celular/autenticador). */
+  resetMfa(id) {
+    return this.update(id, { mfaSecret: null });
+  },
+
   _raw() {
     return getDb().prepare('SELECT * FROM users').all().map((row) => rowToUserWithHash(row));
   },

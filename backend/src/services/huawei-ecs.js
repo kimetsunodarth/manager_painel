@@ -3,7 +3,7 @@
  * GET /v1/{project_id}/cloudservers/detail (Huawei ECS API).
  */
 
-import { getCredentialsForApi, getProfileCredentials } from '../config/configLoader.js';
+import { getCredentialsForApi, getProfileCredentials, getProfileNames } from '../config/configLoader.js';
 import { signRequest } from './huawei-signer.js';
 import fs from 'fs';
 import path from 'path';
@@ -520,4 +520,68 @@ export async function restartEcs(projectId, region, serverId, perfil = null) {
     throw new Error(`Falha ao executar restart (regiões tentadas: ${uniqueRegions.join(', ')}). Último erro: ${lastErr?.message || String(lastErr)}`);
   }
   throw lastErr || new Error('Falha ao executar restart.');
+}
+
+/** Roda `fn` sobre `items` com no máximo `limit` chamadas em paralelo — evita disparar dezenas de contas de uma vez na Huawei. */
+async function mapWithConcurrency(items, limit, fn) {
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+const ecsUuidIndexCache = { entries: null, expiresAt: 0 };
+const ECS_UUID_INDEX_TTL_MS = 30 * 60 * 1000; // 30 min — inventário de ECS muda bem menos que agendamento
+
+/**
+ * Constrói um índice reverso `uuid do ECS -> { projectId, region, perfil }` varrendo TODOS os
+ * perfis Huawei cadastrados (~74, mas muitos compartilham AK/SK/projeto via `_USE_PROFILE` —
+ * deduplicados aqui antes de consultar). Usado pela tela `/automacoes` pra resolver a identidade
+ * Huawei de VMs cobertas só pelo Cloud8 (que só dá o `cloudinstanceid`, nunca projeto/perfil).
+ * Caro na primeira vez (uma listagem de ECS por conta/projeto única, até 5 em paralelo) — por isso
+ * cacheado 30 min em memória. Falha numa conta específica não derruba as outras.
+ */
+export async function getEcsUuidIndex({ forceRefresh = false } = {}) {
+  if (!forceRefresh && ecsUuidIndexCache.entries && ecsUuidIndexCache.expiresAt > Date.now()) {
+    return ecsUuidIndexCache.entries;
+  }
+
+  const profiles = getProfileNames();
+  const seenCombo = new Set(); // dedupe por "ak|projectId|region" — perfis com USE_PROFILE compartilham isso
+  const uniqueTargets = [];
+  for (const perfil of profiles) {
+    let creds;
+    try {
+      creds = getProfileCredentials(perfil);
+    } catch {
+      continue;
+    }
+    if (!creds?.ak || !creds?.project_id) continue;
+    const comboKey = `${creds.ak}|${creds.project_id}|${creds.region}`;
+    if (seenCombo.has(comboKey)) continue;
+    seenCombo.add(comboKey);
+    uniqueTargets.push({ perfil, projectId: creds.project_id, region: creds.region });
+  }
+
+  const index = new Map();
+  await mapWithConcurrency(uniqueTargets, 5, async (target) => {
+    try {
+      const servers = await listEcsForProject(target.projectId, target.region, target.perfil, { includeDisks: false, maxServers: 2000 });
+      for (const s of servers) {
+        if (s?.id && !index.has(s.id)) {
+          index.set(s.id, { projectId: target.projectId, region: target.region, perfil: target.perfil });
+        }
+      }
+    } catch (e) {
+      console.warn(`[huawei-ecs] getEcsUuidIndex: falha no perfil ${target.perfil}: ${e?.message || e}`);
+    }
+  });
+
+  ecsUuidIndexCache.entries = index;
+  ecsUuidIndexCache.expiresAt = Date.now() + ECS_UUID_INDEX_TTL_MS;
+  return index;
 }

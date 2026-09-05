@@ -67,6 +67,11 @@ if (Test-Path $ccWorkerSrc) {
     Copy-Item $ccWorkerSrc (Join-Path $toolsDir "control-center-worker.cjs") -Force
     Write-Host "  OK: tools\\control-center-worker.cjs atualizado" -ForegroundColor Green
 }
+$cloud8WorkerSrc = Join-Path $scriptDir "tools\\cloud8-worker.cjs"
+if (Test-Path $cloud8WorkerSrc) {
+    Copy-Item $cloud8WorkerSrc (Join-Path $toolsDir "cloud8-worker.cjs") -Force
+    Write-Host "  OK: tools\\cloud8-worker.cjs atualizado" -ForegroundColor Green
+}
 
 # 3) Garantir node_modules/playwright + pasta browsers (Chromium) para Ativar Support User no IIS
 $playwrightRuntime = Join-Path $scriptDir "playwright-runtime"

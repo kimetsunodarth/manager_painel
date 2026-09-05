@@ -1,5 +1,12 @@
 # Segurança – Ananim Huawei Painel
 
+> ⚠️ **Documento obsoleto (identificado em 2026-09-04).** Descreve uma geração anterior do
+> produto — `express-session`, `actionLog.json`, `agendamentos.json`, `SESSION_SECRET`,
+> `secureStore.js` — nada disso existe no backend atual (`backend/src/`), que usa JWT em cookie
+> HttpOnly, tabela `audit_logs` no SQLite e `JWT_SECRET`. Para a arquitetura de segurança real,
+> ver **`backend/SECURITY.md`** (atualizado) e o resumo em **`README.md`**. Mantido aqui só como
+> histórico até decisão de reescrever ou remover.
+
 Avaliação do nível de segurança atual e recomendações de melhoria.
 
 ---
