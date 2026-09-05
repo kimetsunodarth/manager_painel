@@ -25,6 +25,9 @@ backend/users.json
 backend/src/data/documents-store.json
 backend/src/data/huawei-project-region-cache.json
 backend/src/config/dynamic-clients-registry.json
+backend/src/config/cloud8-credentials.enc
+backend/src/config/agendamentos-vm.json
+backend/src/config/cancelamentos-dia.json
 
 # Artefatos de build / debug
 *.tsbuildinfo

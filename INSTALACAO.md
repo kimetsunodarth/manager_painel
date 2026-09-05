@@ -1,5 +1,12 @@
 # Guia de instalação – Huawei Cloud Panel
 
+> ⚠️ **Documento obsoleto (identificado em 2026-09-04).** Descreve o produto pelo nome antigo
+> ("Huawei Cloud Panel", pré-rebranding para "Ananim Manager Painel"), porta padrão 8088, login
+> `admin`/`admin123` e arquivos (`agendamentos.json`, `actionLog.json`, `SESSION_SECRET`) que não
+> existem na versão atual. O fluxo de build/instalação real está documentado no **`README.md`**
+> ("Build e deploy") e em **`docs/HANDOFF_AGENTE.md`**. Mantido aqui só como histórico até decisão
+> de reescrever ou remover.
+
 Este documento descreve **o que é necessário para compilar o projeto, gerar o executável (.exe) e o instalador**, **o que deve estar instalado no servidor para rodar a aplicação** e **o que fazer antes e depois** de cada etapa.
 
 ---

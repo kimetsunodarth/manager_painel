@@ -2,6 +2,16 @@ import crypto from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 
+// Capturado UMA VEZ no carregamento do módulo (mesmo padrão de WORK_DIR em configLoader.js) —
+// não em cada chamada. process.cwd() é definido corretamente no boot (bootstrap-config.js faz
+// process.chdir(dirname(process.execPath)) antes de qualquer import de negócio); usar
+// `appDir = process.cwd()` como valor padrão de parâmetro o reavalia a cada chamada, então se o
+// cwd do processo mudar por QUALQUER motivo depois do boot — nunca confirmado o porquê, mas
+// getLogCryptoKey() passou a falhar horas depois de o boot ter funcionado — essa função quebra
+// mesmo com o processo saudável, enquanto configLoader.js (que cacheia) continua funcionando.
+// Cachear aqui também deixa os dois módulos com a mesma garantia.
+const BOOT_CWD = process.cwd();
+
 function parseHexKeyFromEnv() {
   const hex = process.env.CONFIG_KEY;
   if (typeof hex === 'string' && /^[0-9a-fA-F]{64}$/.test(hex.trim())) {
@@ -27,7 +37,7 @@ function deriveKeyFromBuffer(raw) {
   return crypto.createHash('sha256').update(text, 'utf8').digest();
 }
 
-export function getLogCryptoKey(appDir = process.cwd()) {
+export function getLogCryptoKey(appDir = BOOT_CWD) {
   const envKey = parseHexKeyFromEnv();
   if (envKey) return envKey;
   const keyFile = resolveKeyFile(appDir);

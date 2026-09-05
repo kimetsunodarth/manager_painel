@@ -58,6 +58,8 @@ import backupsRoutes from './routes/backups.js';
 import licensesRoutes from './routes/licenses.js';
 import documentsRoutes from './routes/documents.js';
 import huaweiRoutes from './routes/huawei.js';
+import cocRoutes from './routes/coc.js';
+import cloud8Routes from './routes/cloud8.js';
 import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
@@ -186,6 +188,8 @@ app.use('/api/licenses', licensesRoutes);
 app.use('/api/documents', express.json({ limit: '70mb' }));
 app.use('/api/documents', documentsRoutes);
 app.use('/api/huawei', huaweiRoutes);
+app.use('/api/coc', cocRoutes);
+app.use('/api/cloud8', cloud8Routes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminClientsRoutes);
 

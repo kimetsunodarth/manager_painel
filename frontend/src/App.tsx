@@ -7,6 +7,7 @@ import Servicos from './pages/Servicos';
 import DetalhesBackups from './pages/DetalhesBackups';
 import Licencas from './pages/Licencas';
 import Programacao from './pages/Programacao';
+import Automacoes from './pages/Automacoes';
 import ExtensaoHorario from './pages/ExtensaoHorario';
 import HorasExtrasCliente from './pages/HorasExtrasCliente';
 import Documentos from './pages/Documentos';
@@ -105,6 +106,7 @@ export default function App() {
         <Route path="backups" element={<DetalhesBackups />} />
         <Route path="licencas" element={<Licencas />} />
         <Route path="programacao" element={<Programacao />} />
+        <Route path="automacoes" element={<Automacoes />} />
         <Route path="extensao-horario" element={<ExtensaoHorario />} />
         <Route path="horas-extras" element={<HorasExtrasCliente />} />
         <Route path="documentos" element={<Documentos />} />

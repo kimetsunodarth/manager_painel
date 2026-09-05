@@ -184,6 +184,38 @@ export function getProfileCredentials(profileName, visited = new Set()) {
   return { ak, sk, project_id: project_id || '', region };
 }
 
+/**
+ * Credenciais IAM por usuário/senha de um perfil (usuário de domínio dedicado "ananimreport", usado
+ * como fallback do COC quando AK/SK assinado não é aceito pela Huawei nesse endpoint).
+ * Formato: {PERFIL}_IAM_USERNAME, {PERFIL}_IAM_PASSWORD, {PERFIL}_IAM_DOMAIN (nome do domínio Huawei da conta).
+ * Herda de USE_PROFILE como getProfileCredentials(). Fallback final: variáveis globais
+ * IAM_USERNAME/IAM_PASSWORD/IAM_DOMAIN (uma conta só).
+ * @param {string} profileName
+ * @returns {{ username: string|null, password: string|null, domain: string|null }}
+ */
+export function getProfileIamCredentials(profileName, visited = new Set()) {
+  const name = (profileName && String(profileName).trim()) || '';
+  if (!name) throw new Error('Nome do perfil não informado');
+  if (visited.has(name)) throw new Error(`Perfil '${name}': USE_PROFILE em ciclo`);
+  const config = loadConfig();
+  const prefix = name + '_';
+  const useProfile = config[prefix + 'USE_PROFILE'] && String(config[prefix + 'USE_PROFILE']).trim();
+  if (useProfile) {
+    visited.add(name);
+    return getProfileIamCredentials(useProfile, visited);
+  }
+  const username = config[prefix + 'IAM_USERNAME'];
+  const password = config[prefix + 'IAM_PASSWORD'];
+  const domain = config[prefix + 'IAM_DOMAIN'];
+  if (username && password && domain) {
+    return { username, password, domain };
+  }
+  if (config.IAM_USERNAME && config.IAM_PASSWORD && config.IAM_DOMAIN) {
+    return { username: config.IAM_USERNAME, password: config.IAM_PASSWORD, domain: config.IAM_DOMAIN };
+  }
+  return { username: null, password: null, domain: null };
+}
+
 export function getKeyPath() {
   return resolveKeyPath();
 }

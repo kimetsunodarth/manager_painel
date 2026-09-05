@@ -1,6 +1,6 @@
 {
   "name": "ananim-manager-painel-backend",
-  "version": "1.2.71",
+  "version": "1.2.85",
   "description": "API do painel de gerenciamento Huawei / SAP B1",
   "main": "src/index.js",
   "type": "module",
@@ -22,7 +22,8 @@
     "test-ssh-controlla-hdb": "node scripts/test-ssh-controlla-hdb.js",
     "test-control-center": "node scripts/test-control-center.js",
     "test-control-center-controlla": "node scripts/test-control-center-controlla.js",
-    "encrypt-client-credentials": "node scripts/encrypt-client-credentials.js"
+    "encrypt-client-credentials": "node scripts/encrypt-client-credentials.js",
+    "set-coc-iam-credentials": "node scripts/set-coc-iam-credentials.js"
   },
   "dependencies": {
     "axios": "^1.17.0",

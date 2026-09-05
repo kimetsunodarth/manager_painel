@@ -172,6 +172,14 @@ if (Test-Path $ccWorkerSrc) {
     Write-Host "Aviso: worker Control Center não encontrado em $ccWorkerSrc" -ForegroundColor Yellow
 }
 
+$cloud8WorkerSrc = Join-Path $scriptDir "tools\\cloud8-worker.cjs"
+if (Test-Path $cloud8WorkerSrc) {
+    Copy-Item $cloud8WorkerSrc (Join-Path $toolsDir "cloud8-worker.cjs") -Force
+    Write-Host "Copiado: tools\\cloud8-worker.cjs" -ForegroundColor Green
+} else {
+    Write-Host "Aviso: worker Cloud8 não encontrado em $cloud8WorkerSrc" -ForegroundColor Yellow
+}
+
 $configReadme = "Ananim Manager Painel - veja IIS-DEPLOY.md, backend/SECURITY.md e use Configurar-IIS.bat para configurar o site."
 Set-Content -Path (Join-Path $packageIisTmp "CONFIG-README.txt") -Value $configReadme -Encoding UTF8
 

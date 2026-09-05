@@ -9,6 +9,7 @@ import {
   Building2,
   Users,
   ScrollText,
+  Radar,
   type LucideIcon,
 } from 'lucide-react';
 import { auth } from '../api/client';
@@ -20,6 +21,7 @@ const menuItems: { path: string; label: string; icon: LucideIcon; adminOnly?: bo
   { path: '/servicos', label: 'Serviços', icon: Settings },
   { path: '/backups', label: 'Detalhes / Backups', icon: ClipboardList },
   { path: '/programacao', label: 'Programação', icon: Calendar, adminOnly: true },
+  { path: '/automacoes', label: 'Origem das Automações', icon: Radar, adminOnly: true },
   { path: '/extensao-horario', label: 'Extensão de horário', icon: Clock, adminOnly: true },
   { path: '/horas-extras', label: 'Horas extras', icon: Clock, permission: 'client:self' },
   // { path: '/documentos', label: 'Documentos', icon: FolderOpen },

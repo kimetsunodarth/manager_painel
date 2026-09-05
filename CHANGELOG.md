@@ -10,6 +10,161 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.2.85] – 2026-09-05
+
+SHA256: `11F851471349AAB24F34439192C86B97813AAAAEB28CF87D1A3DA9F1AC5034FE`
+
+### Corrigido
+
+- **Botão "Suspender" (Cloud8) nunca aparecia para schedules recorrentes** — na prática, praticamente todos os schedules reais do cliente são recorrentes ("(recorrente)"), então o botão só existia na teoria. A restrição existia porque o botão reconstruía o payload do zero (`buildScheduleEventPayload`), hardcodando `rec_type: 0` (não-recorrente) — usar isso num schedule recorrente corromperia a recorrência. Reexaminando o payload real de "Suspender" capturado do Cloud8 (DevTools), descobri que a ação real do Cloud8 NÃO reconstrói o schedule: ela reenvia o registro exato como veio da API, só trocando `status` (→7) e `jsaction` (→"suspend"), preservando os campos `schedule.rec_*` inalterados. Reescrito para reenviar o registro bruto (`Cloud8ScheduleEntry.raw`) em vez de reconstruir — agora "Suspender" funciona em qualquer schedule, recorrente ou não. "Editar" continua restrito a schedules não-recorrentes, já que mudar data/hora de uma recorrência exigiria entender a semântica de `rec_*`, o que segue fora de escopo.
+
+---
+
+## [1.2.84] – 2026-09-05
+
+SHA256: `A2751E9462622C2FC4B70A45E282A52C90F93DB5E2D2757511138232C5CB686`
+
+### Corrigido
+
+- **Botão "Nova prog." (Cloud8) aparecia em qualquer VM real do Cloud8, mesmo em linhas cobertas só por COC ou só por Portal** — a condição não checava a origem, só se a VM existia no inventário do Cloud8. Usuário encontrou isso testando a 1.2.83 (print mostrando "Pausar prog." + "Remover prog." + "Nova prog." juntos numa linha só-COC). Corrigido: "Nova prog." só aparece quando a origem é `cloud8` ou `none` (sem cobertura nenhuma) — nunca em linhas cobertas por COC ou Portal.
+
+---
+
+## [1.2.83] – 2026-09-05
+
+SHA256: `85388B45E5637AD69E8417D65B87DE284B5DB02D4CCAF5B6BB6CAF357A07F90`
+
+### Adicionado
+
+- **Botão "Suspender" para programações do Cloud8** (pausa sem apagar), ao lado de "Editar"/"Remover" — usuário mostrou o menu real do Cloud8 ("Suspender somente este workflow") e depois capturou o payload real via DevTools. Confirmado: é um `updateAction` normal com `status: 7` e `jsaction: "suspend"` — sem endpoint dedicado. **Só disponível pra programações não-recorrentes** (mesma limitação de "Editar" — reconstruir os campos de recorrência não foi validado). "Retomar" (reverter a suspensão) não foi capturado ainda, não implementado.
+
+---
+
+## [1.2.82] – 2026-09-05
+
+SHA256: `3FA96C18602609E3B202B7FE18A204855BE325103CD0FA035C7A8D9286BDA75`
+
+### Adicionado
+
+- **Botão "Remover" para programações do Cloud8** na tela `/automacoes`, ao lado de "Editar" — antes só existia no backend porque o corpo real de `termAction` não estava confirmado. Usuário testou de verdade (criou e apagou várias tarefas reais no Cloud8, confirmou visualmente que sumiram) — corpo vazio confirmado, botão liberado.
+
+---
+
+## [1.2.81] – 2026-09-05
+
+SHA256: `7E948B28C40D29DDD9DABC664E536D20C5235F6FD86519B44354101C0822885`
+
+### Adicionado
+
+- **Criar/alterar programação do Cloud8 direto da tela `/automacoes`** — botão "Nova prog." em qualquer VM real do Cloud8 e "Editar" em programações não-recorrentes existentes, abrindo um formulário (nome, ações Ligar/Desligar/Reiniciar, data/hora em horário de Brasília, e-mail opcional). Atrás de uma permissão granular nova e independente (`cloud8:schedule:manage`, checkbox em Usuários). Formato do payload confirmado contra um teste real (capturado via DevTools) — só cobre execução única, recorrência (semanal etc.) ainda não suportada.
+- Backend: `POST/PUT/DELETE /api/cloud8/schedules[/:id]`. **Apagar existe no backend mas não tem botão na tela** — o corpo da chamada real de apagar (`termAction`) nunca foi confirmado (só a URL), então não expus isso como ação até validar de verdade.
+
+---
+
+## [1.2.80] – 2026-09-04
+
+SHA256: `ED136C4F875F21DC62A2031720559D63D9BF6914B77A3278514DB0CC4A7BA08`
+
+### Adicionado
+
+- **Botões Ligar/Parar/Reiniciar agora aparecem também para VMs Huawei cobertas só pelo Cloud8** (antes só funcionavam quando a VM também estava no Portal ou no COC). Nova `getEcsUuidIndex()` (`backend/src/services/huawei-ecs.js`) constrói um índice reverso UUID→projeto/perfil varrendo todas as contas Huawei cadastradas (deduplicadas, cache de 30 min) e cruza com o `cloudinstanceid` que o Cloud8 já expõe por servidor (via a mesma API JSON interna da 1.2.79). Validado contra produção: 54 de 74 VMs Huawei do Cloud8 resolvidas com identidade real (as 20 restantes têm credenciais IAM inválidas em contas específicas, problema pré-existente, sem relação com esta mudança).
+
+---
+
+## [1.2.79] – 2026-09-04
+
+SHA256: `0BEDE5E27C2401B23A58C677B7E42C9D9D187B053ABA4F337086716615D49DC`
+
+### Adicionado
+
+- **Coluna "Programação" da tela `/automacoes` agora mostra o horário real do Cloud8**, não só "Cloud8 (sem horário)": a SPA do Cloud8 usa uma API JSON interna por trás da tela de calendário (`GET /scheduleevents/list`, mesma sessão logada) que expõe nome do agendamento, próxima execução real e se é recorrente — descoberta inspecionando o componente ExtJS/Ext Scheduler em produção. Substitui a leitura antiga por DOM (clicar "Automações" → "Servidores" → "Mensal" → contar elementos `.sch-event`, que dependia do `clickResilient` da 1.2.76 pra lidar com a máscara "Processando...") por uma chamada HTTP direta — mais rápida e mais confiável. Validado contra produção: 54 de 75 VMs testadas com agendamento real detectado corretamente (nomes, horários e tipo de ação — ligar/desligar/reiniciar/script).
+- **Reset de MFA por administrador**: botão "Reset MFA" na tela Usuários (só visível pra admin) limpa o autenticador de qualquer usuário — no próximo login, a pessoa configura um QR code novo. Útil quando alguém perde o celular/autenticador e não tem mais como gerar o código atual.
+
+### Não implementado nesta versão
+
+- **Criar/alterar/parar programação do Cloud8** — a mesma API interna também expõe `POST /scheduleevents/newAction|updateAction|termAction`, mas uma tentativa de capturar o payload real (teste controlado, nome e VM óbvios de teste) foi bloqueada pelo classificador de segurança do Claude Code. Fica pendente até haver uma forma segura de obter o payload real.
+
+---
+
+## [1.2.78] – 2026-09-04
+
+SHA256: `CBB2CA48F611B59C8D9AC583FDE13CACCD3CC2282FFE6DE8F91529D85CFE9E1`
+
+### Adicionado
+
+- **Ações reais na tela `/automacoes`**: quando a identidade Huawei da VM é conhecida (via Portal ou via uma tarefa do COC — o Cloud8 nunca dá essa informação, pode ser qualquer nuvem), botões **Ligar/Parar/Reiniciar** chamam a mesma rota já usada pela Home (`POST /api/huawei/projects/:projectId/ecs/:serverId/action`), reaproveitando o controle de acesso por projeto/ECS que já existe lá (`visibleProjects`/`allowedHuaweiEcsIds`) — nenhuma permissão nova precisou ser criada pra isso. Para VMs cobertas pelo COC, botões **Pausar programação** e **Remover programação** chamam `coc.disableSchedule`/`coc.deleteSchedule` (remover desativa antes de apagar — a Huawei só permite deletar tarefa desativada).
+- **Duas permissões novas, independentes de `huawei:projects`**: `coc:schedule:toggle` (pausar/retomar) e `coc:schedule:delete` (remover) — como nenhum frontend chamava essas rotas do COC antes de existirem botões de verdade, dá pra restringi-las com uma permissão própria sem quebrar ninguém. Checkboxes novos em Usuários (criar e editar usuário, mesmo padrão de `ecs:*`/`huawei:projects`).
+- `backend/src/services/cocService.js` (`listCocCoveredHostnames`) agora também extrai `resourceId`/`regionId`/`projectId` de cada instância alvo de uma tarefa do COC (antes só o hostname); `backend/src/routes/cloud8.js` (`/reconciliation`) usa isso — e o `projectId`/`serverId`/`region` que o Portal (`vmScheduleV2`) já guarda por agendamento — pra resolver uma "identidade Huawei" por VM (`vmIdentity`), preferindo o Portal por ser a fonte nativa.
+- Nova `invalidateCoverageCache(perfil)` em `cocService.js`, chamada depois de um enable/disable/delete bem-sucedido — sem isso a tela continuaria mostrando o estado antigo da tarefa por até 15 min (TTL do cache de cobertura).
+
+### Plano entregue, não implementado nesta versão
+
+- **Alterar uma programação do COC** (mudar horário/alvo) direto da tela — exigiria um formulário completo (mesmos campos do "criar", que hoje só existe validado via script, nunca virou UI); ficou fora do escopo desta rodada.
+- **Ações de escrita no Cloud8** (criar/destruir workflow) — mecânica mapeada (ver `docs/MEMORIA_INTERNA.md`), mas o serviço/rota (`cloud8Service.createWorkflow`) ainda não existe.
+
+---
+
+## [1.2.77] – 2026-09-04
+
+SHA256: `67B344A442BE2F5BDCC34070E9F5EA3DBBC82F3DB2D382492D5B0971D6825DA`
+
+### Corrigido
+
+- **Tela "Origem das Automações" perdia todos os dados carregados a cada F5** — `Automacoes.tsx` não tinha nenhuma persistência entre recarregamentos de página. Agora salva o resultado da última consulta (`clients`, `summary`, `totalRowsFound`, `cocErrors`, `maxPages`) em `sessionStorage` (mesmo padrão já usado em `Programacao.tsx`) e restaura ao montar a tela.
+- **Botão de comprimir/expandir cliente não fazia nada enquanto um filtro (busca ou origem) estava ativo** — a lógica antiga forçava todo grupo a ficar sempre aberto nesse caso, ignorando o clique. Agora o filtro só pré-expande os clientes que batem com ele no momento em que muda; depois disso o toggle manual funciona normalmente mesmo com filtro ativo.
+
+### Adicionado
+
+- **Coluna "Programação" na tela `/automacoes`** mostrando o detalhe real do agendamento quando a cobertura vem do Huawei COC (job Start/Stop/Restart_ECS + dias da semana/horário ou data única, extraído do `trigger_time` da tarefa) — antes só existia um badge genérico de origem, sem nenhum detalhe de quando a automação roda. Quando a cobertura é só do Cloud8, mostra "Cloud8 (sem horário)" com uma explicação: o Cloud8 só informa que existe agendamento (`hasSchedule`), nunca o dia/hora — essa limitação é da automação de leitura (Playwright), não foi resolvida nesta mudança. `backend/src/services/cocService.js` (`listCocCoveredHostnames`) e `backend/src/routes/cloud8.js` (`/reconciliation`) passaram a propagar `trigger_time`/nome do job por VM coberta pelo COC.
+
+---
+
+## [1.2.76] – 2026-09-04
+
+SHA256: `DA21513E325A02E11676571A6ABD7EEF810326C5434C354F87DAF135D06812C4`
+
+### Corrigido
+
+- **Leitura do Cloud8 travava com `locator.click: Timeout 30000ms exceeded` no botão "Mensal"** (`installer/tools/cloud8-worker.cjs`, `backend/src/services/cloud8Service.js`): a máscara "Processando... Aguarde..." do Cloud8 (já documentada em `docs/MEMORIA_INTERNA.md` pro fluxo de escrita) reaparece periodicamente sobre a grid e intercepta cliques do Playwright — confirmado em produção, `<div class="x-mask">` interceptando repetidamente até estourar os 30s padrão. Nova `clickResilient()` espera a máscara sumir e tenta de novo (até 8x) em vez de deixar o Playwright estourar o timeout numa tentativa só; aplicada nos 4 cliques de navegação de árvore/botão de `readInventory`/`readScheduledNames` (duplicado nos dois arquivos — worker de produção e caminho direto de dev).
+
+---
+
+## [1.2.75] – 2026-09-04
+
+### Corrigido
+
+- **Tela "Origem das Automações" só listava VMs já cadastradas no Cloud8** — uma VM coberta só pelo Portal e/ou pelo Huawei COC, mas nunca registrada no Cloud8, ficava completamente ausente da tela (a lista base partia do inventário do Cloud8, com Portal/COC só marcando presença, nunca adicionando linhas). `GET /api/cloud8/reconciliation` (`backend/src/routes/cloud8.js`) agora adiciona essas VMs como linhas "órfãs", agrupadas em seções `Fora do Cloud8 — <perfil>` (perfil vindo do agendamento do Portal ou da tarefa do COC que a cobre) — nenhuma VM com cobertura real fica mais invisível na tela.
+
+---
+
+## [1.2.74] – 2026-09-04
+
+### Corrigido
+
+- **`GET/PATCH /api/cloud8/config` nunca chegava no backend — IIS bloqueava antes do Express ver a requisição.** `web.config` tem `requestFiltering > hiddenSegments` com `<add segment="config" />`, pensado pra proteger a pasta `config/` da instalação — mas o IIS casa por **segmento exato da URL**, não pelo path inteiro, e `/api/cloud8/config` tem "config" como terceiro segmento. Resultado: 404 do próprio IIS antes de qualquer coisa nossa rodar — o pedido nem aparecia no `requests.log` (que registra tudo, inclusive outros 400 da mesma tela), e o frontend só via uma resposta sem JSON de erro, caindo no fallback genérico "Erro na requisição". As duas tentativas de fix da 1.2.73 (cachear `process.cwd()`) eram sobre um sintoma que parecia bater, mas a causa real era essa — só apareceu depois de decriptar `requests.log`/`api-stdout.log` de produção e comparar com outras rotas do mesmo card que funcionavam (`/reconciliation`, sem "config" no path). **Rota renomeada para `/api/cloud8/credentials`** (`backend/src/routes/cloud8.js`, `frontend/src/api/client.ts`) — mantém o `hiddenSegments` intacto (ainda protege `config/` de verdade) em vez de afrouxar a regra. Nenhuma outra rota do projeto tem "config" como segmento exato.
+
+---
+
+## [1.2.73] – 2026-09-04
+
+> Inclui o conteúdo da 1.2.72 (COC, Cloud8, tela `/automacoes`) — versão de vida curta em produção, substituída no mesmo dia pelos dois fixes abaixo.
+
+### Adicionado
+
+- **Huawei COC (Cloud Operations Center) — Scheduled O&M, validado contra conta real de produção:** rotas `GET/POST/PUT /api/coc/schedules[/:taskId]` (+ `POST .../enable`, `POST .../disable`, `DELETE .../:taskId`) e `GET /api/coc/jobs` (`backend/src/routes/coc.js`, `backend/src/services/cocService.js`). Host fixo `coc-intl.myhuaweicloud.com` (o host regional `coc.{region}...` roteia para o COC da China e retorna vazio); path `/v1/schedule/task`; **auth com fallback duplo** — AK/SK assinado primeiro (funcionou de primeira contra as contas RAMO_SP_RAMOONE e ANANIMCLOUD — 199 e 176 tarefas reais listadas), com token IAM por domínio como plano B em 401/403 (não precisou até agora). `createScheduledTask()` clona os campos internos do runbook (`job_uuid`/`execute_atomic_tasks`/`version_uuid`) de uma tarefa existente da mesma ação (confirmado byte-a-byte contra uma tarefa real), resolve o projeto-raiz da região via IAM `/v3/projects`, monta `target_instances` (string JSON dupla) e desativa a tarefa logo após criar (ela nasce ativada). `updateScheduledTask()` (novo) usa `PUT /v1/schedule/task/:id` com o payload completo — confirmado que a API não tem PATCH; a Huawei recusa editar uma tarefa ativada e o PUT reativa como efeito colateral, então o código desativa antes e depois. `trigger_time.time_zone` é obrigatório mesmo em execução única (`policy:'ONCE'`). Runbooks COMMUNAL com UUID fixo: `Start_ECS`/`Stop_ECS`/`Restart_ECS`. Trata o erro de quota `COC.00014138` (limite de 200 tarefas/conta). Teste real: criadas e depois apagadas duas tarefas de teste na VM `CLOUDSES03` (conta ANANIMCLOUD) — conta ficou limpa.
+- **Cloud8 (app.cloud8.com.br) — credenciais de serviço:** rota `GET/PATCH /api/cloud8/config` (`backend/src/routes/cloud8.js`, `backend/src/config/cloud8Config.js`) para admin salvar usuário/senha do Cloud8, cifrados em disco (AES-256-GCM, mesma chave de log). Campo na aba Programação (admin) para inserir as credenciais.
+- **Cloud8 — leitura de inventário por cliente (v2):** `GET /api/cloud8/vms` (`backend/src/services/cloud8Service.js`, `installer/tools/cloud8-worker.cjs`) lê ao vivo, via Playwright, a tela **Componentes Atuais → Servidores** (tabela paginada, ~750 recursos, 25/página) em vez do calendário de Automações — bem mais rápida (sem hover por linha) e traz cliente/provedor, nome, tipo, região e IPs direto das colunas. `hasSchedule` continua vindo do calendário Automações → Servidores (view "Mensal", igual antes), agora correlacionado por nome em vez de hover. Resposta vem agrupada por cliente (`clients: [{ provider, vms }]`). Não há status ligado/desligado confiável em nenhuma das duas telas — não incluído nesta versão.
+- **Tela "Origem das Automações" (`/automacoes`, admin):** `frontend/src/pages/Automacoes.tsx` + `GET /api/cloud8/reconciliation` (`backend/src/routes/cloud8.js`). Cada cliente do Cloud8 em uma seção expansível com suas VMs, cruzadas com as programações nativas do Portal (`vmScheduleV2.listSchedules()`) **e agora também com as tarefas HABILITADAS do Huawei COC** (`cocService.listCocCoveredHostnames()`, uma consulta por conta-mestre — RAMO_SISTEMAS/MOOVE/RSDONE/ANANIMCLOUD, via `getDiscoveryAccounts()`) — classifica cada VM em `cloud8` / `portal` / `coc` / `conflict` (2+ fontes) / `none` (sem cobertura). A consulta ao COC busca o detalhe de cada tarefa habilitada (a listagem não traz o alvo) com concorrência limitada (8 em paralelo) e cache em memória de 15 min — ~9s a frio por conta (176 tarefas → 291 hostnames, testado contra ANANIMCLOUD real), instantâneo depois; falha numa conta não derruba as outras (`Promise.allSettled`, aviso na tela se alguma conta falhar). Item novo no menu lateral (ícone Radar).
+- **Cloud8 — mapeamento do fluxo de escrita (criar workflow)**: mecânica completa do formulário "Novo Workflow" mapeada e **testada com um Gravar real** (autorizado pelo usuário, VM `HUBSULWEB`/AnanimCloud, ação Desligar, data 31/12/2030 — nunca deveria executar antes de ser destruído manualmente). Ainda não implementado como serviço/rota (`cloud8Service.createWorkflow` não existe ainda) — só a automação exploratória confirmou que é viável e documentou os seletores. Detalhes completos em `docs/MEMORIA_INTERNA.md`.
+
+### Corrigido
+
+- **Cloud8 — paginação travava em "Próxima Página" com `Timeout 30000ms exceeded`** (`cloud8Service.js`, `cloud8-worker.cjs`): o seletor mirava o ícone interno do botão (`.x-tbar-page-next`), não o link `.x-btn` clicável — o Playwright interpretava o próprio container da toolbar como bloqueando o clique (falso positivo comum do ExtJS quando se clica em elemento aninhado sem área efetiva). Corrigido para `a.x-btn[data-qtip="Próxima Página"]`. Confirmado: 250 VMs (10 páginas) lidas em ~42s sem erro.
+- **Login/MFA — erro de código incorreto ficava invisível, parecia "não acontece nada"** (`frontend/src/api/client.ts`): `auth.login`/`auth.verifyMfaSetup`/`auth.verifyMfa` não passavam `skipGlobalErrorHandler` — qualquer 401 dessas rotas (ex.: "Código MFA incorreto", que a API sempre respondeu com 401) disparava o handler global de sessão expirada (`localStorage.removeItem` + `window.location.href = '/login'`, reload completo da página) antes do formulário conseguir mostrar a mensagem real. Descoberto durante a validação da 1.2.72 (usuário admin sem conseguir logar); as três chamadas de auth pré-sessão agora pulam o handler global, mesmo padrão já usado por `/auth/me` no `PrivateRoute`.
+- **`getLogCryptoKey()`/`getAppRoot()`/`getConfigDir()`/`getDataDir()` recalculavam `process.cwd()` a cada chamada** (`backend/src/utils/logCryptoKey.js`, `backend/src/appRoot.js`) — diferente de `configLoader.js`, que cacheia `WORK_DIR` uma vez no carregamento do módulo. Sintoma real observado: `PATCH /api/cloud8/config` (salvar credenciais do Cloud8) respondeu "chave de criptografia não encontrada" num processo que, momentos antes e depois, provou (3 formas diferentes) enxergar `.encryption_key` normalmente — não foi possível confirmar a causa exata do porquê o `cwd` teria mudado no meio da vida do processo, mas cachear no carregamento do módulo (mesmo padrão do `configLoader.js`) elimina a classe inteira do problema, com ou sem a causa raiz identificada. Mensagem de erro também passou a incluir o `cwd` atual, para facilitar diagnóstico se acontecer de novo.
+
+---
+
 ## [1.2.71] – 2026-07-04
 
 ### Adicionado

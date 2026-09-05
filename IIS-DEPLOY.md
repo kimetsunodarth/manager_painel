@@ -1,5 +1,10 @@
 # Implantação no IIS com padrões de segurança
 
+> ⚠️ **Documento obsoleto (identificado em 2026-09-04).** Descreve hospedagem via **iisnode** —
+> o mecanismo real usado hoje é **HttpPlatformHandler + backend empacotado como `.exe`** (via
+> `pkg`), sem depender de Node.js instalado no servidor. Ver **`README.md`** ("Build e deploy") e
+> `Setup-IIS.ps1` / `installer/`. Mantido aqui só como histórico até decisão de reescrever ou remover.
+
 Este documento descreve como executar o **Ananim Huawei Painel** no **IIS (Internet Information Services)** usando **iisnode**, com as configurações de segurança recomendadas.
 
 ---
