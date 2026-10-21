@@ -10,6 +10,7 @@ import {
   Users,
   ScrollText,
   Radar,
+  Server,
   type LucideIcon,
 } from 'lucide-react';
 import { auth } from '../api/client';
@@ -26,6 +27,7 @@ const menuItems: { path: string; label: string; icon: LucideIcon; adminOnly?: bo
   { path: '/horas-extras', label: 'Horas extras', icon: Clock, permission: 'client:self' },
   // { path: '/documentos', label: 'Documentos', icon: FolderOpen },
   { path: '/clientes', label: 'Clientes', icon: Building2, adminOnly: true },
+  { path: '/servidores', label: 'Servidores (conector)', icon: Server, adminOnly: true },
   { path: '/usuarios', label: 'Usuários', icon: Users, permission: 'users:*' },
   { path: '/logs', label: 'Log de auditoria', icon: ScrollText, adminOnly: true },
 ];

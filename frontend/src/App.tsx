@@ -14,6 +14,7 @@ import Documentos from './pages/Documentos';
 import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
 import Logs from './pages/Logs';
+import Servidores from './pages/Servidores';
 import { api, auth } from './api/client';
 import { ensureBrowserSession } from './utils/browserSession';
 
@@ -111,6 +112,7 @@ export default function App() {
         <Route path="horas-extras" element={<HorasExtrasCliente />} />
         <Route path="documentos" element={<Documentos />} />
         <Route path="clientes" element={<Clientes />} />
+        <Route path="servidores" element={<Servidores />} />
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="logs" element={<Logs />} />
       </Route>
