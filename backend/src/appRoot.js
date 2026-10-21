@@ -29,14 +29,16 @@ export function getAppRoot() {
     ? BOOT_CWD
     : path.join(__dirname, '..');
 }
-/** Pasta config (src/config no dev; config/ no pacote .exe). */
+/** Pasta config (src/config no dev; config/ no pacote .exe; ANANIM_CONFIG_DIR no Linux, fora da release). */
 export function getConfigDir() {
+  if (process.env.ANANIM_CONFIG_DIR) return process.env.ANANIM_CONFIG_DIR;
   return typeof process.pkg !== 'undefined'
     ? path.join(BOOT_CWD, 'config')
     : path.join(getAppRoot(), 'src', 'config');
 }
-/** Pasta data (src/data no dev; data/ no pacote .exe). */
+/** Pasta data (src/data no dev; data/ no pacote .exe; ANANIM_DATA_DIR no Linux, fora da release). */
 export function getDataDir() {
+  if (process.env.ANANIM_DATA_DIR) return process.env.ANANIM_DATA_DIR;
   return typeof process.pkg !== 'undefined'
     ? path.join(BOOT_CWD, 'data')
     : path.join(getAppRoot(), 'src', 'data');
