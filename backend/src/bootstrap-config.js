@@ -17,6 +17,8 @@ if (typeof process.pkg !== 'undefined' && process.execPath) {
   }
 }
 
+// ANANIM_ENV_PRIORITY=1 (VM portais): o que o systemd define vale mais que o config.enc copiado da produção.
+const envWins = process.env.ANANIM_ENV_PRIORITY === '1' ? new Set(Object.keys(process.env)) : new Set();
 const appRoot = getAppRoot();
 const envPath = join(appRoot, '.env');
 if (existsSync(envPath)) {
@@ -25,7 +27,5 @@ if (existsSync(envPath)) {
 }
 
 import { loadConfig } from './config/configLoader.js';
-const merged = loadConfig();
-for (const [k, v] of Object.entries(merged)) {
-  if (v !== undefined && v !== null && String(v).trim() !== '') process.env[k] = v;
-}
+import { applyConfig } from './config/applyConfig.js';
+applyConfig(loadConfig(), process.env, envWins);

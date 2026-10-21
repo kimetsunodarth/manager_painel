@@ -89,8 +89,10 @@ const app = express();
 // IIS (HttpPlatformHandler/iisnode) atua como reverse proxy e envia X-Forwarded-For.
 // Precisamos confiar no proxy local para rate limit e logs de IP funcionarem.
 const isIis = !!(process.env.HTTP_PLATFORM_PORT || process.env.IISNODE_VERSION);
-if (isIis) {
-  // Confiar apenas em loopback (IIS -> app escuta em 127.0.0.1)
+// Linux (VM portais): nginx local na frente, mesmo tratamento do IIS.
+const behindProxy = isIis || process.env.BEHIND_PROXY === '1';
+if (behindProxy) {
+  // Confiar apenas em loopback (IIS/nginx -> app escuta em 127.0.0.1)
   app.set('trust proxy', 'loopback');
 }
 // IIS: iisnode define PORT; HttpPlatformHandler define HTTP_PLATFORM_PORT
@@ -220,7 +222,7 @@ if (existsSync(publicDir)) {
 }
 
 // No IIS (iisnode ou HttpPlatformHandler) usar porta do ambiente e escutar só em 127.0.0.1
-const listenHost = isIis ? '127.0.0.1' : '0.0.0.0';
+const listenHost = process.env.LISTEN_HOST || (behindProxy ? '127.0.0.1' : '0.0.0.0');
 const BASE_PORT = Number(PORT) || 3001;
 const MAX_PORT = Math.min(BASE_PORT + 20, 3025);
 
