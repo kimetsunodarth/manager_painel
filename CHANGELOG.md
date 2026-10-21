@@ -8,6 +8,13 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Ananim Manager Agent (Windows)**: `agent/windows` (`AnanimManagerAgent.exe`, serviço LocalSystem). Ativação por código de 12 caracteres gerado em **Servidores (conector)**, chave RSA não exportável da máquina, pedidos assinados; publica os serviços do Windows e executa iniciar/parar/reiniciar só do que o admin liberou. Serviços do sistema (WinRM, RDP, RPC, EventLog e o próprio agente) nunca são alterados. Versão nova se atualiza ao abrir o exe, sem novo código.
+- **Servidores (conector)** (admin): conectar servidor, liberar serviços e ações (com nome do botão) e dar acesso por usuário. **Serviços** (cliente): painel "Serviços dos servidores" com os botões liberados e o resultado de cada tarefa.
+- **Linux (VM portais)**: `deploy/portais/` (instalador sudo único, atualizador com releases, health e volta automática) e `scripts/publicar-portais.py` (publica o commit atual). Endereço `https://ananim-manager.ananim.com.br`, só pelo WAF.
+- Variáveis opcionais `LISTEN_HOST`, `BEHIND_PROXY`, `ANANIM_CONFIG_DIR`, `ANANIM_DATA_DIR` e `ANANIM_ENV_PRIORITY`; sem elas, nada muda no Windows/IIS.
+
 ---
 
 ## [1.2.85] – 2026-09-05

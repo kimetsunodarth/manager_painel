@@ -326,3 +326,15 @@ Resumo do projeto: **RESUMO-PROJETO.md**.
 ## 11. Backup (CBR) e tamanho
 
 A listagem de backups usa a API CBR da Huawei. O tamanho pode vir em GB; valores inferiores a 1e6 são tratados como GB e convertidos para bytes na exibição. O backup listado é apenas consulta à API (não inclui configuração SSH); SSH é usado na aba Serviços para Testar conexão e ações nos serviços.
+
+---
+
+## 12. Ananim Manager Agent (serviços) e publicação no Linux
+
+**Fluxo:** admin abre **Servidores (conector)** → escolhe projeto e servidor → **Conectar** gera um código (1 h, uso único) → no servidor, `AnanimManagerAgent.exe` como administrador: endereço `https://ananim-manager.ananim.com.br`, código, **Ativar**, **Instalar / atualizar serviço** → o agente publica os serviços (ao iniciar e a cada 6 h) → admin marca o que liberar (iniciar/parar/reiniciar) e quais usuários do projeto têm acesso → o cliente vê em **Serviços** só esses botões. Cada clique vira uma tarefa: o agente busca a cada 30 s, executa e devolve o status; tudo vai para o log de auditoria.
+
+**Segurança:** o agente só sai para o painel (HTTPS, sem porta de entrada no servidor); cada pedido é assinado pela chave da máquina (não exportável) com horário e nonce de uso único; o servidor e o agente recusam os serviços do sistema; a política local do agente (padrões como `SAPB1*`) pode restringir ainda mais. Revogar no painel corta o agente na hora. Código do servidor: `backend/src/agent/`, `routes/agent*.js`; protocolo em `docs/superpowers/specs/2026-10-21-manager-agente-servicos-design.md`.
+
+**Build do agente:** `powershell -File agent/windows/build.ps1` → `agent/windows/dist/AnanimManagerAgent.exe`.
+
+**Linux:** ver `deploy/portais/LEIAME.md` (layout em `/opt/ananim/ananim-manager-painel`, `shared/` com estado, publicação por `python scripts/publicar-portais.py`, primeira instalação com sudo, DNS/WAF e cópia do `config.enc` + `.encryption_key`).
