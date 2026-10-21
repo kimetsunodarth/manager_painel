@@ -157,13 +157,14 @@ export default function Servidores() {
       {detalhe ? (
         <section className="ananim-card space-y-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="ananim-section-title">3. {detalhe.agent.ecsName}: serviços liberados</h2>
+            <h2 className="ananim-section-title">3. {detalhe.agent.ecsName}: {detalhe.services.length} serviços encontrados pelo agente</h2>
             <div className="flex gap-2">
               <button type="button" className="ananim-btn ananim-btn-ghost" onClick={() => void revogar(detalhe.agent)}>Desconectar</button>
               <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void salvarLiberacoes()}>Salvar liberações</button>
             </div>
           </div>
-          <p className="text-sm text-ananim-muted">Tudo fica oculto até você marcar uma ação. Serviços críticos do sistema e o próprio conector nunca aparecem aqui.</p>
+          <p className="text-sm text-ananim-muted">Lista enviada automaticamente pelo agente (ao iniciar, a cada 6 h e depois de cada tarefa). Marque as ações que podem aparecer para o cliente; o que ficar sem marcação continua oculto. Serviços críticos do sistema e o próprio conector nunca aparecem aqui.</p>
+          {detalhe.services.length === 0 ? <div className="ananim-alert">O agente ainda não enviou a lista de serviços. Confira se o serviço do agente está instalado e em execução no servidor.</div> : null}
           <input className="ananim-input" placeholder="Filtrar serviços (os já liberados sempre aparecem)" value={filtroServico} onChange={(e) => setFiltroServico(e.target.value)} aria-label="Filtrar serviços" />
           <div className="ananim-table-wrap max-h-[420px] overflow-auto">
             <table className="ananim-table">

@@ -24,11 +24,9 @@ namespace AnanimManagerAgent
     {
         readonly TextBox url = Box(), code = Box(), patterns = Box(), output = Box();
         readonly Label agentStatus = Value(), serviceStatus = Value(), discovered = Value();
-        readonly ListView found = new ListView { View = View.Details, FullRowSelect = true, Height = 230, Dock = DockStyle.Fill, BackColor = Theme.Field, ForeColor = Theme.Text,
-            BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable, Margin = new Padding(0, 4, 0, 4) };
         readonly CheckBox restrict = new CheckBox { Text = "Restringir localmente (avançado)", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(0, 8, 0, 0) };
         readonly TableLayoutPanel restrictPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, BackColor = Theme.Card };
-        readonly Button rescan = Btn("Atualizar lista"), activate = Btn("Ativar", true), save = Btn("Salvar"), publish = Btn("Publicar serviços agora"),
+        readonly Button activate = Btn("Ativar", true), save = Btn("Salvar"), publish = Btn("Publicar serviços agora"),
             install = Btn("Instalar / atualizar serviço", true), start = Btn("Iniciar"), stop = Btn("Parar"), remove = Btn("Remover"), openLog = Btn("Abrir log");
         readonly Timer refresh = new Timer { Interval = 3000 };
         AgentConfig current;
@@ -43,13 +41,13 @@ namespace AnanimManagerAgent
             return b;
         }
 
-        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove, rescan }; } }
+        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove }; } }
 
         public MainForm()
         {
             Text = "Ananim Manager Agent — serviços deste servidor";
             Font = Theme.Body; BackColor = Theme.Bg; ForeColor = Theme.Text;
-            MinimumSize = new Size(880, 700); Size = new Size(1040, 960); StartPosition = FormStartPosition.CenterScreen;
+            MinimumSize = new Size(880, 680); Size = new Size(1000, 800); StartPosition = FormStartPosition.CenterScreen;
 
             TableLayoutPanel root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(20, 16, 20, 16), AutoScroll = true, BackColor = Theme.Bg };
             Controls.Add(root);
@@ -65,11 +63,8 @@ namespace AnanimManagerAgent
             Hint(c1, "Gere o código no painel: Servidores (conector) → projeto → servidor → Conectar. O código vale 1 hora e serve uma única vez.");
 
             TableLayoutPanel c2 = Card(root, "2. Serviços deste servidor (descoberta automática)");
-            Row(c2, "Encontrados", discovered, rescan);
-            foreach (string col in new[] { "Serviço", "Nome de exibição", "Status", "Início" }) found.Columns.Add(col);
-            found.Columns[0].Width = 220; found.Columns[1].Width = 420; found.Columns[2].Width = 110; found.Columns[3].Width = 110;
-            c2.SetColumnSpan(found, 3); c2.Controls.Add(found, 0, c2.RowCount); c2.RowCount++;
-            Hint(c2, "Não é preciso cadastrar nada aqui: o agente envia esta lista ao painel sozinho (ao iniciar, a cada 6 h e depois de cada tarefa). No painel, o administrador escolhe quais serviços e ações liberar e para quem. Serviços do sistema não aparecem.");
+            Row(c2, "Encontrados", discovered, null);
+            Hint(c2, "Nada a cadastrar aqui: o agente envia a lista de serviços ao painel sozinho (ao iniciar, a cada 6 h e depois de cada tarefa). No painel, em Servidores (conector) → Serviços e acesso, o administrador escolhe o que aparece e para quem.");
             c2.SetColumnSpan(restrict, 3); c2.Controls.Add(restrict, 0, c2.RowCount); c2.RowCount++;
             Columns(restrictPanel);
             patterns.Multiline = true; patterns.Height = 80; patterns.ScrollBars = ScrollBars.Vertical; patterns.Font = Theme.Mono;
@@ -95,7 +90,6 @@ namespace AnanimManagerAgent
             stop.Click += delegate { Work("Parando...", delegate { ServiceManager.Stop(); return "Serviço parado."; }); };
             remove.Click += delegate { if (MessageBox.Show("Remover o serviço? A ativação e a configuração são mantidas.", Text, MessageBoxButtons.YesNo) == DialogResult.Yes) Work("Removendo...", delegate { ServiceManager.Remove(); return "Serviço removido."; }); };
             openLog.Click += delegate { ShowLog(); };
-            rescan.Click += delegate { FillDiscovered(); };
             restrict.CheckedChanged += delegate
             {
                 restrictPanel.Visible = restrict.Checked;
@@ -155,15 +149,10 @@ namespace AnanimManagerAgent
             agentStatus.Text = active ? "Conectado a " + current.ProjectName + " · " + current.EcsName + "  (ID " + current.AgentId.Substring(0, 8) + "…)" : "Não ativado";
         }
 
-        /// <summary>Mesma lista que o agente envia ao painel (Agent.Discover), para conferência.</summary>
+        /// <summary>Resumo do que o agente envia ao painel (Agent.Discover); a lista completa e a seleção ficam no painel.</summary>
         void FillDiscovered()
         {
             List<Dictionary<string, object>> list = Agent.Discover();
-            found.BeginUpdate();
-            found.Items.Clear();
-            foreach (var s in list)
-                found.Items.Add(new ListViewItem(new[] { Convert.ToString(s["name"]), Convert.ToString(s["displayName"]), Convert.ToString(s["status"]), Convert.ToString(s["startType"]) }));
-            found.EndUpdate();
             int running = list.Count(s => Convert.ToString(s["status"]) == "Running");
             discovered.Text = list.Count + " serviços (" + running + " em execução)" + (string.IsNullOrEmpty(current.AgentId) ? " · serão enviados ao painel depois da ativação" : " · enviados ao painel automaticamente");
         }
