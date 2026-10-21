@@ -23,8 +23,12 @@ namespace AnanimManagerAgent
     public class MainForm : Form
     {
         readonly TextBox url = Box(), code = Box(), patterns = Box(), output = Box();
-        readonly Label agentStatus = Value(), serviceStatus = Value();
-        readonly Button activate = Btn("Ativar", true), save = Btn("Salvar"), publish = Btn("Publicar serviços agora"),
+        readonly Label agentStatus = Value(), serviceStatus = Value(), discovered = Value();
+        readonly ListView found = new ListView { View = View.Details, FullRowSelect = true, Height = 230, Dock = DockStyle.Fill, BackColor = Theme.Field, ForeColor = Theme.Text,
+            BorderStyle = BorderStyle.FixedSingle, HeaderStyle = ColumnHeaderStyle.Nonclickable, Margin = new Padding(0, 4, 0, 4) };
+        readonly CheckBox restrict = new CheckBox { Text = "Restringir localmente (avançado)", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(0, 8, 0, 0) };
+        readonly TableLayoutPanel restrictPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, BackColor = Theme.Card };
+        readonly Button rescan = Btn("Atualizar lista"), activate = Btn("Ativar", true), save = Btn("Salvar"), publish = Btn("Publicar serviços agora"),
             install = Btn("Instalar / atualizar serviço", true), start = Btn("Iniciar"), stop = Btn("Parar"), remove = Btn("Remover"), openLog = Btn("Abrir log");
         readonly Timer refresh = new Timer { Interval = 3000 };
         AgentConfig current;
@@ -39,13 +43,13 @@ namespace AnanimManagerAgent
             return b;
         }
 
-        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove }; } }
+        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove, rescan }; } }
 
         public MainForm()
         {
             Text = "Ananim Manager Agent — serviços deste servidor";
             Font = Theme.Body; BackColor = Theme.Bg; ForeColor = Theme.Text;
-            MinimumSize = new Size(880, 680); Size = new Size(980, 780); StartPosition = FormStartPosition.CenterScreen;
+            MinimumSize = new Size(880, 700); Size = new Size(1040, 960); StartPosition = FormStartPosition.CenterScreen;
 
             TableLayoutPanel root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, Padding = new Padding(20, 16, 20, 16), AutoScroll = true, BackColor = Theme.Bg };
             Controls.Add(root);
@@ -60,10 +64,18 @@ namespace AnanimManagerAgent
             Row(c1, "Situação", agentStatus, null);
             Hint(c1, "Gere o código no painel: Servidores (conector) → projeto → servidor → Conectar. O código vale 1 hora e serve uma única vez.");
 
-            TableLayoutPanel c2 = Card(root, "2. Política local (opcional)");
+            TableLayoutPanel c2 = Card(root, "2. Serviços deste servidor (descoberta automática)");
+            Row(c2, "Encontrados", discovered, rescan);
+            foreach (string col in new[] { "Serviço", "Nome de exibição", "Status", "Início" }) found.Columns.Add(col);
+            found.Columns[0].Width = 220; found.Columns[1].Width = 420; found.Columns[2].Width = 110; found.Columns[3].Width = 110;
+            c2.SetColumnSpan(found, 3); c2.Controls.Add(found, 0, c2.RowCount); c2.RowCount++;
+            Hint(c2, "Não é preciso cadastrar nada aqui: o agente envia esta lista ao painel sozinho (ao iniciar, a cada 6 h e depois de cada tarefa). No painel, o administrador escolhe quais serviços e ações liberar e para quem. Serviços do sistema não aparecem.");
+            c2.SetColumnSpan(restrict, 3); c2.Controls.Add(restrict, 0, c2.RowCount); c2.RowCount++;
+            Columns(restrictPanel);
             patterns.Multiline = true; patterns.Height = 80; patterns.ScrollBars = ScrollBars.Vertical; patterns.Font = Theme.Mono;
-            Row(c2, "Serviços permitidos", patterns, save);
-            Hint(c2, "Um padrão por linha, * vale qualquer trecho (ex.: SAPB1*, MSSQL$*). Vazio = vale o que o painel liberar. Preenchido = o agente recusa o que não casar, mesmo se o painel pedir.");
+            Row(restrictPanel, "Só estes serviços", patterns, save);
+            Hint(restrictPanel, "Opcional. Um padrão por linha, * vale qualquer trecho (ex.: SAPB1*, MSSQL$*). Preenchido = este servidor recusa o que não casar, mesmo que o painel libere.");
+            c2.SetColumnSpan(restrictPanel, 3); c2.Controls.Add(restrictPanel, 0, c2.RowCount); c2.RowCount++;
 
             TableLayoutPanel c3 = Card(root, "3. Serviço do Windows");
             FlowLayoutPanel f3 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, BackColor = Theme.Card };
@@ -83,8 +95,15 @@ namespace AnanimManagerAgent
             stop.Click += delegate { Work("Parando...", delegate { ServiceManager.Stop(); return "Serviço parado."; }); };
             remove.Click += delegate { if (MessageBox.Show("Remover o serviço? A ativação e a configuração são mantidas.", Text, MessageBoxButtons.YesNo) == DialogResult.Yes) Work("Removendo...", delegate { ServiceManager.Remove(); return "Serviço removido."; }); };
             openLog.Click += delegate { ShowLog(); };
+            rescan.Click += delegate { FillDiscovered(); };
+            restrict.CheckedChanged += delegate
+            {
+                restrictPanel.Visible = restrict.Checked;
+                if (!restrict.Checked && patterns.Text.Trim().Length > 0) { patterns.Text = ""; if (SaveAll()) Append("Restrição local removida: vale o que o painel liberar."); }
+            };
 
             LoadConfig();
+            FillDiscovered();
             refresh.Tick += delegate { serviceStatus.Text = "Serviço: " + ServiceManager.Status(); }; refresh.Start();
             serviceStatus.Text = "Serviço: " + ServiceManager.Status();
 
@@ -130,9 +149,23 @@ namespace AnanimManagerAgent
             current = ConfigStore.Load();
             url.Text = current.ApiBaseUrl;
             patterns.Text = string.Join(Environment.NewLine, current.AllowPatterns);
+            restrict.Checked = current.AllowPatterns.Count > 0; restrictPanel.Visible = restrict.Checked;
             bool active = !string.IsNullOrEmpty(current.AgentId);
             agentStatus.ForeColor = active ? Theme.Teal : Theme.Warn;
             agentStatus.Text = active ? "Conectado a " + current.ProjectName + " · " + current.EcsName + "  (ID " + current.AgentId.Substring(0, 8) + "…)" : "Não ativado";
+        }
+
+        /// <summary>Mesma lista que o agente envia ao painel (Agent.Discover), para conferência.</summary>
+        void FillDiscovered()
+        {
+            List<Dictionary<string, object>> list = Agent.Discover();
+            found.BeginUpdate();
+            found.Items.Clear();
+            foreach (var s in list)
+                found.Items.Add(new ListViewItem(new[] { Convert.ToString(s["name"]), Convert.ToString(s["displayName"]), Convert.ToString(s["status"]), Convert.ToString(s["startType"]) }));
+            found.EndUpdate();
+            int running = list.Count(s => Convert.ToString(s["status"]) == "Running");
+            discovered.Text = list.Count + " serviços (" + running + " em execução)" + (string.IsNullOrEmpty(current.AgentId) ? " · serão enviados ao painel depois da ativação" : " · enviados ao painel automaticamente");
         }
 
         AgentConfig Collect()
@@ -165,7 +198,7 @@ namespace AnanimManagerAgent
             Work("Ativando no painel...", delegate
             {
                 string result = Agent.Activate(c, normalized);
-                Invoke((Action)delegate { code.Text = ""; LoadConfig(); });
+                Invoke((Action)delegate { code.Text = ""; LoadConfig(); FillDiscovered(); });
                 if (string.IsNullOrEmpty(c.AgentId) || !result.StartsWith("Conectado")) return result;
                 return result + Environment.NewLine + Agent.PublishCatalog(c) + Environment.NewLine +
                     (ServiceManager.Exists(Paths.ServiceName) ? "Serviço já instalado; ele passa a usar a nova ativação no próximo ciclo." : "Próximo passo: Instalar / atualizar serviço.");
