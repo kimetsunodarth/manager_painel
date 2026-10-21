@@ -4,6 +4,7 @@
 
 import { getDb } from '../db/database.js';
 import { normalizeAllowedServiceIds } from '../utils/servicePermissions.js';
+import { effectivePermissions } from '../utils/clientPermissions.js';
 
 function rowToUser(row) {
   if (!row) return null;
@@ -12,7 +13,7 @@ function rowToUser(row) {
     name: row.name,
     email: row.email,
     role: row.role,
-    permissions: JSON.parse(row.permissions || '[]'),
+    permissions: effectivePermissions(row.role, JSON.parse(row.permissions || '[]')),
     allowedEcsIds: JSON.parse(row.allowedEcsIds || '[]'),
     visibleProjects: JSON.parse(row.visibleProjects || '[]'),
     allowedHuaweiEcsIds: (() => {

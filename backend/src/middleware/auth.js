@@ -1,6 +1,7 @@
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import { userStore } from '../data/store.js';
+import { effectivePermissions } from '../utils/clientPermissions.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const ALLOW_BEARER_AUTH = String(process.env.SECURITY_ALLOW_BEARER_AUTH || 'false').toLowerCase() === 'true';
@@ -73,6 +74,8 @@ export function authMiddleware(req, res, next) {
     const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret);
     req.user = decoded;
+    // Tokens já emitidos para clientes também perdem as permissões que mostram todos os clientes.
+    req.user.permissions = effectivePermissions(decoded.role, decoded.permissions);
 
     // Renovação deslizante: quando passou da metade da validade, re-emite o cookie
     // (só quando o token veio de cookie; Bearer é responsabilidade do chamador).
