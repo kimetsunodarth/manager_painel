@@ -4,6 +4,7 @@ import { services as api, type ServicesHealth, type HanaProcess, type ServiceIte
 import { useUser } from '../hooks/useUser';
 import { getHomeProjectSelection } from '../utils/homeProjectSelection';
 import PageHeader from '../components/PageHeader';
+import AgentServicesPanel from '../components/AgentServicesPanel';
 
 const SAP_HEALTH_KEYS = ['hana', 'serviceLayer', 'sld', 'authentication', 'sql-server'] as const;
 const SAP_LABELS: Record<string, string> = {
@@ -263,9 +264,13 @@ export default function Servicos() {
   };
 
   if (listError) {
+    // Cliente só com conector (sem SSH configurado) ainda vê os serviços dos servidores dele.
     return (
-      <div className="ananim-alert-warning">
-        <p className="font-medium">{listError}</p>
+      <div className="ananim-page">
+        <AgentServicesPanel />
+        <div className="ananim-alert-warning">
+          <p className="font-medium">{listError}</p>
+        </div>
       </div>
     );
   }
@@ -395,6 +400,8 @@ export default function Servicos() {
           </div>
         }
       />
+
+      <AgentServicesPanel />
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="ananim-metric">
