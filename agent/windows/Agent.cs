@@ -31,16 +31,23 @@ namespace AnanimManagerAgent
 
         static readonly CngProvider Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider;
 
-        static CngKey NewKey()
+        static string KeyOf(AgentConfig c) { return string.IsNullOrEmpty(c.KeyName) ? Paths.KeyName : c.KeyName; }
+
+        static void DeleteKey(string name)
         {
-            if (CngKey.Exists(Paths.KeyName, Provider, CngKeyOpenOptions.MachineKey))
-                CngKey.Open(Paths.KeyName, Provider, CngKeyOpenOptions.MachineKey).Delete();
-            CngKeyCreationParameters p = new CngKeyCreationParameters { KeyCreationOptions = CngKeyCreationOptions.MachineKey, ExportPolicy = CngExportPolicies.None, Provider = Provider };
-            p.Parameters.Add(new CngProperty("Length", BitConverter.GetBytes(2048), CngPropertyOptions.None));
-            return CngKey.Create(CngAlgorithm.Rsa, Paths.KeyName, p);
+            if (CngKey.Exists(name, Provider, CngKeyOpenOptions.MachineKey))
+                CngKey.Open(name, Provider, CngKeyOpenOptions.MachineKey).Delete();
         }
 
-        static RSACng Rsa() { return new RSACng(CngKey.Open(Paths.KeyName, Provider, CngKeyOpenOptions.MachineKey)); }
+        static CngKey NewKey(string name)
+        {
+            DeleteKey(name);
+            CngKeyCreationParameters p = new CngKeyCreationParameters { KeyCreationOptions = CngKeyCreationOptions.MachineKey, ExportPolicy = CngExportPolicies.None, Provider = Provider };
+            p.Parameters.Add(new CngProperty("Length", BitConverter.GetBytes(2048), CngPropertyOptions.None));
+            return CngKey.Create(CngAlgorithm.Rsa, name, p);
+        }
+
+        static RSACng Rsa(AgentConfig c) { return new RSACng(CngKey.Open(KeyOf(c), Provider, CngKeyOpenOptions.MachineKey)); }
 
         static string B64Url(byte[] b) { return Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_'); }
 
@@ -83,7 +90,7 @@ namespace AnanimManagerAgent
             using (SHA256 sha = SHA256.Create()) hash = BitConverter.ToString(sha.ComputeHash(body)).Replace("-", "").ToLowerInvariant();
             byte[] message = Encoding.UTF8.GetBytes(string.Join("\n", new[] { "POST", path, c.AgentId, stamp, nonce, hash }));
             string signature;
-            using (RSACng rsa = Rsa()) signature = Convert.ToBase64String(rsa.SignData(message, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+            using (RSACng rsa = Rsa(c)) signature = Convert.ToBase64String(rsa.SignData(message, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
             return Send(c.ApiBaseUrl.TrimEnd('/') + path, body, new Dictionary<string, string> {
                 { "X-Agent-Id", c.AgentId }, { "X-Timestamp", stamp }, { "X-Nonce", nonce }, { "X-Signature", signature } });
         }
@@ -94,9 +101,10 @@ namespace AnanimManagerAgent
 
         public static string Activate(AgentConfig c, string code)
         {
-            string id = Guid.NewGuid().ToString("D");
+            string id = Guid.NewGuid().ToString("D"), keyName = Paths.KeyName + "-" + id.Substring(0, 8);
             Dictionary<string, object> jwk;
-            using (CngKey key = NewKey())
+            // Chave nova com nome próprio: código errado ou painel fora do ar não derruba a ativação que já funciona.
+            using (CngKey key = NewKey(keyName))
             using (RSACng rsa = new RSACng(key))
             {
                 RSAParameters p = rsa.ExportParameters(false);
@@ -108,10 +116,11 @@ namespace AnanimManagerAgent
                 r = Send(c.ApiBaseUrl.TrimEnd('/') + "/api/agent/activate", JsonBytes(new Dictionary<string, object> {
                     { "code", code }, { "agentId", id }, { "publicKey", jwk }, { "hostname", Environment.MachineName }, { "os", "windows" }, { "agentVersion", Build.Self } }), null);
             }
-            catch (Exception) { return "Sem conexão com o painel. Confira endereço, DNS, firewall e o certificado HTTPS."; }
+            catch (Exception) { DeleteKey(keyName); return "Sem conexão com o painel. Confira endereço, DNS, firewall e o certificado HTTPS."; }
             Log.Write("Ativação: HTTP " + r.Status + ".");
             if (r.Status != 201 || r.Body == null)
             {
+                DeleteKey(keyName);
                 if (r.Status == 403 && r.Body != null) return "Código inválido, expirado ou já usado. Gere outro no painel (Servidores → Conectar).";
                 if (r.Status == 429) return "Muitas tentativas inválidas; aguarde 10 minutos.";
                 return "O painel recusou a ativação: " + Explain(r);
@@ -119,7 +128,10 @@ namespace AnanimManagerAgent
             c.AgentId = id;
             c.ProjectName = Convert.ToString(r.Body["projectName"]);
             c.EcsName = Convert.ToString(r.Body["ecsName"]);
+            string oldKey = KeyOf(c);
+            c.KeyName = keyName;
             ConfigStore.Save(c);
+            if (oldKey != keyName) DeleteKey(oldKey);
             return "Conectado a " + c.ProjectName + " · " + c.EcsName + ".";
         }
 

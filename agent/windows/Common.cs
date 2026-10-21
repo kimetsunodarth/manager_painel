@@ -17,6 +17,8 @@ namespace AnanimManagerAgent
         public string AgentId = "";
         public string ProjectName = "";
         public string EcsName = "";
+        /// <summary>Nome da chave CNG desta ativação (vazio = nome padrão). Cada ativação cria uma chave nova; a antiga só sai depois do aceite.</summary>
+        public string KeyName = "";
         /// <summary>Política local: só serviços que casam com algum padrão (* = qualquer trecho). Vazia = o painel decide.</summary>
         public List<string> AllowPatterns = new List<string>();
     }
