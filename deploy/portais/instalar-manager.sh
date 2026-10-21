@@ -1,8 +1,17 @@
 #!/bin/bash
 # Ananim Manager Painel na VM portais — preparação única (root): pastas, systemd, sudoers do reinício,
 # certificado (Traefik/Route53, mesmo processo dos outros portais) e site nginx atrás do WAF.
-# Uso: sudo bash instalar-manager.sh        (pode rodar de novo: não apaga dados nem sobrescreve o .env)
+# Uso: sudo bash instalar-manager.sh [--com-waf|--sem-waf]   (pode rodar de novo: não apaga dados nem sobrescreve o .env)
+#   --com-waf (padrão): só aceita conexões vindas do WAF 124.81.4.214 (DNS do domínio aponta para o WAF).
+#   --sem-waf: acesso direto à origem 119.8.136.109 (DNS aponta para a VM); provisório até o domínio entrar no WAF.
 set -euo pipefail
+
+WAF=1
+case "${1:-}" in
+  ""|--com-waf) WAF=1 ;;
+  --sem-waf) WAF=0 ;;
+  *) echo "Opção inválida: $1 (use --com-waf ou --sem-waf)"; exit 1 ;;
+esac
 
 BASE=/opt/ananim/ananim-manager-painel
 SHARED=$BASE/shared
@@ -103,10 +112,19 @@ EOF
 systemctl daemon-reload
 systemctl enable --now ananim-cert-manager.timer >/dev/null
 
-echo "== nginx ($DOMAIN, só pelo WAF)"
+if [ "$WAF" = 1 ]; then
+  echo "== nginx ($DOMAIN, só pelo WAF)"
+  GATE='    # Só aceita conexões que chegam pelo WAF (mapa em portais-waf-only.conf); qualquer outro par recebe 403.
+    set_real_ip_from 124.81.4.214;
+    real_ip_header X-Real-IP;
+    real_ip_recursive off;
+    if ($ananim_portais_waf_only = 0) { return 403; }'
+else
+  echo "== nginx ($DOMAIN, SEM WAF: acesso direto à origem; volte com --com-waf quando o domínio estiver no WAF)"
+  GATE='    # PROVISÓRIO: sem o gate do WAF (instalar-manager.sh --sem-waf). Volte com --com-waf.'
+fi
 cat > /etc/nginx/conf.d/ananim-manager.conf <<EOF
-# Ananim Manager Painel — https://$DOMAIN — API/portal Node em 127.0.0.1:$PORT.
-# Só aceita conexões que chegam pelo WAF (mapa em portais-waf-only.conf); qualquer outro par recebe 403.
+# Ananim Manager Painel — https://$DOMAIN — API/portal Node em 127.0.0.1:$PORT. Gerado por instalar-manager.sh.
 server {
     listen 80;
     listen [::]:80;
@@ -117,10 +135,7 @@ server {
 server {
     listen 443 ssl;
     server_name $DOMAIN;
-    set_real_ip_from 124.81.4.214;
-    real_ip_header X-Real-IP;
-    real_ip_recursive off;
-    if (\$ananim_portais_waf_only = 0) { return 403; }
+$GATE
 
     ssl_certificate     $CERTDIR/$DOMAIN.crt;
     ssl_certificate_key $CERTDIR/$DOMAIN.key;

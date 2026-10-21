@@ -47,6 +47,9 @@ para a release anterior.
    ```bash
    sudo bash /opt/ananim/ananim-manager-painel/bin/instalar-manager.sh
    ```
+   Provisório, enquanto o domínio não estiver no WAF (DNS apontando direto para a VM):
+   `sudo bash /opt/ananim/ananim-manager-painel/bin/instalar-manager.sh --sem-waf`. Para voltar a exigir o WAF,
+   rode de novo com `--com-waf` (padrão). Só o site do nginx muda; dados e serviço ficam como estão.
 2. **DNS e WAF:** registro público `ananim-manager.ananim.com.br` apontando para o WAF (como `ananimcofre`), e
    no WAF o domínio novo com origem 119.8.136.109:443. Sem o WAF, a origem responde 403 a qualquer acesso.
 3. **Configuração da produção:** copiar `config.enc` e `.encryption_key` do servidor atual (IIS) para
