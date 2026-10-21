@@ -53,6 +53,7 @@ User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$SHARED
 EnvironmentFile=$SHARED/manager.env
+EnvironmentFile=-$BASE/current/release.env
 ExecStart=$NODE $BASE/current/backend/src/index.js
 Restart=always
 RestartSec=5
