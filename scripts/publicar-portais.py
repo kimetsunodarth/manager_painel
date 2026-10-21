@@ -51,7 +51,7 @@ def build(tree, ref):
     return version
 
 
-def package(tree, out):
+def package(tree, out, version, commit):
     def keep(info):
         parts = Path(info.name).parts
         if 'node_modules' in parts:
@@ -66,6 +66,12 @@ def package(tree, out):
     with tarfile.open(out, 'w:gz') as tar:
         tar.add(tree / 'backend', arcname='backend', filter=keep)
         tar.add(tree / 'frontend' / 'dist', arcname='public', filter=keep)
+        # Lido pela unit systemd (EnvironmentFile=-.../current/release.env): versão no /api/health e no rodapé.
+        data = ('APP_VERSION=%s+%s\n' % (version, commit)).encode('ascii')
+        info = tarfile.TarInfo('release.env')
+        info.size = len(data)
+        info.mode = 0o644
+        tar.addfile(info, io.BytesIO(data))
 
 
 def publish(pkg, updater, name):
@@ -91,18 +97,20 @@ def publish(pkg, updater, name):
 
 
 def main():
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser()
     parser.add_argument('--ref', default='HEAD')
     args = parser.parse_args()
     commit = subprocess.run(['git', 'rev-parse', '--short', args.ref], cwd=REPO, check=True, capture_output=True, text=True).stdout.strip()
-    work = Path(tempfile.mkdtemp(prefix='mgr-publish-'))
+    # realpath expande nomes curtos 8.3 (RODOLF~1.CLO); com eles o vite gera caminhos relativos inválidos.
+    work = Path(os.path.realpath(tempfile.mkdtemp(prefix='mgr-publish-')))
     tree = work / 'tree'
     subprocess.run(['git', 'worktree', 'add', '--detach', str(tree), commit], cwd=REPO, check=True, capture_output=True)
     try:
         version = build(tree, commit)
         name = 'manager-%s-%s.tgz' % (version, commit)
         pkg = work / name
-        package(tree, pkg)
+        package(tree, pkg, version, commit)
         print('Pacote %s (%.1f MB) do commit %s' % (name, pkg.stat().st_size / 1e6, commit))
         code = publish(pkg, tree / 'deploy' / 'portais' / 'atualizar-manager.sh', name)
         print('Resultado na VM: ' + ('OK' if code == 0 else 'FALHOU (código %d)' % code))
