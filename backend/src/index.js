@@ -64,6 +64,8 @@ import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { createAgentRouter } from './routes/agent.js';
 import { getAgentStore } from './agent/index.js';
+import agentAdminRoutes from './routes/agentAdmin.js';
+import agentServicesRoutes from './routes/agentServices.js';
 import { runDue, monitorStatus } from './services/scheduleRunner.js';
 import { extractIp } from './utils/validation.js';
 import { geoSecurityMiddleware } from './services/geoSecurity.js';
@@ -196,6 +198,8 @@ app.use('/api/coc', cocRoutes);
 app.use('/api/cloud8', cloud8Routes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminClientsRoutes);
+app.use('/api/agent-admin', agentAdminRoutes);
+app.use('/api/agent-services', agentServicesRoutes);
 
 app.get('/api/health', (_, res) => res.json({ ok: true, version: APP_VERSION }));
 
