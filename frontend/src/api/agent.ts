@@ -10,6 +10,13 @@ export interface AgentInfo {
   serviceCount?: number;
 }
 export interface ManualServer { id: string; name: string; status: string }
+
+/** Estados enviados pelos agentes (Windows e Linux) em português. */
+const STATUS_LABEL: Record<string, string> = {
+  running: 'Em execução', active: 'Em execução', stopped: 'Parado', failed: 'Falhou', exited: 'Concluído', partial: 'Parcial',
+  startpending: 'Iniciando', stoppending: 'Parando', paused: 'Pausado', unknown: 'Desconhecido',
+};
+export const statusLabel = (status?: string | null) => (status ? STATUS_LABEL[status.toLowerCase()] ?? status : 'Desconhecido');
 export interface ClientOverview {
   projectKey: string; projectName: string; name: string; manual: boolean;
   servers: { agentId: string; ecsName: string; os: string; online: boolean; agentVersion: string; lastSeen: number | null; serviceCount: number; releasedCount: number }[];
