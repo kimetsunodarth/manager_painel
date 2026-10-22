@@ -8,7 +8,10 @@ Wants=network-online.target
 ExecStart=/usr/local/sbin/ananim-manager-agent run
 Restart=always
 RestartSec=10
-PrivateTmp=true
+# Reiniciar/atualizar o agente não pode derrubar o que ele iniciou (ex.: sapstartsrv/HANA via "HDB start"): só o processo do agente.
+KillMode=process
+# Sem PrivateTmp: o sapcontrol do HANA (HDB start/stop) se autentica pelo socket local em /tmp (/tmp/.sapstream*);
+# com /tmp privado ele cai para HTTP sem senha e o sapstartsrv responde 401 Unauthorized.
 
 [Install]
 WantedBy=multi-user.target
