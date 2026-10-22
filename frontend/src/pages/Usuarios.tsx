@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
-import { users as api, environments, huawei, services as servicesApi, type User, type CreateUser, type HuaweiProject, type HuaweiEcsServer, PREFERRED_SERVICE_CLIENT_OPTIONS } from '../api/client';
+import { users as api, environments, huawei, type User, type CreateUser, type HuaweiProject, type HuaweiEcsServer } from '../api/client';
 import { useUser } from '../hooks/useUser';
 import PageHeader from '../components/PageHeader';
 
@@ -29,13 +29,6 @@ function ecsPermissionsSummary(u: { role: string; visibleProjects?: HuaweiProjec
   if (legacyEcs > 0) parts.push(`${legacyEcs} ECS (amb.)`);
   return parts.length ? parts.join(', ') : '0 ECS';
 }
-
-const SAP_SERVICES_FALLBACK = [
-  { id: 'hana', name: 'Reiniciar HANA' },
-  { id: 'serviceLayer', name: 'Reiniciar Service Layer' },
-  { id: 'sld', name: 'Reiniciar SLD' },
-  { id: 'authentication', name: 'Reiniciar Authentication' },
-];
 
 export default function Usuarios() {
   const user = useUser();
@@ -84,7 +77,6 @@ export default function Usuarios() {
     password: string;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
-  const [sapServiceOptions, setSapServiceOptions] = useState<{ id: string; name: string }[]>(SAP_SERVICES_FALLBACK);
   const [projectEcsMap, setProjectEcsMap] = useState<Record<string, HuaweiEcsServer[]>>({});
 
   const closeEditModal = () => {
@@ -122,14 +114,6 @@ export default function Usuarios() {
         window.clearTimeout(timeout);
         setHuaweiProjectsLoading(false);
       });
-  }, [showForm, editingUserId]);
-
-  useEffect(() => {
-    if (showForm || editingUserId) {
-      servicesApi.options()
-        .then(setSapServiceOptions)
-        .catch(() => setSapServiceOptions(SAP_SERVICES_FALLBACK));
-    }
   }, [showForm, editingUserId]);
 
   useEffect(() => {
@@ -195,25 +179,6 @@ export default function Usuarios() {
       allowedEcsIds: f.allowedEcsIds.includes(id)
         ? f.allowedEcsIds.filter((x) => x !== id)
         : [...f.allowedEcsIds, id],
-    }));
-  };
-
-  const toggleService = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      allowedServiceIds: f.allowedServiceIds.includes(id)
-        ? f.allowedServiceIds.filter((x) => x !== id)
-        : [...f.allowedServiceIds, id],
-    }));
-  };
-
-  const toggleEditService = (id: string) => {
-    if (!editForm) return;
-    setEditForm((f) => (!f ? f : {
-      ...f,
-      allowedServiceIds: f.allowedServiceIds.includes(id)
-        ? f.allowedServiceIds.filter((x) => x !== id)
-        : [...f.allowedServiceIds, id],
     }));
   };
 
@@ -407,10 +372,6 @@ export default function Usuarios() {
         <div className="ananim-metric">
           <p className="ananim-metric-label">Projetos Huawei</p>
           <p className="ananim-metric-value">{huaweiProjects.length}</p>
-        </div>
-        <div className="ananim-metric">
-          <p className="ananim-metric-label">Serviços SAP/HANA</p>
-          <p className="ananim-metric-value">{sapServiceOptions.length}</p>
         </div>
       </div>
 
@@ -661,44 +622,6 @@ export default function Usuarios() {
                       className="rounded border-white/20 bg-transparent"
                     />
                     <span className="text-sm">{e.ip} – {e.cliente}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="ananim-label">
-                Serviços SAP/HANA (restart)
-              </label>
-              <p className="text-xs text-ananim-muted mb-2">
-                Selecione os serviços que este operador pode executar na tela Serviços (reiniciar Banco Hana, EDS, Service Layer, SLD).
-              </p>
-              <div className="flex gap-2 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, allowedServiceIds: sapServiceOptions.map((s) => s.id) }))}
-                  className="text-sm text-ananim-accent hover:text-white font-medium"
-                >
-                  Selecionar todos
-                </button>
-                <span className="text-ananim-muted">|</span>
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, allowedServiceIds: [] }))}
-                  className="text-sm text-ananim-textSoft hover:text-white font-medium"
-                >
-                  Desmarcar todos
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {sapServiceOptions.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.allowedServiceIds.includes(s.id)}
-                      onChange={() => toggleService(s.id)}
-                      className="rounded border-white/20 bg-transparent"
-                    />
-                    <span className="text-sm">{s.name}</span>
                   </label>
                 ))}
               </div>
@@ -1043,38 +966,6 @@ export default function Usuarios() {
                       </div>
                     </section>
                   )}
-
-                  {/* Seção: Serviços SAP/HANA */}
-                  <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 md:p-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ananim-muted mb-3">Serviços SAP / HANA</p>
-                    <div className="flex gap-3 mb-2">
-                      <button type="button" onClick={() => setEditForm((f) => f ? { ...f, allowedServiceIds: sapServiceOptions.map((s) => s.id) } : f)} className="text-xs text-ananim-accent hover:text-white font-medium">Selecionar todos</button>
-                      <span className="text-ananim-muted">|</span>
-                      <button type="button" onClick={() => setEditForm((f) => f ? { ...f, allowedServiceIds: [] } : f)} className="text-xs text-ananim-textSoft hover:text-white font-medium">Desmarcar todos</button>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      {sapServiceOptions.map((s) => (
-                        <label key={s.id} className="flex items-center gap-2 cursor-pointer select-none">
-                          <input type="checkbox" checked={editForm.allowedServiceIds.includes(s.id)} onChange={() => toggleEditService(s.id)} className="rounded border-white/20 bg-transparent" />
-                          <span className="text-sm text-ananim-text">{s.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </section>
-
-                  {/* Seção: Cliente preferido */}
-                  <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 md:p-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ananim-muted mb-3">Preferências de exibição</p>
-                    <label className="block">
-                      <span className="ananim-label">Cliente preferido na aba Serviços</span>
-                      <p className="mb-1 text-xs text-ananim-muted">Quando o usuário tem múltiplos projetos, define qual exibir por padrão.</p>
-                      <select value={editForm.preferredServiceClientKey} onChange={(e) => setEditForm((f) => f ? { ...f, preferredServiceClientKey: e.target.value } : f)} className="ananim-select">
-                        {PREFERRED_SERVICE_CLIENT_OPTIONS.map((opt) => (
-                          <option key={opt.value || 'auto'} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </section>
 
                   </div>
                 </div>

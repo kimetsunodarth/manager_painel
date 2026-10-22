@@ -1,56 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Server, Users } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
-import Clientes from './Clientes';
 import { agentAdmin, type ClientOverview } from '../api/agent';
 
 const fmt = (ms: number | null) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
 /**
  * Clientes pelo modelo do conector: servidores com o Ananim Manager Agent, serviços liberados e quem tem acesso.
- * As telas antigas (SSH/jump, serviços cadastrados à mão) ficam em "Legado (SSH)" até todos os clientes migrarem.
  */
 export default function ClientesConector() {
-  const [params, setParams] = useSearchParams();
-  const legado = params.get('aba') === 'legado' || params.has('editServices');
   const [clientes, setClientes] = useState<ClientOverview[] | null>(null);
   const [busca, setBusca] = useState('');
   const [erro, setErro] = useState('');
 
   useEffect(() => {
-    if (legado) return;
     agentAdmin.clients().then((r) => setClientes(r.clients)).catch((e) => setErro(e instanceof Error ? e.message : 'Falha ao carregar clientes.'));
-  }, [legado]);
+  }, []);
 
   const visiveis = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return (clientes ?? []).filter((c) => !t || `${c.name} ${c.projectName} ${c.servers.map((s) => s.ecsName).join(' ')}`.toLowerCase().includes(t));
   }, [clientes, busca]);
 
-  const abas = (
-    <div className="flex gap-2" role="tablist">
-      <button type="button" role="tab" aria-selected={!legado} className={`ananim-btn ${!legado ? 'ananim-btn-primary' : 'ananim-btn-ghost'}`}
-        onClick={() => setParams({})}>Clientes (conector)</button>
-      <button type="button" role="tab" aria-selected={legado} className={`ananim-btn ${legado ? 'ananim-btn-primary' : 'ananim-btn-ghost'}`}
-        onClick={() => setParams({ aba: 'legado' })}>Legado (SSH)</button>
-    </div>
-  );
-
-  if (legado) {
-    return (
-      <div className="space-y-4">
-        <div className="ananim-page pb-0">{abas}</div>
-        <Clientes />
-      </div>
-    );
-  }
-
   return (
     <div className="ananim-page space-y-6">
       <PageHeader badge="Clientes" title="Clientes"
-        description="Servidores ligados pelo conector, serviços liberados e quem tem acesso. Para incluir um cliente, conecte o primeiro servidor dele em Servidores (conector)."
-        actions={abas} />
+        description="Servidores ligados pelo conector, serviços liberados e quem tem acesso. Para incluir um cliente, conecte o primeiro servidor dele em Servidores (conector)." />
       {erro ? <div className="ananim-alert ananim-alert-danger">{erro}</div> : null}
       <div className="flex flex-wrap items-center gap-2">
         <input className="ananim-input max-w-md" placeholder="Buscar cliente ou servidor" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar cliente" />
