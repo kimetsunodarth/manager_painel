@@ -28,6 +28,8 @@ function accountIdFromPerfil(perfil: string | undefined | null): string | null {
   if (p.startsWith('RAMO_SP') || p.startsWith('RAMO_CH') || p.startsWith('RAMO_SISTEMAS')) return 'RAMO_SISTEMAS';
   if (p.startsWith('MOOVE')) return 'MOOVE_RAMOSISTEMAS';
   if (p.startsWith('RSDONE')) return 'RSDONE';
+  // Conta cadastrada na Home (Outra conta): perfil "<CONTA>__<PROJETO>".
+  if (p.includes('__')) return p.split('__')[0];
   return null;
 }
 
