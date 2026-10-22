@@ -5,6 +5,11 @@ import { useUser } from '../hooks/useUser';
 
 const RUNNING = /^(running|active)$/i;
 const ORDEM: AgentAction[] = ['start', 'stop', 'restart'];
+/** Estados enviados pelos agentes (Windows e Linux) em português. */
+const STATUS: Record<string, string> = {
+  running: 'Em execução', active: 'Em execução', stopped: 'Parado', failed: 'Falhou', exited: 'Concluído', partial: 'Parcial',
+  startpending: 'Iniciando', stoppending: 'Parando', paused: 'Pausado', unknown: 'Desconhecido',
+};
 const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 type Servico = ServerServices['services'][number];
 
@@ -109,7 +114,7 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`ananim-chip ${RUNNING.test(v.status) ? 'text-emerald-300' : 'text-rose-300'}`}>{RUNNING.test(v.status) ? 'Em execução' : v.status || 'Desconhecido'}</span>
+          <span className={`ananim-chip ${RUNNING.test(v.status) ? 'text-emerald-300' : 'text-rose-300'}`}>{STATUS[v.status?.toLowerCase()] ?? (v.status || 'Desconhecido')}</span>
           {ORDEM.filter((a) => v.actions.includes(a)).map((a) => (
             <button key={a} type="button" disabled={ocupado || !s.online}
               className={`ananim-btn ${a === 'restart' ? 'ananim-btn-primary' : 'ananim-btn-soft'}`}

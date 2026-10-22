@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { auth, getApiBaseUrl } from '../api/client';
 import { getErrorMessage } from '../utils/errorMessage';
 import { markBrowserSessionActive } from '../utils/browserSession';
 
+const DESTAQUES = [
+  { titulo: 'Serviços dos seus servidores, num clique.', texto: 'Inicie, pare e reinicie só o que foi liberado para você, pelo conector instalado em cada servidor.' },
+  { titulo: 'Sem porta aberta, sem senha centralizada.', texto: 'O conector sai do servidor até o painel; cada pedido é assinado pela chave da máquina e fica na auditoria.' },
+  { titulo: 'Horário, extensões e backups no mesmo lugar.', texto: 'Ligar fora do horário vira extensão monitorada; detalhes e backups de cada ambiente à mão.' },
+];
+
 export default function Login() {
+  const [destaque, setDestaque] = useState(0);
+  useEffect(() => {
+    // Título alterna a cada 5 s, como no Cofre; parado para quem prefere menos movimento.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const t = setInterval(() => setDestaque((i) => (i + 1) % DESTAQUES.length), 5000);
+    return () => clearInterval(t);
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
@@ -80,57 +93,53 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-ananim-bg text-ananim-text">
-      <div className="absolute inset-0 bg-ananim-grid bg-[size:26px_26px] opacity-[0.08] pointer-events-none" />
-      <div className="absolute inset-0 bg-ananim-glow opacity-80 pointer-events-none" />
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:grid lg:grid-cols-[1.1fr_minmax(420px,520px)] lg:gap-10 lg:px-8">
-        <section className="hidden lg:block">
-          <div className="max-w-xl space-y-6">
-            <span className="ananim-page-eyebrow">Painel enterprise</span>
-            <div className="space-y-4">
-              <h1 className="text-4xl font-semibold leading-tight text-white xl:text-5xl">
-                Operação Huawei e SAP com visual mais claro, seguro e técnico.
-              </h1>
-              <p className="text-base leading-7 text-ananim-textSoft">
-                A nova direção visual segue a identidade dark da Ananim, melhora leitura de formulários e deixa o fluxo de autenticação mais confiável para uso diário.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="ananim-metric">
-                <p className="ananim-metric-label">Segurança</p>
-                <p className="ananim-metric-value">MFA guiado</p>
-              </div>
-              <div className="ananim-metric">
-                <p className="ananim-metric-label">Tipografia</p>
-                <p className="ananim-metric-value">Leitura técnica</p>
-              </div>
-              <div className="ananim-metric">
-                <p className="ananim-metric-label">Acesso</p>
-                <p className="ananim-metric-value">Estados claros</p>
-              </div>
-            </div>
+    <div className="flex min-h-screen bg-ananim-bg text-ananim-text">
+      {/* Painel esquerdo, como no login do Cofre */}
+      <aside className="relative hidden w-[51vw] flex-col justify-between overflow-hidden p-12 lg:flex"
+        style={{ background: 'radial-gradient(circle at 25% 20%, rgba(0,229,255,0.22), transparent 45%), radial-gradient(circle at 80% 90%, rgba(20,184,166,0.18), transparent 45%), #05080f' }}>
+        <div className="flex items-center gap-3">
+          <img src="/logos/logo Ananim_Prancheta 1 cópia 6.png" alt="Ananim" className="h-10 w-auto object-contain" />
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-ananim-accent">Ananim · Manager Painel</span>
+        </div>
+        <div className="max-w-[30rem]">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-ananim-accent">Operações em nuvem</p>
+          <h1 className="mt-3 min-h-[2.3em] font-display text-[clamp(30px,3.4vw,42px)] font-bold leading-[1.12] tracking-[-0.01em] text-white" aria-live="polite">
+            {DESTAQUES[destaque].titulo}
+          </h1>
+          <p className="mt-2 min-h-[3.2em] max-w-[430px] text-[15px] leading-relaxed text-ananim-muted">{DESTAQUES[destaque].texto}</p>
+          <div className="mt-5 flex gap-2" role="tablist" aria-label="Destaques">
+            {DESTAQUES.map((d, i) => (
+              <button key={d.titulo} type="button" role="tab" aria-selected={i === destaque} aria-label={`Destaque ${i + 1}`}
+                onClick={() => setDestaque(i)}
+                className={`h-1.5 w-7 rounded-full transition-colors ${i === destaque ? 'bg-ananim-accent' : 'bg-white/20 hover:bg-white/35'}`} />
+            ))}
           </div>
-        </section>
+        </div>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2.5">
+            <span className="ananim-chip"><span className="h-2 w-2 rounded-full bg-ananim-teal" aria-hidden="true" /><b className="font-semibold text-white">MFA</b> obrigatório</span>
+            <span className="ananim-chip"><b className="font-semibold text-white">Conector</b> sem porta aberta</span>
+            <span className="ananim-chip"><b className="font-semibold text-white">Auditoria</b> de cada ação</span>
+          </div>
+          <p className="text-[12.5px] text-ananim-muted">Ananim Cloud · Huawei e SAP Business One</p>
+        </div>
+      </aside>
 
-        <div className="relative w-full max-w-lg">
-          <div className="absolute -inset-1 rounded-[28px] bg-gradient-to-br from-ananim-accent/20 via-transparent to-sky-400/10 blur-2xl" />
-          <div className="relative ananim-card border-white/10 p-6 sm:p-8 lg:p-9">
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-ananim-accent/20 bg-white/[0.04] shadow-panel-sm">
-                  <img src="/logos/logo Ananim_Prancheta 1 cópia 10.png" alt="Ananim" className="h-11 w-auto object-contain" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ananim-accent">Ananim Manager</p>
-                  <h2 className="mt-2 text-3xl font-semibold text-white">Entrar no painel</h2>
-                </div>
+      {/* Coluna direita com o cartão de acesso */}
+      <div className="flex flex-1 items-center justify-center px-4 py-10" style={{ background: '#0b0f18' }}>
+        <div className="w-full max-w-[420px]">
+          <div className="rounded-3xl border border-white/10 bg-ananim-surface p-7 shadow-panel">
+            <div className="mb-5 flex flex-col items-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-ananim-accent/30 bg-ananim-accent/10 text-ananim-accent">
+                {setupToken ? <KeyRound className="h-5 w-5" aria-hidden="true" /> : challengeToken ? <ShieldCheck className="h-5 w-5" aria-hidden="true" /> : <LockKeyhole className="h-5 w-5" aria-hidden="true" />}
               </div>
-              <div className="hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-ananim-accent sm:block">
-                {setupToken ? <KeyRound className="h-5 w-5" /> : challengeToken ? <ShieldCheck className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}
-              </div>
+              <p className="text-sm text-ananim-muted">Ananim Manager Painel</p>
+              <h2 className="mt-1 font-display text-[28px] font-semibold text-white">
+                {setupToken ? 'Ativar MFA' : challengeToken ? 'Confirmar acesso' : 'Entrar no painel'}
+              </h2>
             </div>
 
-            <p className="mb-6 text-sm leading-6 text-ananim-textSoft">
+            <p className="mb-6 text-center text-sm leading-6 text-ananim-muted">
               {setupToken
                 ? 'Escaneie o QR Code no Microsoft ou Google Authenticator e confirme o código para concluir a ativação.'
                 : challengeToken
