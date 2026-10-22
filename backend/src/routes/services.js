@@ -11,6 +11,7 @@ import { getClientCredentials, hasClientCredentials } from '../config/clientCred
 import { sshExec, sshExecSql, sshExecSqlWithCredentials, sshExecWithConfig, sshExecWithConfigViaJump, getWebConnectionConfigFromCredentials, COMMANDS, HEALTH_COMMANDS, HEALTH_COMMANDS_SQL, getSqlHealthCommand, getSqlHealthGroupCommandBatches, getSqlRestartGroupCommand, isSshConfigured, isSqlConfigured, HANA_GET_PROCESS_LIST_CMD } from '../services/sshService.js';
 import { sendRestartNotification, isEmailConfigured } from '../services/emailService.js';
 import { getEnrichedVisibleProjects } from './huawei.js';
+import { projectDisplayName, scopeVisibleProjects } from '../utils/scopedProject.js';
 import { normalizeAllowedServiceIds, normalizeServiceId } from '../utils/servicePermissions.js';
 
 const router = Router();
@@ -190,8 +191,8 @@ async function getRequestScopedUser(u, req, source = req.query) {
   const visibleProjects = u ? await getEnrichedVisibleProjects(u) : [];
   const scopedProject = getScopedProjectFromRequest(source);
   if (!u) return u;
-  if (!scopedProject) return { ...u, visibleProjects };
-  return { ...u, visibleProjects: [scopedProject] };
+  // Projeto vindo do navegador: cliente só pode escolher um projeto que já está na visão dele.
+  return { ...u, visibleProjects: scopeVisibleProjects(u, visibleProjects, scopedProject) };
 }
 
 router.get('/', async (req, res) => {
@@ -239,6 +240,14 @@ router.get('/', async (req, res) => {
       };
       if (labeledServers.length > 1) payload.availableServers = labeledServers;
       return res.json(payload);
+    }
+
+    // Projeto escolhido sem serviços cadastrados por SSH: nada da lista global (é de outro ambiente);
+    // a tela mostra o nome do cliente e os serviços do conector.
+    if (getScopedProjectFromRequest(req.query)) {
+      const project = uWithProjects?.visibleProjects?.[0];
+      if (!project) return res.status(403).json({ error: 'Sem permissão para este projeto' });
+      return res.json({ mode: 'agent', list: [], displayName: projectDisplayName(project) });
     }
 
     if (u?.role !== 'admin' && !getEffectiveClientKey(uWithProjects, clientKeyQuery)) {
