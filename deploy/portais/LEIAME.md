@@ -79,6 +79,12 @@ Os dois agentes vão em cada release (`releases/<ts>/agents/{windows,linux}`; o 
 **Conectar**, o instalador já ativado para aquele servidor: o código (uso único, 24 h) vai no fim do exe ou no
 `ativacao.conf` do tar.gz. Windows: executar como administrador (ou `--auto`); Linux: `bash install.sh`.
 
+**Instalador do projeto (sem código):** em Servidores → projeto → passo 2, **Windows / Linux**. O arquivo leva a chave do
+projeto (7 dias, até 100 servidores; "Invalidar instaladores baixados" corta na hora). Em cada servidor, o agente se
+cadastra sozinho (`POST /api/agent/enroll`) e o painel o liga à VM de mesmo nome (ou o nome do Windows cortado em 15
+caracteres, se for único). Sem VM correspondente, ou VM que já tem conector, ele fica em **Aguardando vínculo** para o
+admin escolher a VM.
+
 ## Ananim Manager Agent (Linux: SUSE, RHEL, Ubuntu)
 
 Pacote: `agent/linux/` (Python 3.6+ só biblioteca padrão, `openssl`, `systemd`). No servidor, como root:
