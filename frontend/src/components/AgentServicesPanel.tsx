@@ -4,6 +4,17 @@ import { ACTION_LABEL, JOB_LABEL, agentServices, type AgentAction, type ServerSe
 import { useUser } from '../hooks/useUser';
 
 const RUNNING = /running|active/i;
+const ORDEM: AgentAction[] = ['start', 'stop', 'restart'];
+
+/** Serviços com o mesmo nome de botão ficam juntos (ex.: 4 × "B1iF"), na ordem em que aparecem. */
+function grupos(services: ServerServices['services']): [string, ServerServices['services']][] {
+  const mapa = new Map<string, ServerServices['services']>();
+  for (const v of services) {
+    const chave = v.label.trim();
+    mapa.set(chave, [...(mapa.get(chave) ?? []), v]);
+  }
+  return [...mapa.entries()];
+}
 const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
 /**
@@ -48,6 +59,20 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
     }
   }
 
+  /** Mesmo pedido para todos os serviços de um grupo (mesmo nome de botão), um após o outro. */
+  async function executarGrupo(s: ServerServices, label: string, nomes: string[], action: AgentAction) {
+    const verbo = ACTION_LABEL[action].toLowerCase();
+    if (!window.confirm(`${ACTION_LABEL[action]} os ${nomes.length} serviços "${label}" em ${s.ecsName}?${action === 'stop' ? ' Eles ficam parados até alguém iniciar de novo.' : ''}`)) return;
+    setEnviando(`${s.agentId}/grupo/${label}`);
+    const falhas: string[] = [];
+    for (const nome of nomes) {
+      try { await agentServices.run(s.agentId, nome, action); } catch { falhas.push(nome); }
+    }
+    setEnviando('');
+    if (falhas.length) setErro(`Não foi possível ${verbo}: ${falhas.join(', ')}`);
+    await carregar();
+  }
+
   if (!servers.length && !erro && !alwaysShow) return null;
   return (
     <section className="ananim-card mb-6 space-y-4 p-5">
@@ -75,7 +100,27 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
                 : 'Nenhum serviço liberado para você neste servidor ainda. Fale com a Ananim para liberar.'}
             </p>
           ) : null}
-          {s.services.map((v) => {
+          {grupos(s.services).map(([label, itens]) => {
+            const comuns = ORDEM.filter((a) => itens.every((v) => v.actions.includes(a)));
+            const ocupadoGrupo = enviando === `${s.agentId}/grupo/${label}` || itens.some((v) => v.lastJob && ['pending', 'claimed'].includes(v.lastJob.status));
+            const rodando = itens.filter((v) => RUNNING.test(v.status)).length;
+            return (
+              <div key={label} className={itens.length > 1 ? 'space-y-2 rounded-2xl border border-cyan-400/20 p-2' : ''}>
+                {itens.length > 1 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-1">
+                    <div>
+                      <div className="font-semibold">{label} <span className="text-sm font-normal text-ananim-muted">· {itens.length} serviços · {rodando} em execução</span></div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {comuns.map((a) => (
+                        <button key={a} type="button" disabled={ocupadoGrupo || !s.online}
+                          className={`ananim-btn ${a === 'restart' ? 'ananim-btn-primary' : 'ananim-btn-soft'}`}
+                          onClick={() => void executarGrupo(s, label, itens.map((v) => v.serviceName), a)}>{ACTION_LABEL[a]} todos ({itens.length})</button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+          {itens.map((v) => {
             const job = v.lastJob;
             const ocupado = enviando === `${s.agentId}/${v.serviceName}` || (!!job && ['pending', 'claimed'].includes(job.status));
             return (
@@ -89,12 +134,15 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`ananim-chip ${RUNNING.test(v.status) ? 'text-emerald-300' : 'text-rose-300'}`}>{RUNNING.test(v.status) ? 'Em execução' : v.status || 'Desconhecido'}</span>
-                  {v.actions.map((a) => (
-                    <button key={a} type="button" disabled={ocupado || !s.online}
+                  {ORDEM.filter((a) => v.actions.includes(a)).map((a) => (
+                    <button key={a} type="button" disabled={ocupado || ocupadoGrupo || !s.online}
                       className={`ananim-btn ${a === 'restart' ? 'ananim-btn-primary' : 'ananim-btn-soft'}`}
                       onClick={() => void executar(s, v.serviceName, v.label, a)}>{ACTION_LABEL[a]}</button>
                   ))}
                 </div>
+              </div>
+            );
+          })}
               </div>
             );
           })}
