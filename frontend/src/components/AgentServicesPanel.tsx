@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Server } from 'lucide-react';
 import { ACTION_LABEL, JOB_LABEL, agentServices, type AgentAction, type ServerServices } from '../api/agent';
+import { useUser } from '../hooks/useUser';
 
 const RUNNING = /running|active/i;
 const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
@@ -12,6 +13,7 @@ const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString
 export default function AgentServicesPanel({ projectKey, alwaysShow = false }: { projectKey?: string; alwaysShow?: boolean }) {
   const [todos, setServers] = useState<ServerServices[]>([]);
   const servers = projectKey ? todos.filter((s) => s.projectKey === projectKey) : todos;
+  const isAdmin = useUser()?.role === 'admin';
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState('');
 
@@ -66,7 +68,13 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
             <span className="ananim-chip">{s.projectName}</span>
             <span className={`ananim-chip ${s.online ? 'text-emerald-300' : 'text-amber-200'}`}>{s.online ? 'Conector online' : `Conector sem contato desde ${fmt(s.lastSeen)}`}</span>
           </div>
-          {s.services.length === 0 ? <p className="text-sm text-ananim-muted">Nenhum serviço liberado neste servidor. O administrador libera em Servidores (conector) → Serviços e acesso.</p> : null}
+          {s.services.length === 0 ? (
+            <p className="text-sm text-ananim-muted">
+              {isAdmin
+                ? 'Nenhum serviço liberado neste servidor. Libere em Servidores (conector) → Serviços e acesso.'
+                : 'Nenhum serviço liberado para você neste servidor ainda. Fale com a Ananim para liberar.'}
+            </p>
+          ) : null}
           {s.services.map((v) => {
             const job = v.lastJob;
             const ocupado = enviando === `${s.agentId}/${v.serviceName}` || (!!job && ['pending', 'claimed'].includes(job.status));

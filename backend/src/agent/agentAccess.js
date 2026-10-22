@@ -40,6 +40,6 @@ export function listForUser(user, store, now = Date.now()) {
           displayName: present.get(r.serviceName).displayName, lastJob: jobs.find((j) => j.serviceName === r.serviceName) || null }));
       return { agentId: a.id, projectKey: a.projectKey, projectName: a.projectName, ecsId: a.ecsId, ecsName: a.ecsName, os: a.os,
         online: !!a.lastSeen && now - a.lastSeen < ONLINE_MS, lastSeen: a.lastSeen, services };
-    })
-    .filter((a) => user?.role === 'admin' || a.services.length > 0);
+    });
+  // Cliente vê os servidores com conector dos projetos dele mesmo antes de ter serviço liberado (a tela avisa).
 }

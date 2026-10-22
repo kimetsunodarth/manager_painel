@@ -57,6 +57,16 @@ test('listagem do cliente: so os servicos com acesso e presentes no ultimo catal
   assert.equal(lista[0]?.services.length ?? 0, 0, 'servico sumiu da descoberta');
 });
 
+test('cliente do projeto ve o servidor com conector mesmo sem servico liberado; outro cliente nao', () => {
+  const store = montar();
+  store.setGrants('u-ana', AGENT, []);
+  const lista = listForUser(cliente, store);
+  assert.equal(lista.length, 1);
+  assert.equal(lista[0].ecsName, 'ROLAND-WEB01');
+  assert.deepEqual(lista[0].services, []);
+  assert.equal(listForUser(outro, store).length, 0);
+});
+
 test('liberar servico bloqueado ou acao invalida e recusado', () => {
   const store = montar();
   assert.throws(() => store.setReleases(AGENT, [{ serviceName: 'WinRM', label: 'x', actions: ['stop'] }]), /service_not_allowed/);
