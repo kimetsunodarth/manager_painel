@@ -13,10 +13,15 @@ export const ENVELOPE = 'gzip-base64-json';
 
 // Nunca liberáveis: o próprio agente e o que mantém o servidor acessível e auditável.
 export const BLOCKED_SERVICES = new Set(['ananimmanageragent', 'ananim-manager-agent', 'winrm', 'sshd', 'termservice', 'eventlog',
-  'rpcss', 'rpceptmapper', 'dcomlaunch', 'lsm', 'samss', 'schedule', 'cryptsvc']);
+  'rpcss', 'rpceptmapper', 'dcomlaunch', 'lsm', 'samss', 'schedule', 'cryptsvc',
+  // Linux (unidades systemd, sem ".service")
+  'ssh', 'dbus', 'dbus-broker', 'networkmanager', 'wicked', 'wickedd', 'network', 'auditd', 'polkit', 'firewalld']);
+/** Prefixos bloqueados no Linux: núcleo do systemd e sessões de login. */
+export const BLOCKED_PREFIXES = ['systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@'];
 
 export function isBlocked(name) {
-  return BLOCKED_SERVICES.has(String(name || '').toLowerCase());
+  const value = String(name || '').toLowerCase();
+  return BLOCKED_SERVICES.has(value) || BLOCKED_PREFIXES.some((p) => value.startsWith(p));
 }
 
 export function validServiceName(name) {
