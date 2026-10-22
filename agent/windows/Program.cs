@@ -25,6 +25,13 @@ namespace AnanimManagerAgent
                 }
                 catch (Exception ex) { Log.Write("--auto falhou: " + ex.Message); return 3; }
             }
+            // Remoção sem tela: avisa o painel, apaga chave/configuração, serviço e pastas. 0 = ok.
+            if (args.Length == 1 && args[0] == "--uninstall")
+            {
+                if (!Security.IsAdministrator()) return 1;
+                try { Log.Write(Uninstaller.Run("local")); return 0; }
+                catch (Exception ex) { Log.Write("Desinstalação falhou: " + ex.Message); return 3; }
+            }
             if (args.Length == 1 && args[0] == "--update")
             {
                 if (!Security.IsAdministrator()) return 1;

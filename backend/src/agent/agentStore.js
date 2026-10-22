@@ -50,6 +50,8 @@ const agentRow = (r) => r && ({
   jwk: JSON.parse(r.jwk), hostname: r.hostname, agentVersion: r.agent_version, created: r.created, lastSeen: r.last_seen, revoked: !!r.revoked,
   // Cadastrado pela chave do projeto sem VM correspondente: aguarda o admin escolher o servidor.
   pending: r.ecs_id === '',
+  // Admin pediu para desinstalar: o agente recebe no próximo claim, remove-se e confirma em /uninstalled.
+  uninstallRequested: !!r.uninstall_requested,
 });
 const enrollHash = (token) => crypto.createHash('sha256').update('enr:' + String(token || '')).digest('hex');
 const jobRow = (r) => r && ({
@@ -61,6 +63,8 @@ const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim()
 
 export function createAgentStore(db) {
   db.exec(SCHEMA);
+  if (!db.prepare('PRAGMA table_info(agents)').all().some((c) => c.name === 'uninstall_requested'))
+    db.exec('ALTER TABLE agents ADD COLUMN uninstall_requested INTEGER NOT NULL DEFAULT 0');
   const tx = (fn) => db.transaction(fn);
 
   function expire(now) {
@@ -155,6 +159,7 @@ export function createAgentStore(db) {
       db.prepare('UPDATE agents SET revoked=1 WHERE id=?').run(id);
       db.prepare("UPDATE agent_jobs SET status='cancelled', finished_at=? WHERE agent_id=? AND status IN ('pending','claimed')").run(now, id);
     },
+    requestUninstall: (id) => db.prepare('UPDATE agents SET uninstall_requested=1 WHERE id=? AND revoked=0').run(id).changes > 0,
     touch: (id, now = Date.now()) => db.prepare('UPDATE agents SET last_seen=? WHERE id=?').run(now, id),
 
     useNonce(agentId, nonce, now = Date.now()) {

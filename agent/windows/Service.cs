@@ -39,7 +39,9 @@ namespace AnanimManagerAgent
                         bool worked = false;
                         for (int i = 0; i < 10; i++)
                         {
-                            if (Agent.PollOnce(c) == null) break;
+                            string done = Agent.PollOnce(c);
+                            if (done == "uninstall") { timer.Dispose(); timer = null; return; }
+                            if (done == null) break;
                             worked = true;
                         }
                         if (worked) { seconds = 5; nextCatalog = DateTime.UtcNow.AddMinutes(1); }
@@ -49,6 +51,30 @@ namespace AnanimManagerAgent
             }
             catch (Exception ex) { Log.Write("Falha inesperada: " + ex.GetType().Name); }
             finally { if (timer != null) timer.Change(TimeSpan.FromSeconds(seconds), Timeout.InfiniteTimeSpan); }
+        }
+    }
+
+    /// <summary>Remove o agente do servidor: avisa o painel (que revoga), apaga chave e configuração; um cmd separado para e apaga o serviço e as pastas.</summary>
+    public static class Uninstaller
+    {
+        public static string Run(string reason)
+        {
+            AgentConfig c = ConfigStore.Load();
+            string painel = "";
+            if (!string.IsNullOrEmpty(c.AgentId))
+            {
+                int status = Agent.NotifyUninstalled(c, reason);
+                painel = status == 200 ? " O painel foi avisado e revogou o agente." : " O painel não confirmou (sem conexão?): revogue o agente no painel.";
+                try { Agent.DeleteKeyOf(c); } catch (Exception ex) { Log.Write("Chave não apagada: " + ex.Message); }
+            }
+            Log.Write("Desinstalando (" + (reason == "portal" ? "pedido do painel" : "desinstalação local") + ")." + painel);
+            if (File.Exists(Paths.ConfigFile)) File.Delete(Paths.ConfigFile);
+            // Este processo pode ser o próprio serviço ou o programa instalado: o cmd espera ~5 s, para e apaga o serviço e as pastas.
+            string script = "ping -n 6 127.0.0.1 >nul & sc.exe stop " + Paths.ServiceName + " >nul & ping -n 4 127.0.0.1 >nul & sc.exe delete " + Paths.ServiceName +
+                " >nul & rmdir /s /q \"" + Paths.InstallDir + "\" & rmdir /s /q \"" + Paths.DataDir + "\"";
+            Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"), "/c " + script)
+                { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Environment.SystemDirectory });
+            return "Agente desinstalado: chave e configuração apagadas; serviço e arquivos são removidos em alguns segundos." + painel;
         }
     }
 

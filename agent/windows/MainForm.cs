@@ -27,7 +27,8 @@ namespace AnanimManagerAgent
         readonly CheckBox restrict = new CheckBox { Text = "Restringir localmente (avançado)", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(0, 8, 0, 0) };
         readonly TableLayoutPanel restrictPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, BackColor = Theme.Card };
         readonly Button activate = Btn("Ativar", true), save = Btn("Salvar"), publish = Btn("Publicar serviços agora"),
-            install = Btn("Instalar / atualizar serviço", true), start = Btn("Iniciar"), stop = Btn("Parar"), remove = Btn("Remover"), openLog = Btn("Abrir log");
+            install = Btn("Instalar / atualizar serviço", true), start = Btn("Iniciar"), stop = Btn("Parar"), remove = Btn("Remover serviço"), openLog = Btn("Abrir log"),
+            uninstall = Btn("Desinstalar do servidor");
         readonly Timer refresh = new Timer { Interval = 3000 };
         AgentConfig current;
 
@@ -41,7 +42,7 @@ namespace AnanimManagerAgent
             return b;
         }
 
-        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove }; } }
+        Button[] Buttons { get { return new[] { activate, save, publish, install, start, stop, remove, uninstall }; } }
 
         public MainForm()
         {
@@ -75,7 +76,7 @@ namespace AnanimManagerAgent
             TableLayoutPanel c3 = Card(root, "3. Serviço do Windows");
             FlowLayoutPanel f3 = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, BackColor = Theme.Card };
             serviceStatus.Font = Theme.Section; serviceStatus.Margin = new Padding(0, 10, 16, 0);
-            foreach (Control ctl in new Control[] { serviceStatus, install, start, stop, remove, publish, openLog }) f3.Controls.Add(ctl);
+            foreach (Control ctl in new Control[] { serviceStatus, install, start, stop, remove, uninstall, publish, openLog }) f3.Controls.Add(ctl);
             c3.SetColumnSpan(f3, 3); c3.Controls.Add(f3, 0, c3.RowCount); c3.RowCount++;
 
             output.Multiline = true; output.ReadOnly = true; output.ScrollBars = ScrollBars.Vertical; output.Font = Theme.Mono;
@@ -89,6 +90,15 @@ namespace AnanimManagerAgent
             start.Click += delegate { Work("Iniciando...", delegate { ServiceManager.Start(); return "Serviço iniciado."; }); };
             stop.Click += delegate { Work("Parando...", delegate { ServiceManager.Stop(); return "Serviço parado."; }); };
             remove.Click += delegate { if (MessageBox.Show("Remover o serviço? A ativação e a configuração são mantidas.", Text, MessageBoxButtons.YesNo) == DialogResult.Yes) Work("Removendo...", delegate { ServiceManager.Remove(); return "Serviço removido."; }); };
+            uninstall.ForeColor = Color.FromArgb(255, 138, 138);
+            uninstall.Click += delegate
+            {
+                if (MessageBox.Show("Desinstalar o agente deste servidor?\n\nO serviço, a chave, a configuração e os arquivos são apagados e o servidor sai do painel. Para voltar, instale de novo pelo painel.",
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                try { MessageBox.Show(Uninstaller.Run("local"), Text); }
+                catch (Exception ex) { MessageBox.Show("Falhou: " + ex.Message, Text); return; }
+                Close();
+            };
             openLog.Click += delegate { ShowLog(); };
             restrict.CheckedChanged += delegate
             {

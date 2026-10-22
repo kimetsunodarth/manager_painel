@@ -102,3 +102,30 @@ test('assinatura errada ou sem headers da 401', async () => {
     assert.equal(r.status, 401);
   } finally { t.close(); }
 });
+
+test('remocao pedida pelo painel chega no claim e a confirmacao revoga o agente', async () => {
+  const t = await server();
+  try {
+    await activate(t);
+    t.store.enqueue({ agentId: AGENT, serviceName: 'B1iService', action: 'restart', requestedBy: 'x' });
+    t.store.requestUninstall(AGENT);
+    assert.equal(t.store.getAgent(AGENT).uninstallRequested, true);
+    const claim = await (await signed(t, '/api/agent/claim', {})).json();
+    assert.equal(claim.uninstall, true);
+    assert.equal(claim.job, null, 'com remocao pedida, nenhuma tarefa nova e entregue');
+    const r = await signed(t, '/api/agent/uninstalled', { reason: 'portal' });
+    assert.equal(r.status, 200);
+    assert.equal(t.store.getAgent(AGENT).revoked, true);
+    assert.equal((await signed(t, '/api/agent/claim', {})).status, 401);
+  } finally { t.close(); }
+});
+
+test('desinstalacao local (sem pedido do painel) tambem revoga o agente', async () => {
+  const t = await server();
+  try {
+    await activate(t);
+    assert.equal((await (await signed(t, '/api/agent/claim', {})).json()).uninstall, false);
+    assert.equal((await signed(t, '/api/agent/uninstalled', { reason: 'local' })).status, 200);
+    assert.equal(t.store.getAgent(AGENT).revoked, true);
+  } finally { t.close(); }
+});

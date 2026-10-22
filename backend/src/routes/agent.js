@@ -96,11 +96,18 @@ export function createAgentRouter(getStore, { findServer, findGlobal } = {}) {
   }
 
   router.post('/claim', signed, (req, res) => {
-    const job = getStore().claim(req.agent.id);
+    const uninstall = req.agent.uninstallRequested;
+    const job = uninstall ? null : getStore().claim(req.agent.id);
     res.json({
       job: job && { jobId: job.id, serviceName: job.serviceName, action: job.action, attempt: job.attempts, requestedBy: job.requestedBy },
-      blocked: [...BLOCKED_SERVICES], blockedPrefixes: BLOCKED_PREFIXES, pollSeconds: POLL_SECONDS,
+      blocked: [...BLOCKED_SERVICES], blockedPrefixes: BLOCKED_PREFIXES, pollSeconds: POLL_SECONDS, uninstall,
     });
+  });
+
+  // O agente avisa que está se removendo (pedido do painel ou desinstalação local): revoga e cancela as tarefas.
+  router.post('/uninstalled', signed, (req, res) => {
+    getStore().revoke(req.agent.id);
+    res.json({ status: 'removed' });
   });
 
   router.post('/result', signed, (req, res) => {

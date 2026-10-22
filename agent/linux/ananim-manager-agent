@@ -25,12 +25,14 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = 'linux-1.1.1'
+VERSION = 'linux-1.2.0'
 # Modo de teste (ANANIM_AGENT_CONF_DIR): configuração em outra pasta, sem exigir root e aceitando http://127.0.0.1.
 TEST_MODE = bool(os.environ.get('ANANIM_AGENT_CONF_DIR'))
 CONF_DIR = os.environ.get('ANANIM_AGENT_CONF_DIR') or '/etc/ananim-manager-agent'
 CONF_FILE = CONF_DIR + '/config.json'
 LOG_FILE = CONF_DIR + '/agente.log' if TEST_MODE else '/var/log/ananim-manager-agent.log'
+BIN_FILE = '/usr/local/sbin/ananim-manager-agent'
+UNIT_FILE = '/etc/systemd/system/ananim-manager-agent.service'
 CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 NAME_RE = re.compile(r'^[A-Za-z0-9_.@-]{1,256}$')
 # Mesmos bloqueios do painel; valem mesmo que o painel peça.
@@ -331,12 +333,51 @@ def execute(name, action, blocked, prefixes, allow, conf=None):
     return result
 
 
+def cleanup_commands():
+    """Remove o serviço do systemd, o programa e o log. A configuração e a chave já foram apagadas antes."""
+    return ['systemctl disable --now ananim-manager-agent', 'rm -f %s %s %s %s.1' % (UNIT_FILE, BIN_FILE, LOG_FILE, LOG_FILE),
+            'systemctl daemon-reload']
+
+
+def run_cleanup(detached):
+    script = '; '.join(cleanup_commands())
+    if not detached:
+        subprocess.call(['sh', '-c', script])
+        return
+    # Dentro do serviço: o "systemctl stop" mataria este processo no meio. Roda fora da unidade, 3 s depois.
+    if subprocess.call(['systemd-run', '--quiet', '--on-active=3', '--unit=ananim-manager-agent-remover', 'sh', '-c', script]) != 0:
+        subprocess.Popen(['sh', '-c', 'sleep 3; ' + script], start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def uninstall(conf, reason, detached):
+    """Avisa o painel (que revoga o agente), apaga chave e configuração e remove serviço e programa."""
+    if conf.get('agentId') and conf.get('keyFile'):
+        try:
+            r = signed(conf, '/api/agent/uninstalled', {'reason': reason})
+            log('Painel avisado da remoção.' if r.status == 200 else 'Painel não confirmou a remoção (%s); revogue o agente no painel.' % r.explain())
+        except Exception as e:  # painel fora do ar não impede a remoção local
+            log('Painel inacessível na remoção (%s); revogue o agente no painel.' % e)
+    log('Removendo o agente deste servidor (%s).' % ('pedido do painel' if reason == 'portal' else 'desinstalação local'))
+    for name in os.listdir(CONF_DIR) if os.path.isdir(CONF_DIR) else []:
+        if name.endswith('.key') or name == 'config.json':
+            os.remove(os.path.join(CONF_DIR, name))
+    try:
+        os.rmdir(CONF_DIR)
+    except OSError:
+        pass
+    run_cleanup(detached)
+
+
 def poll_once(conf):
     claim = signed(conf, '/api/agent/claim', {})
     if claim.status != 200 or not isinstance(claim.body, dict):
         if claim.status != 200:
             log('Busca de tarefas: ' + claim.explain())
         return None
+    if claim.body.get('uninstall'):
+        uninstall(conf, 'portal', detached=True)
+        return 'uninstall'
     job = claim.body.get('job')
     if not job:
         return None
@@ -445,7 +486,11 @@ def cmd_run(_):
                     next_catalog = time.time() + (6 * 3600 if publish(conf) else 1800)
                 worked = False
                 for _ in range(10):
-                    if poll_once(conf) is None:
+                    resultado = poll_once(conf)
+                    if resultado == 'uninstall':
+                        time.sleep(60)  # o systemd para o serviço em 3 s
+                        return
+                    if resultado is None:
                         break
                     worked = True
                 if worked:
@@ -466,6 +511,14 @@ def cmd_config(args):
             publish(conf)
 
 
+def cmd_uninstall(args):
+    require_root()
+    if not args.sim:
+        raise SystemExit('Isto remove o agente deste servidor e o desliga do painel. Confirme com: ananim-manager-agent uninstall --sim')
+    uninstall(load_config(), 'local', detached=False)
+    print('Agente removido deste servidor.')
+
+
 def main():
     parser = argparse.ArgumentParser(prog='ananim-manager-agent', description='Ananim Manager Agent (Linux)')
     sub = parser.add_subparsers(dest='cmd')
@@ -480,8 +533,10 @@ def main():
     sub.add_parser('run', help='laço do serviço systemd')
     c = sub.add_parser('config', help='opções deste servidor')
     c.add_argument('--hana-processos', choices=['on', 'off'], help='mostrar os processos do HANA e reiniciar os secundários (teste)')
+    u = sub.add_parser('uninstall', help='remove o agente deste servidor e o desliga do painel')
+    u.add_argument('--sim', action='store_true', help='confirma a remoção')
     args = parser.parse_args()
-    handlers = {'activate': cmd_activate, 'status': cmd_status, 'discover': cmd_discover, 'publish': cmd_publish, 'run': cmd_run, 'config': cmd_config}
+    handlers = {'uninstall': cmd_uninstall, 'activate': cmd_activate, 'status': cmd_status, 'discover': cmd_discover, 'publish': cmd_publish, 'run': cmd_run, 'config': cmd_config}
     if args.cmd not in handlers:
         parser.print_help()
         return 2

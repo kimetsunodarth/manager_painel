@@ -18,7 +18,7 @@ router.use(authMiddleware, requireAdmin);
 
 const publicAgent = (a) => a && ({ id: a.id, projectKey: a.projectKey, projectName: a.projectName, ecsId: a.ecsId, ecsName: a.ecsName, os: a.os,
   hostname: a.hostname, agentVersion: a.agentVersion, created: a.created, lastSeen: a.lastSeen, revoked: a.revoked,
-  online: !!a.lastSeen && Date.now() - a.lastSeen < ONLINE_MS, pending: !!a.pending });
+  online: !!a.lastSeen && Date.now() - a.lastSeen < ONLINE_MS, pending: !!a.pending, uninstallRequested: !!a.uninstallRequested });
 const fail = (res, e) => res.status(400).json({ error: e?.message || 'invalid_request' });
 
 router.post('/activations', (req, res) => {
@@ -218,6 +218,15 @@ router.post('/agents/:id/revoke', (req, res) => {
   store.revoke(req.params.id);
   logAction(req, 'agent_revoked', { agentId: req.params.id });
   res.json({ status: 'revoked' });
+});
+
+// Desinstalar do servidor: o agente recebe no próximo contato (até 1 min), remove serviço, chave e arquivos e se revoga.
+router.post('/agents/:id/uninstall', (req, res) => {
+  const store = getAgentStore();
+  if (!store.getAgent(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  if (!store.requestUninstall(req.params.id)) return res.status(409).json({ error: 'already_revoked' });
+  logAction(req, 'agent_uninstall_requested', { agentId: req.params.id });
+  res.json({ status: 'uninstall_requested' });
 });
 
 export default router;
