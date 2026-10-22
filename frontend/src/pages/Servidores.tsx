@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import AgentesSemProjeto from '../components/AgentesSemProjeto';
 import { huawei, type HuaweiEcsServer, type HuaweiProject } from '../api/client';
 import {
   ACTION_LABEL, JOB_LABEL, agentAdmin, isManualProject, projectKeyOf, statusLabel, type AgentAction, type AgentOs, type AgentDetail, type AgentInfo, type ServiceRelease,
@@ -153,7 +154,10 @@ export default function Servidores() {
 
   async function baixarAgente(os: AgentOs) {
     setBaixando(os); setErro('');
-    try { await agentAdmin.downloadAgent(os); } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
+    try {
+      await agentAdmin.downloadAgent(os);
+      setAviso(`Agente ${os === 'windows' ? 'Windows' : 'Linux'} baixado (vale 7 dias, vários servidores, sem código). Instale no servidor; ele aparece aqui em "Aguardando vínculo" para você escolher projeto e VM. Para ligar sozinho pela VM de mesmo nome, use o instalador do projeto (passo 2).`);
+    } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
   }
 
   /** Marca ou desmarca as ações dadas em vários serviços de uma vez (filtrados, coluna ou linha). */
@@ -233,15 +237,16 @@ export default function Servidores() {
         actions={(
           <div className="flex flex-wrap gap-2">
             <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('windows')}>
-              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'windows' ? 'Baixando...' : 'Agente Windows (sem ativação)'}
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'windows' ? 'Baixando...' : 'Agente Windows'}
             </button>
             <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('linux')}>
-              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'linux' ? 'Baixando...' : 'Agente Linux (sem ativação)'}
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'linux' ? 'Baixando...' : 'Agente Linux'}
             </button>
           </div>
         )} />
       {erro ? <div className="ananim-alert ananim-alert-danger">{erro}</div> : null}
       {aviso ? <div className="ananim-alert">{aviso}</div> : null}
+      <AgentesSemProjeto projetos={projetos} onVinculado={(msg) => { setAviso(msg); if (projeto) void abrirProjeto(projeto); }} />
 
       <section className="ananim-card space-y-3 p-5">
         <h2 className="ananim-section-title">1. Projeto</h2>

@@ -122,12 +122,20 @@ export function createAgentStore(db) {
         return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));
       })();
     },
-    /** Admin liga um agente aguardando vínculo (ou troca o servidor) — a VM não pode ter outro conector ativo. */
-    assignServer(agentId, { ecsId, ecsName }) {
+    /** Agentes do instalador geral (sem projeto) esperando o admin escolher projeto e servidor. */
+    listUnassigned: () => db.prepare("SELECT * FROM agents WHERE project_key='' AND revoked=0 ORDER BY created DESC").all().map(agentRow),
+    /**
+     * Admin liga um agente aguardando vínculo (ou troca o servidor). `projectKey`/`projectName` só para quem veio do
+     * instalador geral, sem projeto. A VM não pode ter outro conector ativo.
+     */
+    assignServer(agentId, { ecsId, ecsName, projectKey, projectName }) {
       return tx(() => {
         const a = db.prepare('SELECT * FROM agents WHERE id=? AND revoked=0').get(agentId);
         if (!a) throw new Error('not_found');
-        if (db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0 AND id<>?').get(a.project_key, ecsId, agentId)) throw new Error('server_taken');
+        const chave = a.project_key || text(projectKey, 200);
+        if (!chave) throw new Error('project_required');
+        if (db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0 AND id<>?').get(chave, ecsId, agentId)) throw new Error('server_taken');
+        if (!a.project_key) db.prepare('UPDATE agents SET project_key=?, project_name=? WHERE id=?').run(chave, text(projectName, 200), agentId);
         db.prepare('UPDATE agents SET ecs_id=?, ecs_name=? WHERE id=?').run(text(ecsId, 100), text(ecsName, 200), agentId);
         return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));
       })();

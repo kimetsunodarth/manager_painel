@@ -60,7 +60,8 @@ export function createAgentRouter(getStore, { findServer } = {}) {
       return res.status(403).json({ error: 'invalid_or_expired_enrollment' });
     }
     let ecs = null;
-    try { ecs = findServer && hostname ? await findServer(projeto, hostname) : null; } catch { ecs = null; }
+    // Instalador geral (sem projeto): não há onde procurar a VM; fica aguardando o admin escolher projeto e servidor.
+    try { ecs = findServer && hostname && projeto.projectKey ? await findServer(projeto, hostname) : null; } catch { ecs = null; }
     try {
       const agent = getStore().enroll({ token, agentId: String(body.agentId || '').toLowerCase(), jwk: body.publicKey, hostname, os: body.os,
         agentVersion: body.agentVersion, ecs }, Date.now());

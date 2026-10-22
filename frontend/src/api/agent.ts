@@ -73,9 +73,11 @@ export const agentAdmin = {
     baixar('/agent-admin/enrollments/package', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   revokeProjectInstallers: (projectKey: string) =>
     api<{ status: string }>('/agent-admin/enrollments/revoke', { method: 'POST', body: JSON.stringify({ projectKey }) }),
-  /** Liga um agente "aguardando vínculo" ao servidor escolhido. */
-  assign: (agentId: string, ecsId: string, ecsName: string) =>
-    api<{ agent: AgentInfo }>(`/agent-admin/agents/${encodeURIComponent(agentId)}/assign`, { method: 'PUT', body: JSON.stringify({ ecsId, ecsName }) }),
+  /** Liga um agente "aguardando vínculo" ao servidor escolhido (projeto só para quem veio do instalador geral). */
+  assign: (agentId: string, ecsId: string, ecsName: string, projeto?: { projectKey: string; projectName: string }) =>
+    api<{ agent: AgentInfo }>(`/agent-admin/agents/${encodeURIComponent(agentId)}/assign`, { method: 'PUT', body: JSON.stringify({ ecsId, ecsName, ...(projeto ?? {}) }) }),
+  /** Cadastrados pelo instalador geral, sem projeto. */
+  unassigned: () => api<{ agents: AgentInfo[] }>('/agent-admin/agents/unassigned'),
   /** Instalador já ativado para o servidor (código de uso único, 24 h, dentro do arquivo). */
   downloadActivated: (body: { projectKey: string; projectName: string; ecsId: string; ecsName: string; os: AgentOs }) =>
     baixar('/agent-admin/activations/package', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
