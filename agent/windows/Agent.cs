@@ -158,6 +158,8 @@ namespace AnanimManagerAgent
             ConfigStore.Save(c);
             if (oldKey != keyName) DeleteKey(oldKey);
             bool pendente = r.Body.ContainsKey("pending") && Convert.ToBoolean(r.Body["pending"]);
+            if (pendente && string.IsNullOrEmpty(c.ProjectName))
+                return "Cadastrado no painel como " + Environment.MachineName + ". Falta só o administrador escolher o projeto e o servidor em Servidores (conector) → Aguardando vínculo; depois disso nada mais é preciso aqui.";
             return pendente
                 ? "Cadastrado no projeto " + c.ProjectName + ". Nenhum servidor do projeto tem o nome " + Environment.MachineName + " (ou ele já tem conector): escolha o servidor no painel, em Servidores → Aguardando vínculo."
                 : "Conectado a " + c.ProjectName + " · " + c.EcsName + ".";

@@ -327,7 +327,10 @@ def cmd_activate(args):
     save_config(conf)
     if old and old != key and os.path.exists(old):
         os.remove(old)
-    if r.body.get('pending'):
+    if r.body.get('pending') and not conf['projectName']:
+        log('Cadastrado no painel como %s. Falta o administrador escolher projeto e servidor em Servidores (conector) → '
+            'Aguardando vínculo; depois disso nada mais é preciso aqui.' % socket.gethostname())
+    elif r.body.get('pending'):
         log('Cadastrado no projeto %s. Nenhum servidor do projeto tem o nome %s (ou ele já tem conector): '
             'escolha o servidor no painel, em Servidores → Aguardando vínculo.' % (conf['projectName'], socket.gethostname()))
     else:

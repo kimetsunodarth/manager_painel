@@ -41,14 +41,23 @@ function sendPackage(res, pkg) {
   res.send(pkg.data);
 }
 
-// Agente sem ativação (para guardar ou instalar e ativar com código depois).
+// Instalador geral: também não pede código. O servidor se cadastra sozinho e fica em "Aguardando vínculo" até o admin
+// escolher projeto e VM (chave geral, 7 dias, até 100 servidores).
 router.get('/downloads/:os', (req, res) => {
+  if (!['windows', 'linux'].includes(req.params.os)) return res.status(400).json({ error: 'Sistema inválido (windows ou linux)' });
   try {
-    sendPackage(res, agentPackage(req.params.os));
-  } catch (e) {
-    if (e.message === 'invalid_os') return res.status(400).json({ error: 'Sistema inválido (windows ou linux)' });
+    agentPackage(req.params.os);
+    const { token } = getAgentStore().issueEnrollment({ projectKey: '', projectName: '', createdBy: req.user.email || req.user.id });
+    logAction(req, 'agent_enrollment_package', { projectKey: '(geral)', os: req.params.os });
+    sendPackage(res, agentPackage(req.params.os, { url: publicUrl(req), enroll: token, projectName: 'Ananim' }));
+  } catch {
     return res.status(404).json({ error: 'Instalador do agente não encontrado no servidor. Publique de novo o painel.' });
   }
+});
+
+// Cadastrados pelo instalador geral, esperando projeto e servidor.
+router.get('/agents/unassigned', (req, res) => {
+  res.json({ agents: getAgentStore().listUnassigned().map(publicAgent) });
 });
 
 // Instalador já ativado para um servidor: o código (uso único, 24 h) vai dentro do arquivo; ninguém precisa digitá-lo.
@@ -101,10 +110,10 @@ router.post('/enrollments/revoke', (req, res) => {
 
 // Agente cadastrado pelo instalador do projeto sem VM correspondente: o admin escolhe o servidor.
 router.put('/agents/:id/assign', (req, res) => {
-  const { ecsId, ecsName } = req.body || {};
+  const { ecsId, ecsName, projectKey, projectName } = req.body || {};
   if (![ecsId, ecsName].every((v) => typeof v === 'string' && v.trim())) return res.status(400).json({ error: 'invalid_request' });
   try {
-    const agent = getAgentStore().assignServer(req.params.id, { ecsId, ecsName });
+    const agent = getAgentStore().assignServer(req.params.id, { ecsId, ecsName, projectKey, projectName });
     logAction(req, 'agent_assign_server', { agentId: agent.id, ecsName });
     res.json({ agent: publicAgent(agent) });
   } catch (e) {

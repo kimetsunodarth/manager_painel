@@ -40,6 +40,19 @@ test('sem VM com o mesmo nome, ou VM que já tem conector: fica aguardando vínc
   assert.throws(() => store.assignServer(repetido.id, { ecsId: 'e1', ecsName: 'ECOAWEB' }), /server_taken/);
 });
 
+test('instalador geral (sem projeto): cadastra aguardando vínculo e o admin escolhe projeto e servidor', () => {
+  const store = createAgentStore(new Database(':memory:'));
+  const { token } = store.issueEnrollment({ projectKey: '', projectName: '', createdBy: 'adm' });
+  const a = store.enroll(agente(token, 'SRV-NOVO', null));
+  assert.equal(a.pending, true);
+  assert.equal(a.projectKey, '');
+  assert.deepEqual(store.listUnassigned().map((x) => x.hostname), ['SRV-NOVO']);
+  const ligado = store.assignServer(a.id, { projectKey: projeto.projectKey, projectName: projeto.projectName, ecsId: 'e1', ecsName: 'ECOAWEB' });
+  assert.equal(ligado.projectKey, projeto.projectKey);
+  assert.equal(ligado.pending, false);
+  assert.deepEqual(store.listUnassigned(), []);
+});
+
 test('chave vencida, revogada ou inválida é recusada', () => {
   const store = createAgentStore(new Database(':memory:'));
   const now = 1_000_000;
