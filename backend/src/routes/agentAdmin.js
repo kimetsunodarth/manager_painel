@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { authMiddleware, requireAdmin } from '../middleware/auth.js';
 import { logAction } from '../middleware/auditLog.js';
 import { userStore } from '../data/store.js';
-import { getAgentStore } from '../agent/index.js';
+import { getAgentStore, getManualProjects } from '../agent/index.js';
 import { ONLINE_MS, userCanSeeProject } from '../agent/agentAccess.js';
 
 const router = Router();
@@ -26,8 +26,39 @@ router.post('/activations', (req, res) => {
 });
 
 router.get('/agents', (req, res) => {
+  const store = getAgentStore();
   const projectKey = typeof req.query.projectKey === 'string' && req.query.projectKey ? req.query.projectKey : undefined;
-  res.json({ agents: getAgentStore().listAgents(projectKey).map(publicAgent) });
+  res.json({ agents: store.listAgents(projectKey).map((a) => ({ ...publicAgent(a), serviceCount: store.listServices(a.id).length })) });
+});
+
+// Projetos fora da Huawei (on-premise, outras nuvens): servidores informados à mão, só serviços pelo agente.
+router.get('/manual-projects', (req, res) => {
+  res.json({ projects: getManualProjects().listProjects() });
+});
+
+router.post('/manual-projects', (req, res) => {
+  try {
+    const project = getManualProjects().createProject({ name: req.body?.name, createdBy: req.user.email || req.user.id });
+    logAction(req, 'manual_project_create', { projectId: project.id, name: project.name });
+    res.status(201).json({ project });
+  } catch (e) { fail(res, e); }
+});
+
+router.get('/manual-projects/:id/servers', (req, res) => {
+  const manual = getManualProjects();
+  if (!manual.getProject(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  res.json({ servers: manual.listServers(req.params.id) });
+});
+
+router.post('/manual-projects/:id/servers', (req, res) => {
+  try {
+    const server = getManualProjects().addServer(req.params.id, req.body?.name);
+    logAction(req, 'manual_server_create', { projectId: req.params.id, name: server.name });
+    res.status(201).json({ server });
+  } catch (e) {
+    if (e.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    fail(res, e);
+  }
 });
 
 router.get('/agents/:id', (req, res) => {

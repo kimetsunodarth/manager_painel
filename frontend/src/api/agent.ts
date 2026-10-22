@@ -6,7 +6,11 @@ export const ACTION_LABEL: Record<AgentAction, string> = { start: 'Iniciar', sto
 export interface AgentInfo {
   id: string; projectKey: string; projectName: string; ecsId: string; ecsName: string; os: 'windows' | 'linux';
   hostname: string; agentVersion: string; created: number; lastSeen: number | null; revoked: boolean; online: boolean;
+  /** Serviços do último catálogo enviado pelo agente. */
+  serviceCount?: number;
 }
+export interface ManualServer { id: string; name: string; status: string }
+export const isManualProject = (p: { id: string }) => p.id.startsWith('manual-');
 export interface DiscoveredService { name: string; displayName: string; status: string; startType: string; discoveredAt: number }
 export interface ServiceRelease { serviceName: string; label: string; actions: AgentAction[] }
 export interface AgentJob {
@@ -39,6 +43,11 @@ export const agentAdmin = {
   saveGrants: (id: string, userId: string, services: string[]) =>
     api<{ services: string[] }>(`/agent-admin/agents/${encodeURIComponent(id)}/grants`, { method: 'PUT', body: JSON.stringify({ userId, services }) }),
   revoke: (id: string) => api<{ status: string }>(`/agent-admin/agents/${encodeURIComponent(id)}/revoke`, { method: 'POST' }),
+  createManualProject: (name: string) =>
+    api<{ project: { id: string; name: string } }>('/agent-admin/manual-projects', { method: 'POST', body: JSON.stringify({ name }) }),
+  manualServers: (projectId: string) => api<{ servers: ManualServer[] }>(`/agent-admin/manual-projects/${encodeURIComponent(projectId)}/servers`),
+  addManualServer: (projectId: string, name: string) =>
+    api<{ server: ManualServer }>(`/agent-admin/manual-projects/${encodeURIComponent(projectId)}/servers`, { method: 'POST', body: JSON.stringify({ name }) }),
 };
 
 export const agentServices = {
