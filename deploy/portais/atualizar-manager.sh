@@ -24,6 +24,8 @@ done
 
 echo "== Dependências ($REL/backend)"
 (cd "$REL/backend" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+# Navegador do Playwright (Cloud8 em Automações): o npm ci só traz o pacote. Já baixado = não faz nada.
+(cd "$REL/backend" && npx --no-install playwright install chromium-headless-shell) || echo "AVISO: navegador do Playwright não instalado; Cloud8 em Automações vai falhar."
 
 echo "== Modelos de configuração (só arquivos novos; o que já existe em $SHARED/config fica como está)"
 (cd "$REL/backend/src/config" && find . -type f ! -name '*.js' -print0 | while IFS= read -r -d '' f; do
