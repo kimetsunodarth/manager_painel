@@ -226,6 +226,15 @@ export default function Servidores() {
     try { await agentAdmin.revoke(a.id); setDetalhe(null); await abrirProjeto(projeto); } catch (e) { setErro(erroDe(e)); }
   }
 
+  async function desinstalar(a: AgentInfo) {
+    if (!window.confirm(`Desinstalar o agente de ${a.ecsName}? No próximo contato (até 1 minuto) ele apaga o serviço, a chave e os arquivos do servidor e sai do painel. Para voltar, instale de novo.`) || !projeto) return;
+    try {
+      await agentAdmin.uninstall(a.id);
+      setAviso(a.online ? `Remoção enviada a ${a.ecsName}; em até 1 minuto ele sai da lista.` : `${a.ecsName} está sem contato: a remoção acontece quando ele voltar. Se o servidor não existe mais, use Desconectar.`);
+      setDetalhe(null); await abrirProjeto(projeto);
+    } catch (e) { setErro(erroDe(e)); }
+  }
+
   const servicosFiltrados = (detalhe?.services ?? []).filter((s) => {
     const t = filtroServico.trim().toLowerCase();
     return !t || `${s.name} ${s.displayName}`.toLowerCase().includes(t) || liberacoes[s.name]?.actions.length;
@@ -303,7 +312,7 @@ export default function Servidores() {
                     <tr key={s.id}>
                       <td className="font-mono">{s.name}</td>
                       <td>{s.status}</td>
-                      <td>{ag ? <span className={ag.online ? 'text-emerald-300' : 'text-amber-200'}>{ag.online ? 'Online' : `Sem contato desde ${fmt(ag.lastSeen)}`} · {ag.os} · {ag.agentVersion} · {ag.serviceCount ?? 0} serviços encontrados</span> : <span className="text-ananim-muted">Não conectado</span>}</td>
+                      <td>{ag?.uninstallRequested ? <span className="text-amber-200">Remoção pedida · aguardando o agente</span> : ag ? <span className={ag.online ? 'text-emerald-300' : 'text-amber-200'}>{ag.online ? 'Online' : `Sem contato desde ${fmt(ag.lastSeen)}`} · {ag.os} · {ag.agentVersion} · {ag.serviceCount ?? 0} serviços encontrados</span> : <span className="text-ananim-muted">Não conectado</span>}</td>
                       <td className="text-right">
                         {ag ? <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void abrirAgente(ag.id)}>Serviços e acesso ({ag.serviceCount ?? 0})</button>
                           : <button type="button" className="ananim-btn ananim-btn-primary" aria-expanded={conectando?.id === s.id}
@@ -366,7 +375,9 @@ export default function Servidores() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="ananim-section-title">3. {detalhe.agent.ecsName}: {detalhe.services.length} serviços encontrados pelo agente</h2>
             <div className="flex gap-2">
-              <button type="button" className="ananim-btn ananim-btn-ghost" onClick={() => void revogar(detalhe.agent)}>Desconectar</button>
+              <button type="button" className="ananim-btn ananim-btn-ghost text-rose-200" disabled={detalhe.agent.uninstallRequested} onClick={() => void desinstalar(detalhe.agent)}
+                title="Remove o agente do servidor (serviço, chave e arquivos) e o tira do painel">{detalhe.agent.uninstallRequested ? 'Remoção pedida' : 'Desinstalar do servidor'}</button>
+              <button type="button" className="ananim-btn ananim-btn-ghost" onClick={() => void revogar(detalhe.agent)} title="Só desliga no painel; o programa continua no servidor">Desconectar</button>
               <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void salvarLiberacoes()}>Salvar liberações</button>
             </div>
           </div>

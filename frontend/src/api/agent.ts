@@ -10,6 +10,8 @@ export interface AgentInfo {
   serviceCount?: number;
   /** Cadastrado pelo instalador do projeto sem VM correspondente: aguarda o admin escolher o servidor. */
   pending?: boolean;
+  /** Admin pediu "Desinstalar do servidor": o agente remove-se no próximo contato. */
+  uninstallRequested?: boolean;
 }
 export interface ManualServer { id: string; name: string; status: string }
 
@@ -92,6 +94,7 @@ export const agentAdmin = {
     api<{ releases: ServiceRelease[] }>(`/agent-admin/agents/${encodeURIComponent(id)}/releases`, { method: 'PUT', body: JSON.stringify({ releases }) }),
   saveGrants: (id: string, userId: string, services: string[]) =>
     api<{ services: string[] }>(`/agent-admin/agents/${encodeURIComponent(id)}/grants`, { method: 'PUT', body: JSON.stringify({ userId, services }) }),
+  uninstall: (id: string) => api<{ status: string }>(`/agent-admin/agents/${encodeURIComponent(id)}/uninstall`, { method: 'POST' }),
   revoke: (id: string) => api<{ status: string }>(`/agent-admin/agents/${encodeURIComponent(id)}/revoke`, { method: 'POST' }),
   clients: () => api<{ clients: ClientOverview[]; unassigned?: number }>('/agent-admin/clients'),
   createManualProject: (name: string) =>

@@ -39,6 +39,9 @@ namespace AnanimManagerAgent
                 CngKey.Open(name, Provider, CngKeyOpenOptions.MachineKey).Delete();
         }
 
+        /// <summary>Apaga a chave privada desta ativação (desinstalação).</summary>
+        public static void DeleteKeyOf(AgentConfig c) { DeleteKey(KeyOf(c)); }
+
         static CngKey NewKey(string name)
         {
             DeleteKey(name);
@@ -239,7 +242,14 @@ namespace AnanimManagerAgent
             return o;
         }
 
-        /// <summary>Busca e executa no máximo uma tarefa. Devolve o resumo, ou null quando não há tarefa.</summary>
+        /// <summary>Avisa o painel que o agente está sendo removido; o painel revoga o agente. Devolve o status HTTP (0 = sem conexão).</summary>
+        public static int NotifyUninstalled(AgentConfig c, string reason)
+        {
+            try { return Signed(c, "/api/agent/uninstalled", JsonBytes(new Dictionary<string, object> { { "reason", reason } })).Status; }
+            catch (Exception) { return 0; }
+        }
+
+        /// <summary>Busca e executa no máximo uma tarefa. Devolve o resumo, "uninstall" quando o painel pediu a remoção, ou null quando não há tarefa.</summary>
         public static string PollOnce(AgentConfig c)
         {
             if (string.IsNullOrEmpty(c.AgentId)) return null;
@@ -249,6 +259,12 @@ namespace AnanimManagerAgent
                 if (claim.Status == 401) Log.Write("Painel recusou o agente (revogado?).");
                 else if (claim.Status == 403) Log.Write(Explain(claim));
                 return null;
+            }
+            object uninstall;
+            if (claim.Body.TryGetValue("uninstall", out uninstall) && uninstall is bool && (bool)uninstall)
+            {
+                Uninstaller.Run("portal");
+                return "uninstall";
             }
             object jobObject;
             if (!claim.Body.TryGetValue("job", out jobObject) || jobObject == null) return null;

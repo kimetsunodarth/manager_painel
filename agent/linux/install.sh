@@ -2,23 +2,30 @@
 # Instala/atualiza o Ananim Manager Agent (Linux). Uso, como root, na pasta com os arquivos do agente:
 #   bash install.sh                                  instala/atualiza (ativação e chave ficam como estão)
 #   bash install.sh --code XXXX-XXXX-XXXX [--url https://ananim-manager.ananim.com.br]   instala e ativa
+#   bash install.sh --remover            remove o agente deste servidor e o desliga do painel
 #   bash install.sh --hana-processos      também mostra os processos do HANA e reinicia os secundários (teste)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 BIN=/usr/local/sbin/ananim-manager-agent
 UNIT=/etc/systemd/system/ananim-manager-agent.service
-CODE=""; URL=""; ENROLL=""; HANA_PROCS=""
+CODE=""; URL=""; ENROLL=""; HANA_PROCS=""; REMOVER=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --code) CODE="$2"; shift 2 ;;
     --url) URL="$2"; shift 2 ;;
     --hana-processos) HANA_PROCS=on; shift ;;
+    --remover) REMOVER=1; shift ;;
     *) echo "Opção inválida: $1"; exit 1 ;;
   esac
 done
 
 [ "$(id -u)" -eq 0 ] || { echo "Rode como root (sudo)."; exit 1; }
+
+if [ -n "$REMOVER" ]; then
+  if [ -x "$BIN" ]; then "$BIN" uninstall --sim; else echo "Agente não está instalado neste servidor."; fi
+  exit 0
+fi
 
 # Pacote baixado do painel já com a ativação deste servidor (Servidores → Conectar → Baixar para Linux): sem digitar código.
 if [ -z "$CODE" ] && [ -f "$HERE/ativacao.conf" ]; then
