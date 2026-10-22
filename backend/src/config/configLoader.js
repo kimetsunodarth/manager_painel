@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { Fernet } from 'fernet-nodejs';
+import { discoveryMasterFor } from '../services/discoveryAccounts.js';
 
 const WORK_DIR = process.cwd();
 const KEY_FILE_NAMES = ['.encryption_key', 'key.bin'];
@@ -135,7 +136,8 @@ export function getMasterProfileForSuggested(suggestedName) {
     const p = prefix.toUpperCase();
     if (name.startsWith(p) || name === p.replace(/_+$/, '')) return master;
   }
-  return null;
+  // Contas cadastradas na Home (Descobrir Projetos → Outra conta): <CONTA>__<PROJETO> usa <CONTA>_DISCOVERY.
+  return discoveryMasterFor(name, loadConfig());
 }
 
 /**

@@ -4,7 +4,7 @@
  */
 
 import { getCredentialsForApi, getProfileNames, getProfileCredentials, loadConfig, mergeIntoConfigEnc } from '../config/configLoader.js';
-import { buildAccountSnippet, extraAccountsFromConfig } from './discoveryAccounts.js';
+import { buildAccountSnippet, discoveryPerfil, extraAccountsFromConfig } from './discoveryAccounts.js';
 import { signRequest } from './huawei-signer.js';
 
 const IAM_AUTH_TIMEOUT = 30000;
@@ -432,8 +432,8 @@ export function getDiscoveryAccounts() {
  */
 function suggestedPerfilFromName(accountId, region, projectName) {
   const prefixes = DISCOVERY_PREFIX[accountId];
-  // Conta cadastrada pela Home: os projetos usam o próprio perfil da conta (AK/SK gravados no config.enc).
-  if (!prefixes) return `${accountId}_DISCOVERY`;
+  // Conta cadastrada pela Home: "<CONTA>__<PROJETO>", que resolve para o perfil da conta (AK/SK no config.enc).
+  if (!prefixes) return discoveryPerfil(accountId, projectName);
   const prefix = prefixes[region] || prefixes['sa-brazil-1'] || prefixes['la-south-2'];
   if (!prefix) return null;
   let suffix = (projectName || '').trim();

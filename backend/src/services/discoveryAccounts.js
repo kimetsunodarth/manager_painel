@@ -33,6 +33,26 @@ export function buildAccountSnippet({ label, regions, ak, sk, projectId }, exist
   return { id, profile, label: name, regions: regs, snippet };
 }
 
+/**
+ * Perfil sugerido para um projeto de conta cadastrada na Home: "<CONTA>__<PROJETO>" (ex.: sa-brazil-1_Ecoa → ANANIM_SISTEMAS__ECOA).
+ * O "__" separa a conta do projeto sem ambiguidade (os dois podem ter "_").
+ */
+export function discoveryPerfil(accountId, projectName) {
+  let suffix = String(projectName || '').trim();
+  if (suffix.includes('_')) suffix = suffix.split('_').slice(1).join('_');
+  suffix = suffix.replace(/[\s-]+/g, '_').replace(/[^A-Za-z0-9_]/g, '').toUpperCase();
+  return suffix ? `${accountId}__${suffix}` : `${accountId}_DISCOVERY`;
+}
+
+/** "<CONTA>__<PROJETO>" → perfil "<CONTA>_DISCOVERY" (onde estão AK/SK), se a conta existir no config. */
+export function discoveryMasterFor(profileName, config) {
+  const name = String(profileName || '').toUpperCase();
+  const i = name.indexOf('__');
+  if (i < 2) return null;
+  const id = name.slice(0, i);
+  return config && config[`DISCOVERY_ACCOUNT_${id}`] ? `${id}_DISCOVERY` : null;
+}
+
 /** Contas extras a partir do config carregado (chaves DISCOVERY_ACCOUNT_<ID>). */
 export function extraAccountsFromConfig(config) {
   const list = [];

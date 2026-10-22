@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAccountSnippet, extraAccountsFromConfig, accountIdFromLabel } from '../src/services/discoveryAccounts.js';
+import { buildAccountSnippet, extraAccountsFromConfig, accountIdFromLabel, discoveryPerfil, discoveryMasterFor } from '../src/services/discoveryAccounts.js';
+
+test('perfil do projeto de conta nova: <CONTA>__<PROJETO>, resolvido para o perfil da conta', () => {
+  assert.equal(discoveryPerfil('ANANIM_SISTEMAS', 'sa-brazil-1_Ecoa'), 'ANANIM_SISTEMAS__ECOA');
+  assert.equal(discoveryPerfil('ANANIM_SISTEMAS', 'sa-brazil-1_Aguas Pratas'), 'ANANIM_SISTEMAS__AGUAS_PRATAS');
+  const config = { DISCOVERY_ACCOUNT_ANANIM_SISTEMAS: 'Ananim Sistemas|sa-brazil-1' };
+  assert.equal(discoveryMasterFor('ANANIM_SISTEMAS__ECOA', config), 'ANANIM_SISTEMAS_DISCOVERY');
+  assert.equal(discoveryMasterFor('ANANIMCLOUD_ECOA', config), null);
+  assert.equal(discoveryMasterFor('OUTRA__ECOA', config), null);
+});
 
 const valid = { label: 'Cliente Nova Conta', regions: ['sa-brazil-1'], ak: 'ABCDEFGHIJKLMNOPQRST', sk: 'a'.repeat(40), projectId: '0123456789abcdef0123456789abcdef' };
 
