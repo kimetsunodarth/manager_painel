@@ -16,7 +16,11 @@ function json(raw) {
   return value;
 }
 
-export function createAgentRouter(getStore) {
+/**
+ * `findServer(projeto, hostname)` (opcional): procura no projeto a VM com o mesmo nome do servidor, para o cadastro
+ * pela chave do projeto ligar o agente sozinho. Sem ela, todo cadastro fica aguardando vínculo.
+ */
+export function createAgentRouter(getStore, { findServer } = {}) {
   const router = Router();
   router.use(express.raw({ type: () => true, limit: '1mb' }));
   const failures = [];
@@ -37,6 +41,32 @@ export function createAgentRouter(getStore) {
         failures.push(now);
         return res.status(403).json({ error: 'invalid_or_expired_code' });
       }
+      return res.status(400).json({ error: 'invalid_request' });
+    }
+  });
+
+  // Instalador baixado pelo projeto: o agente se cadastra com a chave do projeto (sem código) e é ligado à VM de mesmo nome.
+  router.post('/enroll', async (req, res) => {
+    const now = Date.now();
+    while (failures.length && failures[0] < now - FAILURE_WINDOW_MS) failures.shift();
+    if (failures.length >= MAX_FAILURES) return res.status(429).json({ error: 'too_many_attempts' });
+    let body;
+    try { body = json(req.body); } catch { return res.status(400).json({ error: 'invalid_request' }); }
+    const token = String(body.enrollToken || '');
+    const hostname = String(body.hostname || '').trim().slice(0, 200);
+    const projeto = /^[A-Za-z0-9_-]{20,80}$/.test(token) ? getStore().peekEnrollment(token, now) : null;
+    if (!projeto) {
+      failures.push(now);
+      return res.status(403).json({ error: 'invalid_or_expired_enrollment' });
+    }
+    let ecs = null;
+    try { ecs = findServer && hostname ? await findServer(projeto, hostname) : null; } catch { ecs = null; }
+    try {
+      const agent = getStore().enroll({ token, agentId: String(body.agentId || '').toLowerCase(), jwk: body.publicKey, hostname, os: body.os,
+        agentVersion: body.agentVersion, ecs }, Date.now());
+      return res.status(201).json({ agentId: agent.id, projectName: agent.projectName, ecsName: agent.ecsName, pending: agent.pending });
+    } catch (e) {
+      if (e.message === 'invalid_or_expired_enrollment') return res.status(403).json({ error: e.message });
       return res.status(400).json({ error: 'invalid_request' });
     }
   });

@@ -110,14 +110,19 @@ namespace AnanimManagerAgent
             if (e == null || !string.IsNullOrEmpty(c.AgentId)) return null;
             c.ApiBaseUrl = e.url.TrimEnd('/');
             ConfigStore.Save(c);
-            Log.Write("Instalador com ativação embutida para " + e.ecsName + ".");
-            string result = Activate(c, Regex.Replace(e.code.ToUpperInvariant(), @"[\s-]", ""));
+            Log.Write("Instalador com ativação embutida: " + (string.IsNullOrEmpty(e.code) ? "projeto " + e.projectName : e.ecsName) + ".");
+            string result = string.IsNullOrEmpty(e.code) ? Enroll(c, e.enroll) : Activate(c, Regex.Replace(e.code.ToUpperInvariant(), @"[\s-]", ""));
             if (string.IsNullOrEmpty(c.AgentId)) return result;
             string service = ServiceManager.Exists(Paths.ServiceName) ? ServiceManager.Update() : ServiceManager.Install();
             return result + Environment.NewLine + service + Environment.NewLine + "Os serviços deste servidor aparecem no painel em cerca de 1 minuto.";
         }
 
-        public static string Activate(AgentConfig c, string code)
+        public static string Activate(AgentConfig c, string code) { return Register(c, "/api/agent/activate", "code", code); }
+
+        /// <summary>Cadastro pela chave do projeto (instalador baixado pelo projeto): o painel liga à VM com o mesmo nome deste servidor.</summary>
+        public static string Enroll(AgentConfig c, string token) { return Register(c, "/api/agent/enroll", "enrollToken", token); }
+
+        static string Register(AgentConfig c, string path, string campo, string valor)
         {
             string id = Guid.NewGuid().ToString("D"), keyName = Paths.KeyName + "-" + id.Substring(0, 8);
             Dictionary<string, object> jwk;
@@ -131,15 +136,17 @@ namespace AnanimManagerAgent
             Reply r;
             try
             {
-                r = Send(c.ApiBaseUrl.TrimEnd('/') + "/api/agent/activate", JsonBytes(new Dictionary<string, object> {
-                    { "code", code }, { "agentId", id }, { "publicKey", jwk }, { "hostname", Environment.MachineName }, { "os", "windows" }, { "agentVersion", Build.Self } }), null);
+                r = Send(c.ApiBaseUrl.TrimEnd('/') + path, JsonBytes(new Dictionary<string, object> {
+                    { campo, valor }, { "agentId", id }, { "publicKey", jwk }, { "hostname", Environment.MachineName }, { "os", "windows" }, { "agentVersion", Build.Self } }), null);
             }
             catch (Exception) { DeleteKey(keyName); return "Sem conexão com o painel. Confira endereço, DNS, firewall e o certificado HTTPS."; }
             Log.Write("Ativação: HTTP " + r.Status + ".");
             if (r.Status != 201 || r.Body == null)
             {
                 DeleteKey(keyName);
-                if (r.Status == 403 && r.Body != null) return "Código inválido, expirado ou já usado. Gere outro no painel (Servidores → Conectar).";
+                if (r.Status == 403 && r.Body != null)
+                    return campo == "code" ? "Código inválido, expirado ou já usado. Gere outro no painel (Servidores → Conectar)."
+                                           : "Este instalador do projeto venceu ou foi invalidado. Baixe outro no painel (Servidores → projeto → Baixar instalador do projeto).";
                 if (r.Status == 429) return "Muitas tentativas inválidas; aguarde 10 minutos.";
                 return "O painel recusou a ativação: " + Explain(r);
             }
@@ -150,7 +157,10 @@ namespace AnanimManagerAgent
             c.KeyName = keyName;
             ConfigStore.Save(c);
             if (oldKey != keyName) DeleteKey(oldKey);
-            return "Conectado a " + c.ProjectName + " · " + c.EcsName + ".";
+            bool pendente = r.Body.ContainsKey("pending") && Convert.ToBoolean(r.Body["pending"]);
+            return pendente
+                ? "Cadastrado no projeto " + c.ProjectName + ". Nenhum servidor do projeto tem o nome " + Environment.MachineName + " (ou ele já tem conector): escolha o servidor no painel, em Servidores → Aguardando vínculo."
+                : "Conectado a " + c.ProjectName + " · " + c.EcsName + ".";
         }
 
         // ---- Catálogo de serviços -----------------------------------------------------------------------

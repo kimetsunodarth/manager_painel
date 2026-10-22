@@ -17,7 +17,7 @@ router.use(authMiddleware, requireAdmin);
 
 const publicAgent = (a) => a && ({ id: a.id, projectKey: a.projectKey, projectName: a.projectName, ecsId: a.ecsId, ecsName: a.ecsName, os: a.os,
   hostname: a.hostname, agentVersion: a.agentVersion, created: a.created, lastSeen: a.lastSeen, revoked: a.revoked,
-  online: !!a.lastSeen && Date.now() - a.lastSeen < ONLINE_MS });
+  online: !!a.lastSeen && Date.now() - a.lastSeen < ONLINE_MS, pending: !!a.pending });
 const fail = (res, e) => res.status(400).json({ error: e?.message || 'invalid_request' });
 
 router.post('/activations', (req, res) => {
@@ -68,6 +68,50 @@ router.post('/activations/package', (req, res) => {
   }
   logAction(req, 'agent_activation_package', { projectKey, ecsName, os });
   sendPackage(res, pkg);
+});
+
+// Instalador do projeto: serve para todos os servidores do projeto por 7 dias; cada um se cadastra e é ligado pelo nome da VM.
+router.post('/enrollments/package', (req, res) => {
+  const { projectKey, projectName, projectId, region, perfil, os } = req.body || {};
+  if (![projectKey, projectName].every((v) => typeof v === 'string' && v.trim()) || !['windows', 'linux'].includes(os)) {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+  let pkg;
+  try {
+    agentPackage(os);
+    const { token, expiresAt } = getAgentStore().issueEnrollment({ projectKey, projectName, projectId: projectId || projectKey, region: region || '',
+      perfil: perfil || '', createdBy: req.user.email || req.user.id });
+    pkg = agentPackage(os, { url: publicUrl(req), enroll: token, projectName });
+    res.set('X-Activation-Expires', String(expiresAt));
+  } catch {
+    return res.status(404).json({ error: 'Instalador do agente não encontrado no servidor. Publique de novo o painel.' });
+  }
+  logAction(req, 'agent_enrollment_package', { projectKey, os });
+  sendPackage(res, pkg);
+});
+
+// Invalida os instaladores do projeto já baixados (ex.: arquivo foi parar em lugar errado).
+router.post('/enrollments/revoke', (req, res) => {
+  const projectKey = String(req.body?.projectKey || '');
+  if (!projectKey) return res.status(400).json({ error: 'invalid_request' });
+  getAgentStore().revokeEnrollments(projectKey);
+  logAction(req, 'agent_enrollment_revoke', { projectKey });
+  res.json({ status: 'revoked' });
+});
+
+// Agente cadastrado pelo instalador do projeto sem VM correspondente: o admin escolhe o servidor.
+router.put('/agents/:id/assign', (req, res) => {
+  const { ecsId, ecsName } = req.body || {};
+  if (![ecsId, ecsName].every((v) => typeof v === 'string' && v.trim())) return res.status(400).json({ error: 'invalid_request' });
+  try {
+    const agent = getAgentStore().assignServer(req.params.id, { ecsId, ecsName });
+    logAction(req, 'agent_assign_server', { agentId: agent.id, ecsName });
+    res.json({ agent: publicAgent(agent) });
+  } catch (e) {
+    if (e.message === 'server_taken') return res.status(409).json({ error: 'Este servidor já tem um conector ativo. Desconecte o outro antes.' });
+    if (e.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    fail(res, e);
+  }
 });
 
 router.get('/agents', (req, res) => {

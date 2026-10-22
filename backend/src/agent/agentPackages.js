@@ -14,12 +14,15 @@ const MARK_END = '#FIM-ATIVACAO#';
 const LINUX_DIR = 'ananim-manager-agent-linux';
 const LINUX_FILES = [['ananim-manager-agent', 0o755], ['install.sh', 0o755], ['ananim-manager-agent.service', 0o644]];
 
+const nomeArquivo = (nome) => String(nome || 'projeto').replace(/^[a-z]{2}-[a-z]+-\d+_/i, '').replace(/[^A-Za-z0-9._-]+/g, '_');
+
 export function agentsDir() {
   return process.env.ANANIM_AGENTS_DIR || path.join(getAppRoot(), '..', 'agents');
 }
 
-export function embedActivation(exe, { url, code, projectName, ecsName }) {
-  const json = JSON.stringify({ url, code, projectName, ecsName });
+/** `code`: ativação de um servidor (uso único). `enroll`: chave do projeto (vários servidores, cada um se cadastra sozinho). */
+export function embedActivation(exe, { url, code = '', enroll = '', projectName, ecsName = '' }) {
+  const json = JSON.stringify({ url, code, enroll, projectName, ecsName });
   return Buffer.concat([exe, Buffer.from(MARK_START + Buffer.from(json, 'utf8').toString('base64') + MARK_END, 'ascii')]);
 }
 
@@ -70,7 +73,7 @@ export function agentPackage(os, activation = null) {
   const dir = agentsDir();
   if (os === 'windows') {
     const exe = fs.readFileSync(path.join(dir, 'windows', 'AnanimManagerAgent.exe'));
-    return { fileName: activation ? `AnanimManagerAgent-${activation.ecsName}.exe` : 'AnanimManagerAgent.exe',
+    return { fileName: activation ? `AnanimManagerAgent-${activation.ecsName || nomeArquivo(activation.projectName)}.exe` : 'AnanimManagerAgent.exe',
       contentType: 'application/vnd.microsoft.portable-executable', data: activation ? embedActivation(exe, activation) : exe };
   }
   if (os === 'linux') {
@@ -78,9 +81,11 @@ export function agentPackage(os, activation = null) {
       data: Buffer.from(fs.readFileSync(path.join(dir, 'linux', name), 'utf8').replace(/\r\n/g, '\n'), 'utf8') }));
     if (activation) {
       files.push({ name: `${LINUX_DIR}/ativacao.conf`, mode: 0o600,
-        data: Buffer.from(`# Ativação do Ananim Manager Agent para ${activation.ecsName} (${activation.projectName}); uso único.\nURL=${activation.url}\nCODE=${activation.code}\n`, 'utf8') });
+        data: Buffer.from(activation.enroll
+          ? `# Cadastro do Ananim Manager Agent no projeto ${activation.projectName} (vale para vários servidores por 7 dias).\nURL=${activation.url}\nENROLL=${activation.enroll}\n`
+          : `# Ativação do Ananim Manager Agent para ${activation.ecsName} (${activation.projectName}); uso único.\nURL=${activation.url}\nCODE=${activation.code}\n`, 'utf8') });
     }
-    return { fileName: activation ? `ananim-manager-agent-linux-${activation.ecsName}.tar.gz` : 'ananim-manager-agent-linux.tar.gz',
+    return { fileName: activation ? `ananim-manager-agent-linux-${activation.ecsName || nomeArquivo(activation.projectName)}.tar.gz` : 'ananim-manager-agent-linux.tar.gz',
       contentType: 'application/gzip', data: buildTarGz(files) };
   }
   throw new Error('invalid_os');

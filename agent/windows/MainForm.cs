@@ -111,7 +111,9 @@ namespace AnanimManagerAgent
                 if (embutida != null)
                 {
                     url.Text = embutida.url;
-                    Work("Instalador com ativação para " + embutida.ecsName + " (" + embutida.projectName + "): ativando e instalando o serviço...", delegate
+                    Work((string.IsNullOrEmpty(embutida.code)
+                            ? "Instalador do projeto " + embutida.projectName + ": cadastrando este servidor (" + Environment.MachineName + ") e instalando o serviço..."
+                            : "Instalador com ativação para " + embutida.ecsName + " (" + embutida.projectName + "): ativando e instalando o serviço..."), delegate
                     {
                         string r = Agent.ActivateEmbedded() ?? "Nada a fazer.";
                         Invoke((Action)delegate { LoadConfig(); FillDiscovered(); });

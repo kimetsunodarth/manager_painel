@@ -61,7 +61,8 @@ namespace AnanimManagerAgent
     public class Embedded
     {
         const string Start = "\n#ANANIM-ATIVACAO#", End = "#FIM-ATIVACAO#";
-        public string url = "", code = "", projectName = "", ecsName = "";
+        /// <summary>code: ativação de um servidor; enroll: chave do projeto (o painel liga à VM com o mesmo nome).</summary>
+        public string url = "", code = "", enroll = "", projectName = "", ecsName = "";
 
         /// <summary>Tamanho do programa sem a ativação (o arquivo inteiro quando não há).</summary>
         public static int ProgramLength(byte[] bytes)
@@ -83,7 +84,7 @@ namespace AnanimManagerAgent
                 if (i < 0 || j < i) return null;
                 string json = Encoding.UTF8.GetString(Convert.FromBase64String(tail.Substring(i + Start.Length, j - i - Start.Length)));
                 Embedded e = new JavaScriptSerializer().Deserialize<Embedded>(json);
-                return e != null && !string.IsNullOrEmpty(e.code) && ConfigStore.ValidateUrl(e.url) == null ? e : null;
+                return e != null && (!string.IsNullOrEmpty(e.code) || !string.IsNullOrEmpty(e.enroll)) && ConfigStore.ValidateUrl(e.url) == null ? e : null;
             }
             catch (Exception) { return null; }
         }

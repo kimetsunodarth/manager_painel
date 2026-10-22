@@ -8,6 +8,8 @@ export interface AgentInfo {
   hostname: string; agentVersion: string; created: number; lastSeen: number | null; revoked: boolean; online: boolean;
   /** Serviços do último catálogo enviado pelo agente. */
   serviceCount?: number;
+  /** Cadastrado pelo instalador do projeto sem VM correspondente: aguarda o admin escolher o servidor. */
+  pending?: boolean;
 }
 export interface ManualServer { id: string; name: string; status: string }
 
@@ -66,6 +68,14 @@ async function baixar(path: string, init?: RequestInit): Promise<void> {
 export const agentAdmin = {
   /** Agente sem ativação (Windows: exe; Linux: tar.gz). */
   downloadAgent: (os: AgentOs) => baixar(`/agent-admin/downloads/${os}`),
+  /** Instalador do projeto: vale para vários servidores por 7 dias; cada um se cadastra e é ligado pelo nome da VM. */
+  downloadProject: (body: { projectKey: string; projectName: string; projectId: string; region?: string; perfil?: string; os: AgentOs }) =>
+    baixar('/agent-admin/enrollments/package', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  revokeProjectInstallers: (projectKey: string) =>
+    api<{ status: string }>('/agent-admin/enrollments/revoke', { method: 'POST', body: JSON.stringify({ projectKey }) }),
+  /** Liga um agente "aguardando vínculo" ao servidor escolhido. */
+  assign: (agentId: string, ecsId: string, ecsName: string) =>
+    api<{ agent: AgentInfo }>(`/agent-admin/agents/${encodeURIComponent(agentId)}/assign`, { method: 'PUT', body: JSON.stringify({ ecsId, ecsName }) }),
   /** Instalador já ativado para o servidor (código de uso único, 24 h, dentro do arquivo). */
   downloadActivated: (body: { projectKey: string; projectName: string; ecsId: string; ecsName: string; os: AgentOs }) =>
     baixar('/agent-admin/activations/package', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),

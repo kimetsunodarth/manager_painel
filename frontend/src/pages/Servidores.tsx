@@ -123,6 +123,34 @@ export default function Servidores() {
     } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
   }
 
+  /** Instalador do projeto: o mesmo arquivo serve para todos os servidores do projeto (7 dias); cada um é ligado pelo nome da VM. */
+  async function baixarDoProjeto(os: AgentOs) {
+    if (!projeto) return;
+    setBaixando(`projeto/${os}`); setErro('');
+    try {
+      await agentAdmin.downloadProject({ projectKey: projectKeyOf(projeto), projectName: projeto.name, projectId: projeto.id,
+        region: projeto.region || undefined, perfil: projeto.perfil || undefined, os });
+      setAviso(os === 'windows'
+        ? 'Instalador do projeto baixado. Em cada servidor do projeto, execute-o como administrador: ele se cadastra e aparece aqui ligado à VM de mesmo nome (vale 7 dias).'
+        : 'Pacote do projeto baixado. Em cada servidor (root): tar xzf no arquivo, entre na pasta e rode bash install.sh. Ele aparece aqui ligado à VM de mesmo nome (vale 7 dias).');
+    } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
+  }
+
+  async function vincular(agentId: string, ecsId: string) {
+    const alvo = ecs.find((s) => s.id === ecsId);
+    if (!alvo || !projeto) return;
+    try {
+      await agentAdmin.assign(agentId, alvo.id, alvo.name);
+      setAviso(`Conector ligado a ${alvo.name}.`);
+      await abrirProjeto(projeto);
+    } catch (e) { setErro(erroDe(e)); }
+  }
+
+  async function invalidarInstaladores() {
+    if (!projeto || !window.confirm('Invalidar todos os instaladores deste projeto já baixados? Os servidores já cadastrados continuam funcionando.')) return;
+    try { await agentAdmin.revokeProjectInstallers(projectKeyOf(projeto)); setAviso('Instaladores do projeto invalidados.'); } catch (e) { setErro(erroDe(e)); }
+  }
+
   async function baixarAgente(os: AgentOs) {
     setBaixando(os); setErro('');
     try { await agentAdmin.downloadAgent(os); } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
@@ -205,10 +233,10 @@ export default function Servidores() {
         actions={(
           <div className="flex flex-wrap gap-2">
             <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('windows')}>
-              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'windows' ? 'Baixando...' : 'Agente Windows'}
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'windows' ? 'Baixando...' : 'Agente Windows (sem ativação)'}
             </button>
             <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('linux')}>
-              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'linux' ? 'Baixando...' : 'Agente Linux'}
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'linux' ? 'Baixando...' : 'Agente Linux (sem ativação)'}
             </button>
           </div>
         )} />
@@ -237,6 +265,35 @@ export default function Servidores() {
       {projeto ? (
         <section className="ananim-card space-y-3 p-5">
           <h2 className="ananim-section-title">2. Servidores de {projeto.name}</h2>
+          {/* Instalador do projeto: o caminho mais simples para conectar vários servidores */}
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ananim-accent/30 bg-ananim-accent/[0.06] p-3">
+            <span className="mr-1 text-sm text-ananim-textSoft">Instalador do projeto (serve para todos os servidores, 7 dias):</span>
+            <button type="button" className="ananim-btn ananim-btn-primary" disabled={!!baixando} onClick={() => void baixarDoProjeto('windows')}>
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'projeto/windows' ? 'Gerando...' : 'Windows'}
+            </button>
+            <button type="button" className="ananim-btn ananim-btn-primary" disabled={!!baixando} onClick={() => void baixarDoProjeto('linux')}>
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'projeto/linux' ? 'Gerando...' : 'Linux'}
+            </button>
+            <button type="button" className="ml-auto text-xs text-ananim-muted hover:text-white hover:underline" onClick={() => void invalidarInstaladores()}>Invalidar instaladores baixados</button>
+          </div>
+          {agentes.some((a) => a.pending && !a.revoked) ? (
+            <div className="space-y-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-3">
+              <p className="text-sm font-semibold text-amber-100">Aguardando vínculo</p>
+              <p className="text-xs text-ananim-muted">Instalados pelo instalador do projeto, mas o nome do servidor não bate com nenhuma VM livre. Escolha a VM de cada um.</p>
+              {agentes.filter((a) => a.pending && !a.revoked).map((a) => (
+                <div key={a.id} className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm">{a.hostname}</span>
+                  <span className="text-xs text-ananim-muted">{a.os} · {a.online ? 'online' : `sem contato desde ${fmt(a.lastSeen)}`}</span>
+                  <select className="ananim-select h-9 max-w-xs" defaultValue="" aria-label={`Servidor para ${a.hostname}`}
+                    onChange={(e) => { if (e.target.value) void vincular(a.id, e.target.value); }}>
+                    <option value="">Escolher servidor...</option>
+                    {ecs.filter((s) => !agentes.some((x) => !x.revoked && !x.pending && x.ecsId === s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <button type="button" className="ananim-btn ananim-btn-ghost h-9 px-3 text-xs" onClick={() => void revogar(a)}>Descartar</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="ananim-table-wrap">
             <table className="ananim-table">
               <thead><tr><th>Servidor</th><th>Situação</th><th>Conector</th><th /></tr></thead>
