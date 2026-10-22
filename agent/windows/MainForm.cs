@@ -104,7 +104,22 @@ namespace AnanimManagerAgent
             Append("Versão deste programa: " + Build.Self + (ServiceManager.Exists(Paths.ServiceName) ? " · instalada no serviço: " + Build.Of(Paths.InstalledExe) : ""));
             // Abrir uma versão nova com o serviço já instalado basta para atualizar: sem revogar, sem novo código.
             // No Shown, e não no construtor: Work usa BeginInvoke, que exige a janela criada.
-            Shown += delegate { if (ServiceManager.Outdated()) Work("Serviço instalado com outra versão; atualizando...", ServiceManager.Update); };
+            Shown += delegate
+            {
+                // Baixado do painel já ativado para este servidor: ativa e instala sozinho, sem digitar código.
+                Embedded embutida = string.IsNullOrEmpty(current.AgentId) ? Embedded.Read(Build.SelfPath) : null;
+                if (embutida != null)
+                {
+                    url.Text = embutida.url;
+                    Work("Instalador com ativação para " + embutida.ecsName + " (" + embutida.projectName + "): ativando e instalando o serviço...", delegate
+                    {
+                        string r = Agent.ActivateEmbedded() ?? "Nada a fazer.";
+                        Invoke((Action)delegate { LoadConfig(); FillDiscovered(); });
+                        return r;
+                    });
+                }
+                else if (ServiceManager.Outdated()) Work("Serviço instalado com outra versão; atualizando...", ServiceManager.Update);
+            };
         }
 
         static void Columns(TableLayoutPanel t)

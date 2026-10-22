@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import { ACTIONS, codeHash, isBlocked, newCode, publicKeyFromJwk, validServiceName } from './agentCrypto.js';
 
 export const CODE_TTL_MS = 60 * 60 * 1000;
+/** Código embutido no instalador baixado do painel: dá tempo de copiar o arquivo ao servidor. */
+export const PACKAGE_CODE_TTL_MS = 24 * 60 * 60 * 1000;
 export const JOB_TTL_MS = 30 * 60 * 1000;
 export const LEASE_MS = 5 * 60 * 1000;
 export const MAX_ATTEMPTS = 3;
@@ -58,11 +60,12 @@ export function createAgentStore(db) {
   }
 
   return {
-    issueCode({ projectKey, projectName, ecsId, ecsName, createdBy }, now = Date.now()) {
+    issueCode({ projectKey, projectName, ecsId, ecsName, createdBy, ttlMs }, now = Date.now()) {
+      const ttl = Math.min(Number(ttlMs) > 0 ? Number(ttlMs) : CODE_TTL_MS, PACKAGE_CODE_TTL_MS);
       const code = newCode();
       db.prepare('INSERT INTO agent_activations VALUES (?,?,?,?,?,?,?,0)')
-        .run(codeHash(code), text(projectKey, 200), text(projectName, 200), text(ecsId, 100), text(ecsName, 200), text(createdBy, 254), now + CODE_TTL_MS);
-      return { code, expiresAt: now + CODE_TTL_MS };
+        .run(codeHash(code), text(projectKey, 200), text(projectName, 200), text(ecsId, 100), text(ecsName, 200), text(createdBy, 254), now + ttl);
+      return { code, expiresAt: now + ttl };
     },
 
     activate({ code, agentId, jwk, hostname, os, agentVersion }, now = Date.now()) {
