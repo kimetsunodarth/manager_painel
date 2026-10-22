@@ -8,6 +8,7 @@ import { logAction } from '../middleware/auditLog.js';
 import { userStore } from '../data/store.js';
 import { getAgentStore, getManualProjects } from '../agent/index.js';
 import { ONLINE_MS, userCanSeeProject } from '../agent/agentAccess.js';
+import { clientsOverview } from '../agent/clientsOverview.js';
 
 const router = Router();
 router.use(authMiddleware, requireAdmin);
@@ -29,6 +30,11 @@ router.get('/agents', (req, res) => {
   const store = getAgentStore();
   const projectKey = typeof req.query.projectKey === 'string' && req.query.projectKey ? req.query.projectKey : undefined;
   res.json({ agents: store.listAgents(projectKey).map((a) => ({ ...publicAgent(a), serviceCount: store.listServices(a.id).length })) });
+});
+
+// Menu Clientes: por cliente, servidores do conector, serviços liberados e usuários com acesso.
+router.get('/clients', (req, res) => {
+  res.json({ clients: clientsOverview({ store: getAgentStore(), manual: getManualProjects(), users: userStore.getAll() }) });
 });
 
 // Projetos fora da Huawei (on-premise, outras nuvens): servidores informados à mão, só serviços pelo agente.

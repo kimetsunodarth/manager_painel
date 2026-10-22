@@ -10,6 +10,11 @@ export interface AgentInfo {
   serviceCount?: number;
 }
 export interface ManualServer { id: string; name: string; status: string }
+export interface ClientOverview {
+  projectKey: string; projectName: string; name: string; manual: boolean;
+  servers: { agentId: string; ecsName: string; os: string; online: boolean; agentVersion: string; lastSeen: number | null; serviceCount: number; releasedCount: number }[];
+  users: { id: string; name: string; email?: string; grantedCount: number }[];
+}
 export const isManualProject = (p: { id: string }) => p.id.startsWith('manual-');
 export interface DiscoveredService { name: string; displayName: string; status: string; startType: string; discoveredAt: number }
 export interface ServiceRelease { serviceName: string; label: string; actions: AgentAction[] }
@@ -43,6 +48,7 @@ export const agentAdmin = {
   saveGrants: (id: string, userId: string, services: string[]) =>
     api<{ services: string[] }>(`/agent-admin/agents/${encodeURIComponent(id)}/grants`, { method: 'PUT', body: JSON.stringify({ userId, services }) }),
   revoke: (id: string) => api<{ status: string }>(`/agent-admin/agents/${encodeURIComponent(id)}/revoke`, { method: 'POST' }),
+  clients: () => api<{ clients: ClientOverview[] }>('/agent-admin/clients'),
   createManualProject: (name: string) =>
     api<{ project: { id: string; name: string } }>('/agent-admin/manual-projects', { method: 'POST', body: JSON.stringify({ name }) }),
   manualServers: (projectId: string) => api<{ servers: ManualServer[] }>(`/agent-admin/manual-projects/${encodeURIComponent(projectId)}/servers`),

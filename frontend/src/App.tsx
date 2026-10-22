@@ -11,10 +11,10 @@ import Automacoes from './pages/Automacoes';
 import ExtensaoHorario from './pages/ExtensaoHorario';
 import HorasExtrasCliente from './pages/HorasExtrasCliente';
 import Documentos from './pages/Documentos';
-import Clientes from './pages/Clientes';
 import Usuarios from './pages/Usuarios';
 import Logs from './pages/Logs';
 import Servidores from './pages/Servidores';
+import ClientesConector from './pages/ClientesConector';
 import { api, auth } from './api/client';
 import { ensureBrowserSession } from './utils/browserSession';
 
@@ -111,7 +111,7 @@ export default function App() {
         <Route path="extensao-horario" element={<ExtensaoHorario />} />
         <Route path="horas-extras" element={<HorasExtrasCliente />} />
         <Route path="documentos" element={<Documentos />} />
-        <Route path="clientes" element={<Clientes />} />
+        <Route path="clientes" element={<ClientesConector />} />
         <Route path="servidores" element={<Servidores />} />
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="logs" element={<Logs />} />
