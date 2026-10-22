@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import AgentesSemProjeto from '../components/AgentesSemProjeto';
+import SeletorProjeto from '../components/SeletorProjeto';
+import { contaDoProjeto, guardarProjetosEmCache, projetosEmCache } from '../utils/contas';
 import { huawei, type HuaweiEcsServer, type HuaweiProject } from '../api/client';
 import {
   ACTION_LABEL, JOB_LABEL, agentAdmin, isManualProject, projectKeyOf, statusLabel, type AgentAction, type AgentOs, type AgentDetail, type AgentInfo, type ServiceRelease,
@@ -23,8 +25,9 @@ function CaixaTri({ checked, parcial, rotulo, onChange }: { checked: boolean; pa
 
 /** Admin: conecta servidores do projeto ao Ananim Manager Agent, libera serviços e dá acesso aos clientes do projeto. */
 export default function Servidores() {
-  const [projetos, setProjetos] = useState<HuaweiProject[]>([]);
-  const [busca, setBusca] = useState('');
+  // Abre na hora com a lista que a Home já carregou; atualiza em segundo plano.
+  const [projetos, setProjetos] = useState<HuaweiProject[]>(() => projetosEmCache() ?? []);
+  const [conta, setConta] = useState('');
   const [projeto, setProjeto] = useState<HuaweiProject | null>(null);
   const [ecs, setEcs] = useState<HuaweiEcsServer[]>([]);
   const [agentes, setAgentes] = useState<AgentInfo[]>([]);
@@ -40,7 +43,9 @@ export default function Servidores() {
   const [novoProjeto, setNovoProjeto] = useState('');
   const [novoServidor, setNovoServidor] = useState('');
 
-  const carregarProjetos = () => huawei.projects('region', 'all_perfis').then(setProjetos).catch((e) => setErro(erroDe(e)));
+  const carregarProjetos = () => huawei.projects('region', 'all_perfis')
+    .then((lista) => { setProjetos(lista); guardarProjetosEmCache(lista); })
+    .catch((e) => setErro(erroDe(e)));
   useEffect(() => { void carregarProjetos(); }, []);
 
   // Link vindo de Clientes: /servidores?projectKey=...&agentId=... abre o projeto (e o servidor) direto.
@@ -52,6 +57,7 @@ export default function Servidores() {
     setLinkAplicado(true);
     const alvo = projetos.find((p) => projectKeyOf(p) === chave);
     if (!alvo) return;
+    setConta(contaDoProjeto(alvo));
     void abrirProjeto(alvo).then(() => {
       const agentId = params.get('agentId');
       if (agentId) void abrirAgente(agentId);
@@ -78,11 +84,6 @@ export default function Servidores() {
       await abrirProjeto(projeto);
     } catch (e) { setErro(erroDe(e)); }
   }
-
-  const projetosVisiveis = useMemo(() => {
-    const t = busca.trim().toLowerCase();
-    return projetos.filter((p) => !t || `${p.name} ${p.perfil ?? ''}`.toLowerCase().includes(t)).slice(0, 200);
-  }, [projetos, busca]);
 
   async function abrirProjeto(p: HuaweiProject) {
     setProjeto(p); setDetalhe(null); setCodigo(null); setConectando(null); setAviso(''); setErro('');
@@ -250,16 +251,9 @@ export default function Servidores() {
 
       <section className="ananim-card space-y-3 p-5">
         <h2 className="ananim-section-title">1. Projeto</h2>
-        <input className="ananim-input" placeholder="Buscar projeto ou conta" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar projeto" />
-        <div className="flex flex-wrap gap-2">
-          {projetosVisiveis.map((p) => (
-            <button key={projectKeyOf(p)} type="button" onClick={() => void abrirProjeto(p)}
-              className={`ananim-btn ${projeto && projectKeyOf(projeto) === projectKeyOf(p) ? 'ananim-btn-primary' : 'ananim-btn-ghost'}`}>
-              {p.name}{p.perfil ? <span className="ml-1 font-mono text-xs opacity-70">{p.perfil}</span> : null}
-              {isManualProject(p) ? <span className="ml-1 text-xs opacity-70">manual</span> : null}
-            </button>
-          ))}
-        </div>
+        <SeletorProjeto projetos={projetos} conta={conta} onConta={setConta} valor={projeto ? projectKeyOf(projeto) : ''}
+          onProjeto={(p) => { if (p) void abrirProjeto(p); else { setProjeto(null); setDetalhe(null); } }} />
+        {!projetos.length ? <p className="text-sm text-ananim-muted">Carregando projetos...</p> : null}
         <form className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3" onSubmit={(e) => { e.preventDefault(); void criarProjeto(); }}>
           <input className="ananim-input max-w-sm" placeholder="Novo projeto fora da Huawei (ex.: cliente on-premise)" value={novoProjeto}
             onChange={(e) => setNovoProjeto(e.target.value)} aria-label="Nome do novo projeto" maxLength={80} />

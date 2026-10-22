@@ -8,6 +8,7 @@ import { saveHomeProjectSelection } from '../utils/homeProjectSelection';
 import AccountProjectBar from '../components/AccountProjectBar';
 import PageHeader from '../components/PageHeader';
 import DiscoveryAccountForm from '../components/DiscoveryAccountForm';
+import AcaoVmProgresso, { useAcompanharAcoesVm, type AcaoVm } from '../components/AcaoVmProgresso';
 
 const HUAWEI_CACHE_KEY = 'huawei_projects_cache';
 
@@ -261,6 +262,8 @@ export default function Home() {
   const [huaweiEcsLoading, setHuaweiEcsLoading] = useState(false);
   const [huaweiEcsError, setHuaweiEcsError] = useState<string | null>(null);
   const [huaweiEcsActionLoading, setHuaweiEcsActionLoading] = useState<string | null>(null);
+  // Ligar/desligar/reiniciar: acompanha cada VM até a Huawei confirmar o estado (barra de progresso na linha).
+  const [acoesVm, setAcoesVm] = useState<Record<string, AcaoVm>>({});
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [usersList, setUsersList] = useState<User[]>([]);
   const [addUserTargetId, setAddUserTargetId] = useState<string | null>(null);
@@ -695,6 +698,11 @@ export default function Home() {
     }
   };
 
+  useAcompanharAcoesVm(acoesVm, setAcoesVm, huaweiEcs, async () => {
+    if (!selectedProject) return;
+    setHuaweiEcs(await huawei.ecs(selectedProject.id, selectedProject.region || undefined, selectedProject.perfil, ecsClienteFilter.trim() || undefined));
+  });
+
   const onHuaweiEcsAction = async (serverId: string, action: 'start' | 'stop' | 'restart', serverName?: string) => {
     if (!selectedProject) return;
     const key = `${serverId}-${action}`;
@@ -706,6 +714,7 @@ export default function Home() {
         perfil: selectedProject.perfil,
         serverName: serverName || undefined,
       });
+      setAcoesVm((x) => ({ ...x, [serverId]: { action, inicio: Date.now() } }));
       await loadEcsForProject(selectedProject);
     } catch (e: unknown) {
       setHuaweiEcsError(e instanceof Error ? e.message : `Erro ao executar ${action} no ECS.`);
@@ -1059,7 +1068,7 @@ export default function Home() {
                                   <td className="font-medium text-ananim-text">{s.name || s.id}</td>
                                   {isAdmin && <td className="font-mono text-xs">{s.id}</td>}
                                   <td>{metaCliente}</td>
-                                  <td><EcsStatusBadge status={s.status} /></td>
+                                  <td><EcsStatusBadge status={s.status} />{acoesVm[s.id] ? <AcaoVmProgresso acao={acoesVm[s.id]} status={String(s.status || '')} /> : null}</td>
                                   <td>{formatFlavor(s.flavor)}</td>
                                   <td>{formatDiskSize(s)}</td>
                                   <td>{ips || '—'}</td>

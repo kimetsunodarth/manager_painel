@@ -20,7 +20,7 @@ function json(raw) {
  * `findServer(projeto, hostname)` (opcional): procura no projeto a VM com o mesmo nome do servidor, para o cadastro
  * pela chave do projeto ligar o agente sozinho. Sem ela, todo cadastro fica aguardando vínculo.
  */
-export function createAgentRouter(getStore, { findServer } = {}) {
+export function createAgentRouter(getStore, { findServer, findGlobal } = {}) {
   const router = Router();
   router.use(express.raw({ type: () => true, limit: '1mb' }));
   const failures = [];
@@ -60,11 +60,15 @@ export function createAgentRouter(getStore, { findServer } = {}) {
       return res.status(403).json({ error: 'invalid_or_expired_enrollment' });
     }
     let ecs = null;
-    // Instalador geral (sem projeto): não há onde procurar a VM; fica aguardando o admin escolher projeto e servidor.
-    try { ecs = findServer && hostname && projeto.projectKey ? await findServer(projeto, hostname) : null; } catch { ecs = null; }
+    let achadoEm = null;
+    try {
+      if (projeto.projectKey) ecs = findServer && hostname ? await findServer(projeto, hostname) : null;
+      // Instalador geral: procura a VM de mesmo nome nos projetos dos clientes; achou uma só, já entra vinculado.
+      else if (findGlobal && hostname) { const r = await findGlobal(hostname); if (r) { ecs = r.ecs; achadoEm = r.projeto; } }
+    } catch { ecs = null; achadoEm = null; }
     try {
       const agent = getStore().enroll({ token, agentId: String(body.agentId || '').toLowerCase(), jwk: body.publicKey, hostname, os: body.os,
-        agentVersion: body.agentVersion, ecs }, Date.now());
+        agentVersion: body.agentVersion, ecs, projeto: achadoEm }, Date.now());
       return res.status(201).json({ agentId: agent.id, projectName: agent.projectName, ecsName: agent.ecsName, pending: agent.pending });
     } catch (e) {
       if (e.message === 'invalid_or_expired_enrollment') return res.status(403).json({ error: e.message });

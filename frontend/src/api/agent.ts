@@ -76,6 +76,9 @@ export const agentAdmin = {
   /** Liga um agente "aguardando vínculo" ao servidor escolhido (projeto só para quem veio do instalador geral). */
   assign: (agentId: string, ecsId: string, ecsName: string, projeto?: { projectKey: string; projectName: string }) =>
     api<{ agent: AgentInfo }>(`/agent-admin/agents/${encodeURIComponent(agentId)}/assign`, { method: 'PUT', body: JSON.stringify({ ecsId, ecsName, ...(projeto ?? {}) }) }),
+  /** VM de mesmo nome nos projetos dos clientes, para vincular com um clique. */
+  suggest: (agentId: string) => api<{ suggestion: { projectKey: string; projectName: string; projectId: string; perfil: string; region: string; ecsId: string; ecsName: string } | null }>(
+    `/agent-admin/agents/${encodeURIComponent(agentId)}/suggest`),
   /** Cadastrados pelo instalador geral, sem projeto. */
   unassigned: () => api<{ agents: AgentInfo[] }>('/agent-admin/agents/unassigned'),
   /** Instalador já ativado para o servidor (código de uso único, 24 h, dentro do arquivo). */
@@ -90,7 +93,7 @@ export const agentAdmin = {
   saveGrants: (id: string, userId: string, services: string[]) =>
     api<{ services: string[] }>(`/agent-admin/agents/${encodeURIComponent(id)}/grants`, { method: 'PUT', body: JSON.stringify({ userId, services }) }),
   revoke: (id: string) => api<{ status: string }>(`/agent-admin/agents/${encodeURIComponent(id)}/revoke`, { method: 'POST' }),
-  clients: () => api<{ clients: ClientOverview[] }>('/agent-admin/clients'),
+  clients: () => api<{ clients: ClientOverview[]; unassigned?: number }>('/agent-admin/clients'),
   createManualProject: (name: string) =>
     api<{ project: { id: string; name: string } }>('/agent-admin/manual-projects', { method: 'POST', body: JSON.stringify({ name }) }),
   manualServers: (projectId: string) => api<{ servers: ManualServer[] }>(`/agent-admin/manual-projects/${encodeURIComponent(projectId)}/servers`),

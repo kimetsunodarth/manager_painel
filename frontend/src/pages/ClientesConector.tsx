@@ -13,9 +13,10 @@ export default function ClientesConector() {
   const [clientes, setClientes] = useState<ClientOverview[] | null>(null);
   const [busca, setBusca] = useState('');
   const [erro, setErro] = useState('');
+  const [semVinculo, setSemVinculo] = useState(0);
 
   useEffect(() => {
-    agentAdmin.clients().then((r) => setClientes(r.clients)).catch((e) => setErro(e instanceof Error ? e.message : 'Falha ao carregar clientes.'));
+    agentAdmin.clients().then((r) => { setClientes(r.clients); setSemVinculo(r.unassigned ?? 0); }).catch((e) => setErro(e instanceof Error ? e.message : 'Falha ao carregar clientes.'));
   }, []);
 
   const visiveis = useMemo(() => {
@@ -28,6 +29,12 @@ export default function ClientesConector() {
       <PageHeader badge="Clientes" title="Clientes"
         description="Servidores ligados pelo conector, serviços liberados e quem tem acesso. Para incluir um cliente, conecte o primeiro servidor dele em Servidores (conector)." />
       {erro ? <div className="ananim-alert ananim-alert-danger">{erro}</div> : null}
+      {semVinculo ? (
+        <div className="ananim-alert ananim-alert-warning flex flex-wrap items-center justify-between gap-2">
+          <span>{semVinculo} servidor(es) instalado(s) aguardando vínculo com projeto e VM.</span>
+          <Link to="/servidores" className="ananim-btn ananim-btn-soft">Vincular em Servidores</Link>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <input className="ananim-input max-w-md" placeholder="Buscar cliente ou servidor" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar cliente" />
         <Link to="/servidores" className="ananim-btn ananim-btn-soft">＋ Conectar servidor</Link>

@@ -63,7 +63,7 @@ import cloud8Routes from './routes/cloud8.js';
 import auditLogRoutes from './routes/auditLog.js';
 import adminClientsRoutes from './routes/adminClients.js';
 import { createAgentRouter } from './routes/agent.js';
-import { findServerByHostname } from './agent/findServer.js';
+import { clientProjects, findServerAnywhere, findServerByHostname } from './agent/findServer.js';
 import { getAgentStore } from './agent/index.js';
 import agentAdminRoutes from './routes/agentAdmin.js';
 import agentServicesRoutes from './routes/agentServices.js';
@@ -131,7 +131,11 @@ app.use(cors({
   credentials: true,
 }));
 // Ananim Manager Agent: rotas assinadas pelo agente, sem sessão; corpo cru (a assinatura cobre os bytes), antes do express.json.
-app.use('/api/agent', createAgentRouter(getAgentStore, { findServer: findServerByHostname }));
+app.use('/api/agent', createAgentRouter(getAgentStore, {
+  findServer: findServerByHostname,
+  // Instalador geral: procura a VM de mesmo nome nos projetos atribuídos aos clientes.
+  findGlobal: (hostname) => findServerAnywhere(hostname, clientProjects()),
+}));
 app.use(express.json({ limit: '512kb' }));
 app.use(cookieParser());
 app.use((req, res, next) => {
