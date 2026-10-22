@@ -21,6 +21,8 @@ import { createCancelStop, createManualStart, closeOpenSession, getOpenSession, 
 import { getExtensionBillingForProject, getBillingConfig, saveBillingConfig, sanitizeBillingConfig, computeSessionBilling, formatOvertimeSessionLabel } from '../config/extensionBilling.js';
 import { notifyOvertimeStart, notifyOvertimeClose, sendTestEmail } from '../services/emailNotifier.js';
 import { logAction } from '../middleware/auditLog.js';
+import { getManualProjects } from '../agent/index.js';
+import { isManualProjectId } from '../agent/manualProjects.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -201,6 +203,8 @@ router.get('/projects', async (req, res) => {
       const scope = req.query.scope === 'all' ? 'all' : 'region';
       const source = req.query.source === 'all_perfis' ? 'all_perfis' : 'master';
       const apiProjects = await listProjectsWithConfig({ scope, source });
+      // Projetos fora da Huawei (Servidores (conector) → Novo projeto): entram na lista para atribuir a clientes.
+      apiProjects.push(...getManualProjects().listProjects());
       const visible = u.visibleProjects || [];
       const pk = (p) => (p.perfil ? `${p.perfil}-${p.id}` : p.id);
       const keys = new Set(apiProjects.map(pk));
@@ -244,6 +248,8 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
     if (!canAccessProject(req, projectId, perfil)) {
       return res.status(403).json({ error: 'Sem permissão para este projeto' });
     }
+    // Projeto manual: servidores não são VMs da Huawei (só serviços pelo agente).
+    if (isManualProjectId(projectId)) return res.json([]);
     const region = req.query.region || undefined;
     // Proteção para projetos enormes (ex.: MOOVE): limita resultados e aplica filtro durante a paginação.
     const maxServers = req.query.max ? Number(req.query.max) : undefined;

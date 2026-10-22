@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../components/PageHeader';
 import { huawei, type HuaweiEcsServer, type HuaweiProject } from '../api/client';
 import {
-  ACTION_LABEL, JOB_LABEL, agentAdmin, projectKeyOf, type AgentAction, type AgentDetail, type AgentInfo, type ServiceRelease,
+  ACTION_LABEL, JOB_LABEL, agentAdmin, isManualProject, projectKeyOf, type AgentAction, type AgentDetail, type AgentInfo, type ServiceRelease,
 } from '../api/agent';
 
 const ACOES: AgentAction[] = ['start', 'stop', 'restart'];
@@ -22,10 +22,32 @@ export default function Servidores() {
   const [codigo, setCodigo] = useState<{ code: string; expiresAt: number; ecsName: string } | null>(null);
   const [aviso, setAviso] = useState('');
   const [erro, setErro] = useState('');
+  const [novoProjeto, setNovoProjeto] = useState('');
+  const [novoServidor, setNovoServidor] = useState('');
 
-  useEffect(() => {
-    huawei.projects('region', 'all_perfis').then(setProjetos).catch((e) => setErro(erroDe(e)));
-  }, []);
+  const carregarProjetos = () => huawei.projects('region', 'all_perfis').then(setProjetos).catch((e) => setErro(erroDe(e)));
+  useEffect(() => { void carregarProjetos(); }, []);
+
+  async function criarProjeto() {
+    setErro(''); setAviso('');
+    try {
+      const { project } = await agentAdmin.createManualProject(novoProjeto);
+      setNovoProjeto('');
+      await carregarProjetos();
+      setAviso(`Projeto "${project.name}" criado. Adicione os servidores e conecte o agente; depois atribua o projeto aos clientes em Usuários.`);
+      await abrirProjeto({ id: project.id, name: project.name } as HuaweiProject);
+    } catch (e) { setErro(erroDe(e)); }
+  }
+
+  async function adicionarServidor() {
+    if (!projeto) return;
+    setErro('');
+    try {
+      await agentAdmin.addManualServer(projeto.id, novoServidor);
+      setNovoServidor('');
+      await abrirProjeto(projeto);
+    } catch (e) { setErro(erroDe(e)); }
+  }
 
   const projetosVisiveis = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -35,7 +57,10 @@ export default function Servidores() {
   async function abrirProjeto(p: HuaweiProject) {
     setProjeto(p); setDetalhe(null); setCodigo(null); setAviso(''); setErro('');
     try {
-      const [servidores, lista] = await Promise.all([huawei.ecs(p.id, p.region || undefined, p.perfil), agentAdmin.agents(projectKeyOf(p))]);
+      const servidoresDe = isManualProject(p)
+        ? agentAdmin.manualServers(p.id).then((r) => r.servers as HuaweiEcsServer[])
+        : huawei.ecs(p.id, p.region || undefined, p.perfil);
+      const [servidores, lista] = await Promise.all([servidoresDe, agentAdmin.agents(projectKeyOf(p))]);
       setEcs(servidores); setAgentes(lista.agents);
     } catch (e) { setErro(erroDe(e)); }
   }
@@ -108,9 +133,15 @@ export default function Servidores() {
             <button key={projectKeyOf(p)} type="button" onClick={() => void abrirProjeto(p)}
               className={`ananim-btn ${projeto && projectKeyOf(projeto) === projectKeyOf(p) ? 'ananim-btn-primary' : 'ananim-btn-ghost'}`}>
               {p.name}{p.perfil ? <span className="ml-1 font-mono text-xs opacity-70">{p.perfil}</span> : null}
+              {isManualProject(p) ? <span className="ml-1 text-xs opacity-70">manual</span> : null}
             </button>
           ))}
         </div>
+        <form className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3" onSubmit={(e) => { e.preventDefault(); void criarProjeto(); }}>
+          <input className="ananim-input max-w-sm" placeholder="Novo projeto fora da Huawei (ex.: cliente on-premise)" value={novoProjeto}
+            onChange={(e) => setNovoProjeto(e.target.value)} aria-label="Nome do novo projeto" maxLength={80} />
+          <button type="submit" className="ananim-btn ananim-btn-soft" disabled={novoProjeto.trim().length < 2}>＋ Novo projeto</button>
+        </form>
       </section>
 
       {projeto ? (
@@ -126,9 +157,9 @@ export default function Servidores() {
                     <tr key={s.id}>
                       <td className="font-mono">{s.name}</td>
                       <td>{s.status}</td>
-                      <td>{ag ? <span className={ag.online ? 'text-emerald-300' : 'text-amber-200'}>{ag.online ? 'Online' : `Sem contato desde ${fmt(ag.lastSeen)}`} · {ag.os} · {ag.agentVersion}</span> : <span className="text-ananim-muted">Não conectado</span>}</td>
+                      <td>{ag ? <span className={ag.online ? 'text-emerald-300' : 'text-amber-200'}>{ag.online ? 'Online' : `Sem contato desde ${fmt(ag.lastSeen)}`} · {ag.os} · {ag.agentVersion} · {ag.serviceCount ?? 0} serviços encontrados</span> : <span className="text-ananim-muted">Não conectado</span>}</td>
                       <td className="text-right">
-                        {ag ? <button type="button" className="ananim-btn ananim-btn-soft" onClick={() => void abrirAgente(ag.id)}>Serviços e acesso</button>
+                        {ag ? <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void abrirAgente(ag.id)}>Serviços e acesso ({ag.serviceCount ?? 0})</button>
                           : <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void gerarCodigo(s)}>Conectar</button>}
                       </td>
                     </tr>
@@ -137,6 +168,14 @@ export default function Servidores() {
               </tbody>
             </table>
           </div>
+          {isManualProject(projeto) ? (
+            <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); void adicionarServidor(); }}>
+              <input className="ananim-input max-w-sm" placeholder="Nome do servidor (ex.: SRV-SAP01)" value={novoServidor}
+                onChange={(e) => setNovoServidor(e.target.value)} aria-label="Nome do novo servidor" maxLength={80} />
+              <button type="submit" className="ananim-btn ananim-btn-soft" disabled={novoServidor.trim().length < 2}>＋ Adicionar servidor</button>
+              {ecs.length === 0 ? <span className="text-sm text-ananim-muted">Projeto manual: informe os servidores e clique em Conectar em cada um.</span> : null}
+            </form>
+          ) : null}
           {codigo ? (
             <div className="ananim-card-muted space-y-2 p-4">
               <div className="ananim-label">Código para {codigo.ecsName} · uso único · válido até {new Date(codigo.expiresAt).toLocaleTimeString('pt-BR')}</div>
