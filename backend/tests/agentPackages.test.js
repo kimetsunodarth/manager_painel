@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { embedActivation, readEmbeddedActivation, buildTarGz } from '../src/agent/agentPackages.js';
 import { createAgentStore, CODE_TTL_MS, PACKAGE_CODE_TTL_MS } from '../src/agent/agentStore.js';
 
-const ativacao = { url: 'https://ananim-manager.ananim.com.br', code: 'ABCD-EFGH-JKLM', projectName: 'sa-brazil-1_Ecoa', ecsName: 'ECOAWEB' };
+const ativacao = { url: 'https://ananim-manager.ananim.com.br', code: 'ABCD-EFGH-JKLM', enroll: '', projectName: 'sa-brazil-1_Ecoa', ecsName: 'ECOAWEB' };
 
 test('ativação embutida no fim do exe e lida de volta (o exe continua igual no começo)', () => {
   const exe = Buffer.concat([Buffer.from('MZ'), Buffer.alloc(5000, 7)]);

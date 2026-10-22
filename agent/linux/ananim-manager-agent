@@ -294,8 +294,15 @@ def cmd_activate(args):
     require_root()
     conf = load_config()
     url = validate_url(args.url or conf.get('apiBaseUrl'))
+    enroll = (args.enroll or '').strip()
     code = re.sub(r'[\s-]', '', (args.code or '').upper())
-    if len(code) != 12 or any(c not in CODE_ALPHABET for c in code):
+    if enroll:
+        if not re.match(r'^[A-Za-z0-9_-]{20,80}$', enroll):
+            raise SystemExit('Chave do projeto inválida. Baixe de novo o pacote no painel (Servidores → projeto → Baixar instalador do projeto).')
+        path, field, value = '/api/agent/enroll', 'enrollToken', enroll
+    elif len(code) == 12 and all(c in CODE_ALPHABET for c in code):
+        path, field, value = '/api/agent/activate', 'code', code
+    else:
         raise SystemExit('Código inválido. Use o código de 12 caracteres gerado no painel (Servidores (conector) → Conectar).')
     os.makedirs(CONF_DIR, mode=0o700, exist_ok=True)
     agent_id = str(uuid.uuid4())
@@ -303,7 +310,7 @@ def cmd_activate(args):
     key = os.path.join(CONF_DIR, 'agent-%s.key' % agent_id[:8])
     jwk = new_key(key)
     try:
-        r = post(url + '/api/agent/activate', json.dumps({'code': code, 'agentId': agent_id, 'publicKey': jwk, 'hostname': socket.gethostname(),
+        r = post(url + path, json.dumps({field: value, 'agentId': agent_id, 'publicKey': jwk, 'hostname': socket.gethostname(),
                                                           'os': 'linux', 'agentVersion': VERSION}).encode('utf-8'))
     except (urllib.error.URLError, OSError) as e:
         os.remove(key)
@@ -311,7 +318,8 @@ def cmd_activate(args):
     if r.status != 201 or not isinstance(r.body, dict):
         os.remove(key)
         if r.status == 403 and isinstance(r.body, dict):
-            raise SystemExit('Código inválido, expirado ou já usado. Gere outro no painel.')
+            raise SystemExit('Código inválido, expirado ou já usado. Gere outro no painel.' if field == 'code'
+                             else 'Este pacote do projeto venceu ou foi invalidado. Baixe outro no painel.')
         raise SystemExit('O painel recusou a ativação: ' + r.explain())
     old = conf.get('keyFile')
     conf.update(apiBaseUrl=url, agentId=agent_id, projectName=r.body.get('projectName', ''), ecsName=r.body.get('ecsName', ''), keyFile=key)
@@ -319,7 +327,11 @@ def cmd_activate(args):
     save_config(conf)
     if old and old != key and os.path.exists(old):
         os.remove(old)
-    log('Ativação: conectado a %s · %s.' % (conf['projectName'], conf['ecsName']))
+    if r.body.get('pending'):
+        log('Cadastrado no projeto %s. Nenhum servidor do projeto tem o nome %s (ou ele já tem conector): '
+            'escolha o servidor no painel, em Servidores → Aguardando vínculo.' % (conf['projectName'], socket.gethostname()))
+    else:
+        log('Ativação: conectado a %s · %s.' % (conf['projectName'], conf['ecsName']))
     publish(conf)
     print('Próximo passo: systemctl enable --now ananim-manager-agent')
 
@@ -374,7 +386,9 @@ def main():
     sub = parser.add_subparsers(dest='cmd')
     a = sub.add_parser('activate', help='ativa com o código gerado no painel')
     a.add_argument('--url', help='endereço do painel (padrão: o da configuração)')
-    a.add_argument('--code', required=True)
+    grupo = a.add_mutually_exclusive_group(required=True)
+    grupo.add_argument('--code', help='código de um servidor (Servidores → Conectar → código manual)')
+    grupo.add_argument('--enroll', help='chave do projeto (vem no ativacao.conf do pacote do projeto)')
     sub.add_parser('status', help='situação da ativação e do serviço')
     sub.add_parser('discover', help='lista os serviços que serão enviados ao painel')
     sub.add_parser('publish', help='envia a lista de serviços agora')

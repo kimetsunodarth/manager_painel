@@ -13,6 +13,9 @@ export const LEASE_MS = 5 * 60 * 1000;
 export const MAX_ATTEMPTS = 3;
 export const NONCE_TTL_MS = 15 * 60 * 1000;
 export const MAX_SERVICES = 2000;
+/** Chave de cadastro do projeto (instalador baixado pelo projeto): vale 7 dias e até 100 servidores. */
+export const ENROLL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const ENROLL_MAX_USES = 100;
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS agent_activations (
@@ -36,12 +39,19 @@ const SCHEMA = `
     requested_by TEXT NOT NULL, requested_at INTEGER NOT NULL, claimed_at INTEGER, attempts INTEGER NOT NULL DEFAULT 0,
     finished_at INTEGER, result_code TEXT, result_message TEXT, expires INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS idx_agent_jobs_agent ON agent_jobs(agent_id, status, requested_at);
+  CREATE TABLE IF NOT EXISTS agent_enrollments (
+    token_hash TEXT PRIMARY KEY, project_key TEXT NOT NULL, project_name TEXT NOT NULL, project_id TEXT NOT NULL DEFAULT '',
+    region TEXT NOT NULL DEFAULT '', perfil TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created INTEGER NOT NULL,
+    expires INTEGER NOT NULL, uses INTEGER NOT NULL DEFAULT 0, max_uses INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
 `;
 
 const agentRow = (r) => r && ({
   id: r.id, projectKey: r.project_key, projectName: r.project_name, ecsId: r.ecs_id, ecsName: r.ecs_name, os: r.os,
   jwk: JSON.parse(r.jwk), hostname: r.hostname, agentVersion: r.agent_version, created: r.created, lastSeen: r.last_seen, revoked: !!r.revoked,
+  // Cadastrado pela chave do projeto sem VM correspondente: aguarda o admin escolher o servidor.
+  pending: r.ecs_id === '',
 });
+const enrollHash = (token) => crypto.createHash('sha256').update('enr:' + String(token || '')).digest('hex');
 const jobRow = (r) => r && ({
   id: r.id, agentId: r.agent_id, serviceName: r.service_name, action: r.action, status: r.status, requestedBy: r.requested_by,
   requestedAt: r.requested_at, claimedAt: r.claimed_at, attempts: r.attempts, finishedAt: r.finished_at,
@@ -79,6 +89,46 @@ export function createAgentStore(db) {
           .run(agentId, act.project_key, act.project_name, act.ecs_id, act.ecs_name, os, JSON.stringify({ kty: 'RSA', n: jwk.n, e: jwk.e }),
             text(hostname, 200), text(agentVersion, 64), now, now);
         db.prepare('UPDATE agent_activations SET used=1 WHERE code_hash=?').run(act.code_hash);
+        return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));
+      })();
+    },
+
+    /** Chave para o instalador baixado pelo projeto (vários servidores; cada um se cadastra sozinho). */
+    issueEnrollment({ projectKey, projectName, projectId, region, perfil, createdBy }, now = Date.now()) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      db.prepare('INSERT INTO agent_enrollments (token_hash, project_key, project_name, project_id, region, perfil, created_by, created, expires, max_uses) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(enrollHash(token), text(projectKey, 200), text(projectName, 200), text(projectId, 100), text(region, 64), text(perfil, 100), text(createdBy, 254), now, now + ENROLL_TTL_MS, ENROLL_MAX_USES);
+      return { token, expiresAt: now + ENROLL_TTL_MS };
+    },
+    peekEnrollment(token, now = Date.now()) {
+      const r = db.prepare('SELECT * FROM agent_enrollments WHERE token_hash=? AND revoked=0 AND expires>=? AND uses<max_uses').get(enrollHash(token), now);
+      return r ? { projectKey: r.project_key, projectName: r.project_name, projectId: r.project_id, region: r.region, perfil: r.perfil } : null;
+    },
+    revokeEnrollments: (projectKey) => db.prepare('UPDATE agent_enrollments SET revoked=1 WHERE project_key=?').run(projectKey),
+    /** Cadastro pela chave: liga à VM `ecs` (mesmo nome do servidor) se ela não tiver conector ativo; senão fica aguardando vínculo. */
+    enroll({ token, agentId, jwk, hostname, os, agentVersion, ecs }, now = Date.now()) {
+      publicKeyFromJwk(jwk);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(String(agentId))) throw new Error('invalid_agent_id');
+      if (!['windows', 'linux'].includes(os)) throw new Error('invalid_os');
+      return tx(() => {
+        const enr = db.prepare('SELECT * FROM agent_enrollments WHERE token_hash=? AND revoked=0 AND expires>=? AND uses<max_uses').get(enrollHash(token), now);
+        if (!enr) throw new Error('invalid_or_expired_enrollment');
+        const taken = ecs && db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0').get(enr.project_key, ecs.id);
+        const alvo = ecs && !taken ? ecs : null;
+        db.prepare('INSERT INTO agents (id, project_key, project_name, ecs_id, ecs_name, os, jwk, hostname, agent_version, created, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+          .run(agentId, enr.project_key, enr.project_name, alvo ? text(alvo.id, 100) : '', text(alvo ? alvo.name : hostname, 200), os,
+            JSON.stringify({ kty: 'RSA', n: jwk.n, e: jwk.e }), text(hostname, 200), text(agentVersion, 64), now, now);
+        db.prepare('UPDATE agent_enrollments SET uses=uses+1 WHERE token_hash=?').run(enr.token_hash);
+        return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));
+      })();
+    },
+    /** Admin liga um agente aguardando vínculo (ou troca o servidor) — a VM não pode ter outro conector ativo. */
+    assignServer(agentId, { ecsId, ecsName }) {
+      return tx(() => {
+        const a = db.prepare('SELECT * FROM agents WHERE id=? AND revoked=0').get(agentId);
+        if (!a) throw new Error('not_found');
+        if (db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0 AND id<>?').get(a.project_key, ecsId, agentId)) throw new Error('server_taken');
+        db.prepare('UPDATE agents SET ecs_id=?, ecs_name=? WHERE id=?').run(text(ecsId, 100), text(ecsName, 200), agentId);
         return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));
       })();
     },

@@ -30,7 +30,7 @@ export function canUserAct(user, agent, releases, grants, serviceName, action) {
 export function listForUser(user, store, now = Date.now()) {
   const grants = user?.role === 'admin' ? null : store.getGrants(user?.id);
   return store.listAgents()
-    .filter((a) => !a.revoked && userCanSeeProject(user, a.projectKey))
+    .filter((a) => !a.revoked && (user?.role === 'admin' || !a.pending) && userCanSeeProject(user, a.projectKey))
     .map((a) => {
       const present = new Map(store.listServices(a.id).map((s) => [s.name, s]));
       const jobs = store.listJobs({ agentId: a.id, limit: 100 });
