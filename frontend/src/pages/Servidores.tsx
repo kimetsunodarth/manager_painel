@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { huawei, type HuaweiEcsServer, type HuaweiProject } from '../api/client';
 import {
@@ -27,6 +28,21 @@ export default function Servidores() {
 
   const carregarProjetos = () => huawei.projects('region', 'all_perfis').then(setProjetos).catch((e) => setErro(erroDe(e)));
   useEffect(() => { void carregarProjetos(); }, []);
+
+  // Link vindo de Clientes: /servidores?projectKey=...&agentId=... abre o projeto (e o servidor) direto.
+  const [params] = useSearchParams();
+  const [linkAplicado, setLinkAplicado] = useState(false);
+  useEffect(() => {
+    const chave = params.get('projectKey');
+    if (linkAplicado || !chave || !projetos.length) return;
+    setLinkAplicado(true);
+    const alvo = projetos.find((p) => projectKeyOf(p) === chave);
+    if (!alvo) return;
+    void abrirProjeto(alvo).then(() => {
+      const agentId = params.get('agentId');
+      if (agentId) void abrirAgente(agentId);
+    });
+  }, [projetos, params, linkAplicado]);
 
   async function criarProjeto() {
     setErro(''); setAviso('');
