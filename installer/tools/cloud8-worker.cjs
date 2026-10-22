@@ -68,7 +68,8 @@ async function clickResilient(page, locator, { attempts = 8, timeoutMs = 8000 } 
 }
 
 async function readInventory(page, maxPages) {
-  await clickResilient(page, page.locator('span.x-tree-node-text:has-text("Componentes Atuais")').first());
+  // O Cloud8 renomeou o menu "Componentes Atuais" para "Componentes" (visto em 2026-10-22); a grade é a mesma.
+  await clickResilient(page, page.locator('span.x-tree-node-text').filter({ hasText: /^\s*Componentes( Atuais)?\s*$/ }).first());
   await page.locator('tr.x-grid-data-row').first().waitFor({ state: 'visible', timeout: 20000 });
   await page.waitForTimeout(1500);
 
