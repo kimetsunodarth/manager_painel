@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+/* Visual do Cofre Ananim (tema AnanimCloud, revisões 25/26): Outfit + Inter servidas pelo próprio portal. */
+@font-face { font-family: 'AnanimOutfit'; font-weight: 500 700; font-display: swap; src: url('/fonts/outfit-latin.woff2') format('woff2'); }
+@font-face { font-family: 'AnanimInter'; font-weight: 400 700; font-display: swap; src: url('/fonts/inter-latin.woff2') format('woff2'); }
 
 @tailwind base;
 @tailwind components;
@@ -16,9 +18,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background:
-      radial-gradient(circle at top left, rgba(55, 198, 219, 0.08), transparent 24%),
-      radial-gradient(circle at top right, rgba(114, 217, 239, 0.05), transparent 18%),
-      linear-gradient(180deg, #06101d 0%, #020617 56%);
+      radial-gradient(circle at 10% 0%, rgba(0, 229, 255, 0.07), transparent 32%),
+      radial-gradient(circle at 95% 100%, rgba(20, 184, 166, 0.06), transparent 30%),
+      #070b14;
     @apply bg-ananim-bg text-ananim-text font-sans;
   }
 
@@ -32,7 +34,7 @@
   h4,
   h5,
   h6 {
-    @apply font-display tracking-[-0.02em] text-ananim-text;
+    @apply font-display tracking-[-0.01em] text-ananim-text;
   }
 
   p,
@@ -41,18 +43,17 @@
   select,
   button,
   textarea {
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
   }
 
   ::selection {
-    background: rgba(0, 200, 224, 0.25);
+    background: rgba(0, 229, 255, 0.25);
   }
 
   /* Focus ring acessível — substituí o outline padrão feio */
   :focus-visible {
-    outline: 2px solid rgba(0, 200, 224, 0.7);
+    outline: 2px solid rgba(0, 229, 255, 0.75);
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   /* Scrollbar sutil (Chromium) */
@@ -64,38 +65,38 @@
   /* Select / option em dark */
   select,
   option {
-    background: #0C0C16;
-    color: #E5E7EB;
+    background: #0f1a2e;
+    color: #f8fafc;
   }
 }
 
 @layer components {
   .ananim-card {
-    @apply rounded-3xl border border-white/10 bg-ananim-surface/90 shadow-panel backdrop-blur-sm;
+    @apply rounded-3xl border border-white/10 bg-ananim-surface shadow-panel;
   }
 
   .ananim-card-muted {
-    @apply rounded-3xl border border-white/10 bg-white/[0.025] shadow-panel-sm;
+    @apply rounded-3xl border border-white/10 bg-white/[0.03];
   }
 
   .ananim-btn {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold tracking-[0.01em] transition-all duration-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer;
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer;
   }
 
   .ananim-btn-primary {
-    @apply ananim-btn border border-ananim-accent/40 bg-ananim-accent text-slate-950 hover:brightness-110 hover:shadow-[0_0_24px_rgba(0,200,224,0.22)] active:brightness-95;
+    @apply ananim-btn border-0 bg-ananim-accent font-bold text-ananim-onAccent hover:brightness-110;
   }
 
   .ananim-btn-ghost {
-    @apply ananim-btn border border-white/10 bg-white/[0.04] text-ananim-text hover:border-white/20 hover:bg-white/[0.08];
+    @apply ananim-btn border border-white/10 bg-white/[0.05] text-ananim-text hover:border-white/20 hover:bg-white/[0.08];
   }
 
   .ananim-btn-soft {
-    @apply ananim-btn border border-ananim-accent/20 bg-ananim-accent/10 text-ananim-accent hover:bg-ananim-accent/15;
+    @apply ananim-btn border border-ananim-accent/30 bg-ananim-accent/10 text-ananim-accent hover:bg-ananim-accent/15;
   }
 
   .ananim-input {
-    @apply h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[15px] text-ananim-text placeholder:text-ananim-muted focus:border-ananim-accent/60 focus:bg-white/[0.06] focus:outline-none transition-colors duration-150;
+    @apply h-11 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-[15px] text-ananim-text placeholder:text-ananim-muted focus:border-ananim-accent focus:outline-none focus:ring-2 focus:ring-ananim-accent/35 transition-colors duration-150;
   }
 
   .ananim-select {
@@ -103,7 +104,7 @@
   }
 
   .ananim-textarea {
-    @apply min-h-[120px] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 font-mono text-sm text-ananim-text placeholder:text-ananim-muted focus:border-ananim-accent/60 focus:bg-white/[0.06] focus:outline-none transition-colors duration-150;
+    @apply min-h-[120px] w-full rounded-xl border border-white/10 bg-black/25 px-3 py-3 font-mono text-sm text-ananim-text placeholder:text-ananim-muted focus:border-ananim-accent focus:outline-none focus:ring-2 focus:ring-ananim-accent/35 transition-colors duration-150;
   }
 
   .ananim-page {
@@ -111,7 +112,7 @@
   }
 
   .ananim-page-header {
-    @apply flex flex-col gap-4 rounded-3xl border border-white/10 bg-ananim-surface/70 p-5 shadow-panel backdrop-blur-sm md:flex-row md:items-end md:justify-between md:p-6;
+    @apply flex flex-col gap-4 rounded-3xl border border-white/10 bg-ananim-surface p-5 shadow-panel md:flex-row md:items-end md:justify-between md:p-6;
   }
 
   .ananim-page-header-copy {
@@ -119,11 +120,11 @@
   }
 
   .ananim-page-eyebrow {
-    @apply inline-flex items-center gap-2 rounded-full border border-ananim-accent/20 bg-ananim-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-ananim-accent;
+    @apply inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-ananim-accent;
   }
 
   .ananim-page-title {
-    @apply text-2xl font-semibold leading-tight text-ananim-text md:text-[2rem];
+    @apply font-display text-2xl font-bold uppercase leading-tight tracking-[0.06em] text-ananim-text md:text-[1.75rem];
   }
 
   .ananim-page-description {
@@ -131,7 +132,7 @@
   }
 
   .ananim-section-title {
-    @apply text-lg font-semibold text-ananim-text md:text-xl;
+    @apply font-sans text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-ananim-heading;
   }
 
   .ananim-section-subtitle {
@@ -139,7 +140,7 @@
   }
 
   .ananim-metric {
-    @apply rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 shadow-panel-sm;
+    @apply rounded-3xl border border-white/10 bg-ananim-surface px-4 py-3;
   }
 
   .ananim-metric-compact {
@@ -155,7 +156,7 @@
   }
 
   .ananim-table-wrap {
-    @apply overflow-x-auto rounded-2xl border border-white/10 bg-black/10;
+    @apply overflow-x-auto rounded-3xl border border-white/10 bg-black/15;
   }
 
   .ananim-table {
@@ -167,7 +168,7 @@
   }
 
   .ananim-table th {
-    @apply px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-ananim-muted;
+    @apply px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-ananim-heading;
   }
 
   .ananim-table td {
@@ -179,7 +180,7 @@
   }
 
   .ananim-label {
-    @apply mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.08em] text-ananim-textSoft;
+    @apply mb-1.5 block text-[13px] font-medium text-ananim-muted;
   }
 
   .ananim-segmented {
@@ -191,15 +192,15 @@
   }
 
   .ananim-segment-active {
-    @apply border border-ananim-accent/20 bg-ananim-accent/10 text-white shadow-accent;
+    @apply border border-ananim-accent/45 bg-ananim-accent/10 text-white shadow-accent;
   }
 
   .ananim-chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ananim-textSoft;
+    @apply inline-flex items-center gap-1 rounded-full border border-white/[0.14] bg-white/[0.04] px-3 py-1 text-[12.5px] font-medium text-ananim-muted;
   }
 
   .ananim-form-section {
-    @apply rounded-3xl border border-white/10 bg-white/[0.025] p-5 md:p-6;
+    @apply rounded-3xl border border-white/10 bg-white/[0.03] p-5 md:p-6;
   }
 
   .ananim-alert {

@@ -68,13 +68,13 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-ananim-bg text-ananim-text flex">
+    <div className="flex min-h-screen gap-3 bg-ananim-bg p-3 text-ananim-text">
+      {/* Menu em cartão, como no Cofre */}
       <aside
-        className={`relative border-r border-white/10 bg-ananim-surface/90 text-white backdrop-blur-sm transition-all duration-200 ${
+        className={`sticky top-3 flex h-[calc(100vh-24px)] shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-ananim-surface text-white transition-all duration-200 ${
           sidebarOpen ? 'w-[250px]' : 'w-20'
-        } flex flex-col`}
+        }`}
       >
-        <div className="absolute inset-0 bg-ananim-glow opacity-40 pointer-events-none" />
         <div className="relative p-4 flex items-center justify-between border-b border-white/10">
           <Link to="/" className="flex items-center min-w-0 flex-1 gap-3">
             <div className={`flex items-center justify-center ${sidebarOpen ? 'h-11 w-12' : 'h-10 w-10'} rounded-2xl border border-white/10 bg-white/95 overflow-hidden shadow-panel-sm`}>
@@ -87,7 +87,7 @@ export default function Layout() {
             {sidebarOpen && (
               <div className="min-w-0 space-y-0.5">
                 <p className="font-display text-sm font-semibold text-white">Ananim</p>
-                <p className="truncate text-[11px] uppercase tracking-[0.2em] text-ananim-muted">Manager Painel</p>
+                <p className="truncate text-[11px] uppercase tracking-[0.1em] text-ananim-muted">Manager Painel</p>
               </div>
             )}
           </Link>
@@ -119,14 +119,14 @@ export default function Layout() {
                 to={item.path}
                 title={item.label}
                 aria-label={item.label}
-                className={`group flex items-center gap-3 rounded-2xl px-3 py-3 transition-all duration-200 ${
+                className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors duration-150 ${
                   location.pathname === item.path
-                    ? 'bg-ananim-accent/10 text-white shadow-accent border border-ananim-accent/20'
-                    : 'border border-transparent text-ananim-textSoft hover:border-white/10 hover:bg-white/[0.035] hover:text-white'
+                    ? 'border-ananim-accent/45 bg-ananim-accent/10 text-white shadow-accent'
+                    : 'border-transparent text-ananim-textSoft hover:bg-white/[0.04] hover:text-white'
                 }`}
               >
-                <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
-                  location.pathname === item.path ? 'bg-ananim-accent/15 text-ananim-accent' : 'bg-white/[0.04] text-ananim-muted group-hover:text-white'
+                <span className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                  location.pathname === item.path ? 'text-ananim-accent' : 'text-ananim-muted group-hover:text-white'
                 }`}>
                   <item.icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                 </span>
@@ -136,15 +136,16 @@ export default function Layout() {
         </nav>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="border-b border-white/10 bg-ananim-surface/60 px-4 py-4 backdrop-blur md:px-6">
+      <main className="flex min-w-0 flex-1 flex-col gap-3">
+        {/* Cabeçalho em cartão, como no Cofre */}
+        <header className="rounded-3xl border border-white/10 bg-ananim-surface px-4 py-3 md:px-5">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/95 overflow-hidden shadow-panel-sm">
                <img src="/logos/logo Ananim_Prancheta 1 cópia 6.png" alt="Ananim" className="h-full w-full object-cover" />
              </div>
               <div className="min-w-0">
-                <h1 className="truncate text-base font-semibold text-white md:text-lg">
+                <h1 className="truncate font-display text-base font-semibold text-white md:text-lg">
                   Ananim Manager Painel
                   {appVersion ? <span className="ml-2 font-sans text-xs font-medium text-ananim-muted">v{appVersion}</span> : null}
                 </h1>
@@ -172,7 +173,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6 lg:px-7">
+        <div className="flex-1 px-1 pb-4 pt-1 md:px-2">
           <Outlet />
         </div>
       </main>
