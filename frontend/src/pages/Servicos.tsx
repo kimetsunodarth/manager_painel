@@ -5,6 +5,7 @@ import { useUser } from '../hooks/useUser';
 import { getHomeProjectSelection } from '../utils/homeProjectSelection';
 import PageHeader from '../components/PageHeader';
 import AgentServicesPanel from '../components/AgentServicesPanel';
+import { projectKeyOf } from '../api/agent';
 
 const SAP_HEALTH_KEYS = ['hana', 'serviceLayer', 'sld', 'authentication', 'sql-server'] as const;
 const SAP_LABELS: Record<string, string> = {
@@ -55,6 +56,10 @@ export default function Servicos() {
   const fetchingRef = useRef(false);
   const pendingHealthRef = useRef(false);
   const homeSelection = getHomeProjectSelection();
+  // Conector: só os servidores do projeto escolhido na Home.
+  const agentProjectKey = homeSelection?.project
+    ? projectKeyOf({ id: homeSelection.project.id, perfil: homeSelection.project.perfil ?? undefined })
+    : undefined;
   const projectScope = homeSelection?.project
     ? {
         projectId: homeSelection.project.id,
@@ -267,7 +272,7 @@ export default function Servicos() {
     // Cliente só com conector (sem SSH configurado) ainda vê os serviços dos servidores dele.
     return (
       <div className="ananim-page">
-        <AgentServicesPanel />
+        <AgentServicesPanel projectKey={agentProjectKey} />
         <div className="ananim-alert-warning">
           <p className="font-medium">{listError}</p>
         </div>
@@ -401,7 +406,7 @@ export default function Servicos() {
         }
       />
 
-      <AgentServicesPanel />
+      <AgentServicesPanel projectKey={agentProjectKey} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="ananim-metric">

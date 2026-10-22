@@ -5,9 +5,13 @@ import { ACTION_LABEL, JOB_LABEL, agentServices, type AgentAction, type ServerSe
 const RUNNING = /running|active/i;
 const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
-/** Serviços liberados pelo conector (Ananim Manager Agent) nos servidores do usuário. Some quando não há nenhum. */
-export default function AgentServicesPanel() {
-  const [servers, setServers] = useState<ServerServices[]>([]);
+/**
+ * Serviços liberados pelo conector (Ananim Manager Agent) nos servidores do usuário. Some quando não há nenhum.
+ * Com `projectKey` (projeto escolhido na Home), mostra só os servidores desse projeto.
+ */
+export default function AgentServicesPanel({ projectKey }: { projectKey?: string }) {
+  const [todos, setServers] = useState<ServerServices[]>([]);
+  const servers = projectKey ? todos.filter((s) => s.projectKey === projectKey) : todos;
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState('');
 
@@ -61,7 +65,7 @@ export default function AgentServicesPanel() {
             <span className="ananim-chip">{s.projectName}</span>
             <span className={`ananim-chip ${s.online ? 'text-emerald-300' : 'text-amber-200'}`}>{s.online ? 'Conector online' : `Conector sem contato desde ${fmt(s.lastSeen)}`}</span>
           </div>
-          {s.services.length === 0 ? <p className="text-sm text-ananim-muted">Nenhum serviço liberado neste servidor.</p> : null}
+          {s.services.length === 0 ? <p className="text-sm text-ananim-muted">Nenhum serviço liberado neste servidor. O administrador libera em Servidores (conector) → Serviços e acesso.</p> : null}
           {s.services.map((v) => {
             const job = v.lastJob;
             const ocupado = enviando === `${s.agentId}/${v.serviceName}` || (!!job && ['pending', 'claimed'].includes(job.status));
