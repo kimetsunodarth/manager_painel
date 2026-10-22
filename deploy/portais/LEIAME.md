@@ -72,6 +72,23 @@ para a release anterior.
 | 502 | serviço parado: `systemctl status ananim-manager-painel`, `journalctl -u ananim-manager-painel` |
 | serviço "skipped" | falta `shared/config.enc` (condição da unit) |
 
+## Ananim Manager Agent (Linux: SUSE, RHEL, Ubuntu)
+
+Pacote: `agent/linux/` (Python 3.6+ só biblioteca padrão, `openssl`, `systemd`). No servidor, como root:
+
+```bash
+tar xzf ananim-manager-agent-linux.tar.gz && cd ananim-manager-agent-linux
+bash install.sh --code XXXX-XXXX-XXXX          # instala, ativa, liga o serviço
+ananim-manager-agent status                     # situação, instâncias HANA encontradas
+ananim-manager-agent discover                   # o que vai para o painel
+```
+
+Descobre as unidades systemd e as instâncias HANA (`/usr/sap/<SID>/HDB<nr>` → serviço `HANA_<SID>_HDB<nr>`,
+executado como `su - <sid>adm -c "HDB start|stop|restart"`, até 15 min). Bloqueados mesmo se o painel pedir: ssh,
+dbus, rede, auditd, polkit, firewalld, `systemd-*`, `getty@*`, `user@*`, `dbus-*` e o próprio agente; apelidos de
+unidade são resolvidos para a unidade real antes do bloqueio. Configuração e chave em `/etc/ananim-manager-agent`
+(0700/0600), log em `/var/log/ananim-manager-agent.log`. Atualizar: `bash install.sh` de novo (mantém a ativação).
+
 ## Ananim Manager Agent (Windows)
 
 `agent/windows/build.ps1` gera `agent/windows/dist/AnanimManagerAgent.exe`. No servidor do cliente, como
