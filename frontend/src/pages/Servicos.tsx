@@ -51,6 +51,8 @@ export default function Servicos() {
   const [selectedClientKey, setSelectedClientKey] = useState<string | null>(null);
   const [selectedServerLabel, setSelectedServerLabel] = useState<string>('');
   const [selectedServerKind, setSelectedServerKind] = useState<'web' | 'database' | 'hana' | null>(null);
+  // Projeto escolhido sem serviços SSH cadastrados: só o conector (Ananim Manager Agent) e o nome do cliente.
+  const [agentOnly, setAgentOnly] = useState(false);
   const currentUser = useUser();
   const isAdmin = currentUser?.role === 'admin';
   const fetchingRef = useRef(false);
@@ -143,7 +145,17 @@ export default function Servicos() {
     setListError(null);
     try {
       const data = await api.list(serviceScope);
-      if (Array.isArray(data)) {
+      const agentMode = !!data && !Array.isArray(data) && (data as { mode?: string }).mode === 'agent';
+      setAgentOnly(agentMode);
+      if (agentMode) {
+        setServiceList([]);
+        setSqlMode(false);
+        setSqlDisplayName((data as { displayName?: string }).displayName || '');
+        setAvailableServers([]);
+        setSelectedClientKey(null);
+        setSelectedServerLabel('');
+        setSelectedServerKind(null);
+      } else if (Array.isArray(data)) {
         setServiceList(data);
         setSqlMode(false);
         setAvailableServers([]);
@@ -211,7 +223,7 @@ export default function Servicos() {
 
 
   useEffect(() => {
-    if (serviceList === null || listError) return;
+    if (serviceList === null || listError || agentOnly) return;
     fetchHealth();
     const intervalHealth = setInterval(fetchHealth, 30000);
     const intervalList = setInterval(() => fetchServiceList(), 60000);
@@ -219,7 +231,7 @@ export default function Servicos() {
       clearInterval(intervalHealth);
       clearInterval(intervalList);
     };
-  }, [serviceList, listError, selectedClientKey, homeSelection?.project?.id, homeSelection?.project?.perfil, homeSelection?.project?.name]);
+  }, [serviceList, listError, agentOnly, selectedClientKey, homeSelection?.project?.id, homeSelection?.project?.perfil, homeSelection?.project?.name]);
 
   const onUpdateStatus = () => {
     fetchHealth();
@@ -324,6 +336,16 @@ export default function Servicos() {
         : 'bg-slate-400';
   const connectionHint = testMessage || vmDisplayName || vmHost || 'Host não configurado';
   const hasServerSwitch = availableServers.length > 1;
+
+  if (agentOnly) {
+    return (
+      <div className="ananim-page">
+        <PageHeader badge="Serviços" title={sqlDisplayName ? `Serviços ${sqlDisplayName}` : 'Serviços'}
+          description="Iniciar, parar e reiniciar os serviços liberados nos servidores deste cliente, pelo conector instalado em cada servidor." />
+        <AgentServicesPanel projectKey={agentProjectKey} alwaysShow />
+      </div>
+    );
+  }
 
   return (
     <div className="ananim-page">

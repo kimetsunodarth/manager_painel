@@ -9,7 +9,7 @@ const fmt = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString
  * Serviços liberados pelo conector (Ananim Manager Agent) nos servidores do usuário. Some quando não há nenhum.
  * Com `projectKey` (projeto escolhido na Home), mostra só os servidores desse projeto.
  */
-export default function AgentServicesPanel({ projectKey }: { projectKey?: string }) {
+export default function AgentServicesPanel({ projectKey, alwaysShow = false }: { projectKey?: string; alwaysShow?: boolean }) {
   const [todos, setServers] = useState<ServerServices[]>([]);
   const servers = projectKey ? todos.filter((s) => s.projectKey === projectKey) : todos;
   const [erro, setErro] = useState('');
@@ -46,7 +46,7 @@ export default function AgentServicesPanel({ projectKey }: { projectKey?: string
     }
   }
 
-  if (!servers.length && !erro) return null;
+  if (!servers.length && !erro && !alwaysShow) return null;
   return (
     <section className="ananim-card mb-6 space-y-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -57,6 +57,7 @@ export default function AgentServicesPanel({ projectKey }: { projectKey?: string
         <button type="button" className="ananim-btn ananim-btn-ghost" onClick={() => void carregar()}>Atualizar</button>
       </div>
       {erro ? <div className="ananim-alert ananim-alert-danger">{erro}</div> : null}
+      {!servers.length && !erro ? <p className="text-sm text-ananim-muted">Nenhum servidor deste cliente está com o conector ligado ainda.</p> : null}
       {servers.map((s) => (
         <div key={s.agentId} className="ananim-card-muted space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
