@@ -106,17 +106,23 @@ export function createAgentStore(db) {
     },
     revokeEnrollments: (projectKey) => db.prepare('UPDATE agent_enrollments SET revoked=1 WHERE project_key=?').run(projectKey),
     /** Cadastro pela chave: liga à VM `ecs` (mesmo nome do servidor) se ela não tiver conector ativo; senão fica aguardando vínculo. */
-    enroll({ token, agentId, jwk, hostname, os, agentVersion, ecs }, now = Date.now()) {
+    // `projeto`: para a chave geral (sem projeto), o projeto onde a VM de mesmo nome foi achada.
+    enroll({ token, agentId, jwk, hostname, os, agentVersion, ecs, projeto }, now = Date.now()) {
       publicKeyFromJwk(jwk);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(String(agentId))) throw new Error('invalid_agent_id');
       if (!['windows', 'linux'].includes(os)) throw new Error('invalid_os');
       return tx(() => {
         const enr = db.prepare('SELECT * FROM agent_enrollments WHERE token_hash=? AND revoked=0 AND expires>=? AND uses<max_uses').get(enrollHash(token), now);
         if (!enr) throw new Error('invalid_or_expired_enrollment');
-        const taken = ecs && db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0').get(enr.project_key, ecs.id);
-        const alvo = ecs && !taken ? ecs : null;
+        const usaProjeto = !enr.project_key && ecs && projeto && projeto.projectKey;
+        const chave = usaProjeto ? text(projeto.projectKey, 200) : enr.project_key;
+        const taken = ecs && chave && db.prepare('SELECT 1 FROM agents WHERE project_key=? AND ecs_id=? AND revoked=0').get(chave, ecs.id);
+        const alvo = ecs && chave && !taken ? ecs : null;
+        // Sem VM livre, o cadastro geral volta a ficar sem projeto (aguardando vínculo).
+        const chaveFinal = alvo ? chave : enr.project_key;
+        const nomeProjeto = alvo && usaProjeto ? text(projeto.projectName, 200) : enr.project_name;
         db.prepare('INSERT INTO agents (id, project_key, project_name, ecs_id, ecs_name, os, jwk, hostname, agent_version, created, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-          .run(agentId, enr.project_key, enr.project_name, alvo ? text(alvo.id, 100) : '', text(alvo ? alvo.name : hostname, 200), os,
+          .run(agentId, chaveFinal, nomeProjeto, alvo ? text(alvo.id, 100) : '', text(alvo ? alvo.name : hostname, 200), os,
             JSON.stringify({ kty: 'RSA', n: jwk.n, e: jwk.e }), text(hostname, 200), text(agentVersion, 64), now, now);
         db.prepare('UPDATE agent_enrollments SET uses=uses+1 WHERE token_hash=?').run(enr.token_hash);
         return agentRow(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId));

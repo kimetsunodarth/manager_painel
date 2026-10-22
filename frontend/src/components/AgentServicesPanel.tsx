@@ -18,6 +18,24 @@ function grupos(services: Servico[]): [string, Servico[]][] {
   return [...mapa.entries()];
 }
 
+/** Progresso de um pedido ao agente: na fila → executando no servidor → concluído/falhou. */
+function EtapasPedido({ status, acao }: { status: string; acao: string }) {
+  const etapa = status === 'pending' ? 0 : status === 'claimed' ? 1 : 2;
+  const falhou = ['failed', 'expired', 'cancelled'].includes(status);
+  const nomes = ['Na fila', 'Executando no servidor', falhou ? 'Falhou' : 'Concluído'];
+  return (
+    <div className="my-1.5 flex items-center gap-1.5 text-[11px]" role="status" aria-live="polite" aria-label={`${acao}: ${nomes[etapa]}`}>
+      <span className="text-ananim-muted">{acao}:</span>
+      {nomes.map((n, i) => (
+        <span key={n} className="flex items-center gap-1.5">
+          <span className={`h-1.5 w-8 rounded-full ${i < etapa ? 'bg-ananim-accent' : i === etapa ? (falhou ? 'bg-rose-400' : etapa === 2 ? 'bg-emerald-400' : 'animate-pulse bg-ananim-accent') : 'bg-white/10'}`} />
+          {i === etapa ? <span className={falhou ? 'text-rose-300' : etapa === 2 ? 'text-emerald-300' : 'text-ananim-text'}>{n}</span> : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Banco/HANA × servidor web/aplicação: instância HANA descoberta ou nome do servidor com HDB/DB/SQL/HANA. */
 function papel(s: ServerServices): 'banco' | 'web' {
   if (s.services.some((v) => v.serviceName.startsWith('HANA_'))) return 'banco';
@@ -99,10 +117,12 @@ export default function AgentServicesPanel({ projectKey, alwaysShow = false }: {
   function linhaServico(s: ServerServices, v: Servico, bloqueado: boolean) {
     const job = v.lastJob;
     const ocupado = bloqueado || enviando === `${s.agentId}/${v.serviceName}` || (!!job && ['pending', 'claimed'].includes(job.status));
+    const recente = !!job && (['pending', 'claimed'].includes(job.status) || Date.now() - (job.finishedAt || 0) < 60_000);
     return (
       <div key={v.serviceName} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-4 py-3">
         <div className="min-w-0">
           <div className="font-semibold">{v.label}</div>
+          {recente && job ? <EtapasPedido status={job.status} acao={ACTION_LABEL[job.action]} /> : null}
           <div className="font-mono text-xs text-ananim-muted">
             {v.displayName} · {job ? `${JOB_LABEL[job.status]} (${ACTION_LABEL[job.action]}) ${fmt(job.finishedAt || job.requestedAt)} por ${job.requestedBy}` : 'sem execuções pelo painel'}
             {job?.status === 'failed' && job.resultMessage ? ` · ${job.resultMessage}` : ''}

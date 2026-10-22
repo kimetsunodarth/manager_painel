@@ -17,7 +17,8 @@ export function clientsOverview({ store, manual, users, now = Date.now() }) {
 
   for (const p of manual.listProjects()) client(p.id, p.name, true);
   const grantsByProject = new Map();
-  for (const a of store.listAgents().filter((x) => !x.revoked)) {
+  // Sem projeto (instalador geral, aguardando vínculo) não é cliente ainda: fica fora; a tela Servidores mostra.
+  for (const a of store.listAgents().filter((x) => !x.revoked && x.projectKey)) {
     const c = client(a.projectKey, a.projectName, a.projectKey.startsWith('manual-'));
     c.servers.push({ agentId: a.id, ecsName: a.ecsName, os: a.os, online: !!a.lastSeen && now - a.lastSeen < ONLINE_MS, agentVersion: a.agentVersion,
       lastSeen: a.lastSeen, serviceCount: store.listServices(a.id).length, releasedCount: store.getReleases(a.id).length });

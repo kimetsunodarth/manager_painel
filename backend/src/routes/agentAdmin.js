@@ -10,6 +10,7 @@ import { getAgentStore, getManualProjects } from '../agent/index.js';
 import { ONLINE_MS, userCanSeeProject } from '../agent/agentAccess.js';
 import { clientsOverview } from '../agent/clientsOverview.js';
 import { agentPackage } from '../agent/agentPackages.js';
+import { clientProjects, findServerAnywhere } from '../agent/findServer.js';
 import { PACKAGE_CODE_TTL_MS } from '../agent/agentStore.js';
 
 const router = Router();
@@ -57,7 +58,19 @@ router.get('/downloads/:os', (req, res) => {
 
 // Cadastrados pelo instalador geral, esperando projeto e servidor.
 router.get('/agents/unassigned', (req, res) => {
-  res.json({ agents: getAgentStore().listUnassigned().map(publicAgent) });
+  const store = getAgentStore();
+  res.json({ agents: store.listUnassigned().map((a) => ({ ...publicAgent(a), serviceCount: store.listServices(a.id).length })) });
+});
+
+// Sugestão de vínculo: a VM de mesmo nome nos projetos atribuídos aos clientes (ex.: BRADOWEB no projeto Brado do edmar).
+router.get('/agents/:id/suggest', async (req, res) => {
+  const agent = getAgentStore().getAgent(req.params.id);
+  if (!agent) return res.status(404).json({ error: 'not_found' });
+  try {
+    const achado = await findServerAnywhere(agent.hostname, clientProjects());
+    res.json({ suggestion: achado ? { projectKey: achado.projeto.projectKey, projectName: achado.projeto.projectName, projectId: achado.projeto.projectId,
+      perfil: achado.projeto.perfil, region: achado.projeto.region, ecsId: achado.ecs.id, ecsName: achado.ecs.name } : null });
+  } catch { res.json({ suggestion: null }); }
 });
 
 // Instalador já ativado para um servidor: o código (uso único, 24 h) vai dentro do arquivo; ninguém precisa digitá-lo.
@@ -131,7 +144,8 @@ router.get('/agents', (req, res) => {
 
 // Menu Clientes: por cliente, servidores do conector, serviços liberados e usuários com acesso.
 router.get('/clients', (req, res) => {
-  res.json({ clients: clientsOverview({ store: getAgentStore(), manual: getManualProjects(), users: userStore.getAll() }) });
+  const store = getAgentStore();
+  res.json({ clients: clientsOverview({ store, manual: getManualProjects(), users: userStore.getAll() }), unassigned: store.listUnassigned().length });
 });
 
 // Projetos fora da Huawei (on-premise, outras nuvens): servidores informados à mão, só serviços pelo agente.

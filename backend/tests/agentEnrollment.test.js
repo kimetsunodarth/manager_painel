@@ -53,6 +53,16 @@ test('instalador geral (sem projeto): cadastra aguardando vínculo e o admin esc
   assert.deepEqual(store.listUnassigned(), []);
 });
 
+test('instalador geral com VM encontrada nos projetos dos clientes: já entra vinculado', () => {
+  const store = createAgentStore(new Database(':memory:'));
+  const { token } = store.issueEnrollment({ projectKey: '', projectName: '', createdBy: 'adm' });
+  const a = store.enroll({ ...agente(token, 'BRADOWEB', { id: 'w1', name: 'BRADOWEB' }), projeto: { projectKey: 'RAMO_SP_BRADO-1035', projectName: 'la-south-2_Brado' } });
+  assert.equal(a.pending, false);
+  assert.equal(a.projectKey, 'RAMO_SP_BRADO-1035');
+  assert.equal(a.ecsName, 'BRADOWEB');
+  assert.deepEqual(store.listUnassigned(), []);
+});
+
 test('chave vencida, revogada ou inválida é recusada', () => {
   const store = createAgentStore(new Database(':memory:'));
   const now = 1_000_000;
