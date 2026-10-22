@@ -3,7 +3,8 @@
  * Usa AK/SK com assinatura de requisição (mesmo formato CBR, change_disk, tags) — sem token.
  */
 
-import { getCredentialsForApi, getProfileNames, getProfileCredentials } from '../config/configLoader.js';
+import { getCredentialsForApi, getProfileNames, getProfileCredentials, loadConfig, mergeIntoConfigEnc } from '../config/configLoader.js';
+import { buildAccountSnippet, extraAccountsFromConfig } from './discoveryAccounts.js';
 import { signRequest } from './huawei-signer.js';
 
 const IAM_AUTH_TIMEOUT = 30000;
@@ -403,8 +404,21 @@ const DISCOVERY_PREFIX = {
   ANANIMCLOUD: { 'sa-brazil-1': 'ANANIMCLOUD' },
 };
 
+/** Contas fixas + as cadastradas pela Home (config.enc). */
+function allDiscoveryAccounts() {
+  return [...DISCOVERY_ACCOUNTS, ...extraAccountsFromConfig(loadConfig())];
+}
+
+/** Cadastra outra conta para a descoberta: grava AK/SK/projeto no config.enc (criptografado). */
+export function addDiscoveryAccount(input) {
+  const account = buildAccountSnippet(input, allDiscoveryAccounts().map((a) => a.id));
+  const result = mergeIntoConfigEnc(account.snippet);
+  if (!result.ok) throw new Error(result.error || 'Não foi possível gravar no config.enc');
+  return { id: account.id, label: account.label, profile: account.profile, region: account.regions[0], projectId: input.projectId };
+}
+
 export function getDiscoveryAccounts() {
-  return DISCOVERY_ACCOUNTS.map((a) => ({
+  return allDiscoveryAccounts().map((a) => ({
     id: a.id,
     label: a.label,
     profile: a.profile,
@@ -418,7 +432,8 @@ export function getDiscoveryAccounts() {
  */
 function suggestedPerfilFromName(accountId, region, projectName) {
   const prefixes = DISCOVERY_PREFIX[accountId];
-  if (!prefixes) return null;
+  // Conta cadastrada pela Home: os projetos usam o próprio perfil da conta (AK/SK gravados no config.enc).
+  if (!prefixes) return `${accountId}_DISCOVERY`;
   const prefix = prefixes[region] || prefixes['sa-brazil-1'] || prefixes['la-south-2'];
   if (!prefix) return null;
   let suffix = (projectName || '').trim();
@@ -433,7 +448,7 @@ function suggestedPerfilFromName(accountId, region, projectName) {
  * Retorna projetos com perfil sugerido e status 'novo' | 'ja_existe' (já está em visibleProjects do usuário).
  */
 export async function discoverProjectsForAccount(accountId, visibleProjectIds = new Set()) {
-  const account = DISCOVERY_ACCOUNTS.find((a) => a.id === accountId);
+  const account = allDiscoveryAccounts().find((a) => a.id === accountId);
   if (!account) throw new Error(`Conta '${accountId}' não encontrada`);
 
   let creds;

@@ -7,6 +7,7 @@ import { getErrorMessage } from '../utils/errorMessage';
 import { saveHomeProjectSelection } from '../utils/homeProjectSelection';
 import AccountProjectBar from '../components/AccountProjectBar';
 import PageHeader from '../components/PageHeader';
+import DiscoveryAccountForm from '../components/DiscoveryAccountForm';
 
 const HUAWEI_CACHE_KEY = 'huawei_projects_cache';
 
@@ -1336,6 +1337,9 @@ export default function Home() {
                 {discoverStep === 'account' && (
                   <>
                     <p className="text-sm text-ananim-textSoft mb-3">Selecione a conta para descobrir projetos:</p>
+                    {isAdmin ? (
+                      <DiscoveryAccountForm onCreated={(conta) => { setDiscoveryAccounts((l) => [...l, conta]); setDiscoverSelectedAccount(conta.id); }} />
+                    ) : null}
                     <div className="flex flex-col gap-2 mb-4 max-h-48 overflow-y-auto">
                       {discoveryAccounts.map((acc) => (
                         <label key={acc.id} className={`flex items-center gap-2 p-2 rounded-lg border border-white/10 bg-white/[0.02] cursor-pointer ${!acc.available ? 'opacity-60' : ''}`}>
