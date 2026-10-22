@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listProjectsWithConfig, getDiscoveryAccounts, discoverProjectsForAccount } from '../services/huawei-iam.js';
+import { listProjectsWithConfig, getDiscoveryAccounts, discoverProjectsForAccount, addDiscoveryAccount } from '../services/huawei-iam.js';
 import { getProfileNames, getProfileCredentials } from '../config/configLoader.js';
 import { listEcsForProject, startEcs, stopEcs, restartEcs } from '../services/huawei-ecs.js';
 import { userStore } from '../data/store.js';
@@ -787,6 +787,25 @@ router.get('/discovery-accounts', requirePermission('huawei:projects'), (req, re
     res.json(list);
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/huawei/discovery-accounts (só admin)
+ * Body: { label, regions: ['sa-brazil-1'], ak, sk, projectId }. Grava a conta no config.enc e a inclui na descoberta.
+ */
+router.post('/discovery-accounts', requirePermission('huawei:projects'), (req, res) => {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Só administradores cadastram contas' });
+  try {
+    const { label, regions, ak, sk, projectId } = req.body || {};
+    const account = addDiscoveryAccount({ label, regions, ak, sk, projectId });
+    logAction(req, 'discovery_account_create', { account: account.id, region: account.region });
+    res.status(201).json({ ...account, available: true });
+  } catch (e) {
+    const known = { invalid_label: 'Nome inválido (2 a 60 letras/números)', invalid_region: 'Região inválida (ex.: sa-brazil-1)',
+      invalid_ak: 'Access Key inválida', invalid_sk: 'Secret Key inválida', invalid_project_id: 'Project ID inválido (32 caracteres hexadecimais)',
+      duplicate_account: 'Já existe uma conta com esse nome' };
+    res.status(known[e.message] ? 400 : 500).json({ error: known[e.message] || e.message });
   }
 });
 
