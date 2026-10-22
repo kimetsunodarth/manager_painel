@@ -25,7 +25,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = 'linux-1.0.0'
+VERSION = 'linux-1.1.0'
 # Modo de teste (ANANIM_AGENT_CONF_DIR): configuração em outra pasta, sem exigir root e aceitando http://127.0.0.1.
 TEST_MODE = bool(os.environ.get('ANANIM_AGENT_CONF_DIR'))
 CONF_DIR = os.environ.get('ANANIM_AGENT_CONF_DIR') or '/etc/ananim-manager-agent'
@@ -38,6 +38,12 @@ BLOCKED = {'ananim-manager-agent', 'sshd', 'ssh', 'dbus', 'dbus-broker', 'networ
            'auditd', 'polkit', 'firewalld'}
 BLOCKED_PREFIXES = ('systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@', 'dbus-')
 HANA_RE = re.compile(r'^HANA_([A-Z][A-Z0-9]{2})_HDB(\d{2})$')
+# Processos do HANA (opcional por servidor: install.sh --hana-processos). Nome no painel: HANA_<SID>_HDB<nr>__<processo>.
+PROC_RE = re.compile(r'^HANA_([A-Z][A-Z0-9]{2})_HDB(\d{2})__(hdb[a-z]+)$')
+# Só estes reiniciam sozinhos (o hdbdaemon sobe de novo). Nameserver, indexserver e o daemon: só com o HANA inteiro.
+HANA_REINICIAVEIS = {'hdbxsengine', 'hdbwebdispatcher', 'hdbscriptserver', 'hdbcompileserver', 'hdbpreprocessor', 'hdbdiserver', 'hdbdocstore'}
+PROC_STATUS = {'GREEN': 'Running', 'YELLOW': 'Partial', 'GRAY': 'Stopped', 'RED': 'Failed'}
+PROC_TIMEOUT = 600
 SERVICE_TIMEOUT = 120
 HANA_TIMEOUT = 900
 
@@ -187,7 +193,63 @@ def hana_status(sid, nr):
     return {3: 'Running', 4: 'Stopped'}.get(code, 'Partial')
 
 
-def discover():
+def parse_process_list(out):
+    """Linhas do sapcontrol GetProcessList: name, description, dispstatus, textstatus, starttime, elapsedtime, pid."""
+    procs = []
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split(',')]
+        if len(parts) < 7 or not re.match(r'^hdb[a-z]+$', parts[0]):
+            continue
+        procs.append({'name': parts[0], 'description': parts[1], 'disp': parts[2].upper(), 'pid': parts[6] if parts[6].isdigit() else ''})
+    return procs
+
+
+def hana_processes(sid, nr):
+    # O sapcontrol devolve código 3/4 mesmo quando responde; vale a saída.
+    _, out = sh(['su', '-', sid.lower() + 'adm', '-c', 'sapcontrol -nr %s -function GetProcessList' % nr], timeout=60)
+    return parse_process_list(out)
+
+
+def restart_hana_process(grupos, action, habilitado):
+    """Reinicia um processo secundário do HANA: TERM como <sid>adm e espera o hdbdaemon subir de novo (outro PID, verde)."""
+    sid, nr, pname = grupos
+    result = {'status': 'failed', 'code': 'agent_error', 'message': '', 'serviceStatus': ''}
+    if not habilitado:
+        result.update(code='blocked', message='Processos do HANA desligados neste servidor (instale com --hana-processos).')
+        return result
+    if action != 'restart':
+        result.update(code='not_supported', message='Processo do HANA só pode ser reiniciado; para iniciar ou parar use o HANA inteiro.')
+        return result
+    if pname not in HANA_REINICIAVEIS:
+        result.update(code='blocked', message='%s só pode ser reiniciado com o HANA inteiro.' % pname)
+        return result
+    if (sid, nr) not in hana_instances():
+        result.update(code='service_error', message='Instância HANA não encontrada neste servidor.')
+        return result
+    atual = next((p for p in hana_processes(sid, nr) if p['name'] == pname), None)
+    if not atual or not atual['pid']:
+        result.update(code='service_error', message='Processo %s não está em execução (nada a reiniciar).' % pname)
+        return result
+    antigo = atual['pid']
+    log('Reiniciando %s (PID %s) do HANA %s/HDB%s.' % (pname, antigo, sid, nr))
+    code, out = sh(['su', '-', sid.lower() + 'adm', '-c', 'kill -TERM %s' % antigo], timeout=30)
+    if code != 0:
+        result.update(code='service_error', message=out.strip()[-300:] or 'kill falhou')
+        return result
+    limite = time.time() + PROC_TIMEOUT
+    while time.time() < limite:
+        time.sleep(10)
+        novo = next((p for p in hana_processes(sid, nr) if p['name'] == pname), None)
+        if novo:
+            result['serviceStatus'] = PROC_STATUS.get(novo['disp'], 'Unknown')
+            if novo['disp'] == 'GREEN' and novo['pid'] and novo['pid'] != antigo:
+                result.update(status='done', code='restarted', message='Status: Running (PID %s)' % novo['pid'])
+                return result
+    result.update(code='timeout', message='O hdbdaemon não subiu %s em 10 min; confira com HDB info.' % pname)
+    return result
+
+
+def discover(conf=None):
     services = {}
     code, out = sh(['systemctl', 'list-units', '--type=service', '--all', '--no-legend', '--no-pager', '--plain'])
     for line in out.splitlines() if code == 0 else []:
@@ -209,12 +271,17 @@ def discover():
     for sid, nr in hana_instances():
         name = 'HANA_%s_HDB%s' % (sid, nr)
         services[name] = {'name': name, 'displayName': 'SAP HANA %s (instância %s)' % (sid, nr), 'status': hana_status(sid, nr), 'startType': 'HANA'}
+        if conf and conf.get('hanaProcessos'):
+            for p in hana_processes(sid, nr):
+                pnome = '%s__%s' % (name, p['name'])
+                services[pnome] = {'name': pnome, 'startType': 'HANA-processo', 'status': PROC_STATUS.get(p['disp'], 'Unknown'),
+                                   'displayName': 'SAP HANA %s · %s%s' % (sid, p['name'][3:], '' if p['name'] in HANA_REINICIAVEIS else ' (só ver)')}
     return sorted((s for s in services.values() if NAME_RE.match(s['name']) and not is_blocked(s['name'])),
                   key=lambda s: s['displayName'].lower())[:2000]
 
 
 def publish(conf):
-    inner = json.dumps({'agentVersion': VERSION, 'services': discover()}, separators=(',', ':')).encode('utf-8')
+    inner = json.dumps({'agentVersion': VERSION, 'services': discover(conf)}, separators=(',', ':')).encode('utf-8')
     # Um campo só, comprimido: o WAF recusa JSON com milhares de campos.
     r = signed(conf, '/api/agent/catalog', {'format': 'gzip-base64-json', 'data': base64.b64encode(gzip.compress(inner)).decode('ascii')})
     result = ('Serviços publicados no painel: %s.' % r.body.get('services')) if r.status == 200 and isinstance(r.body, dict) else 'Catálogo recusado: ' + r.explain()
@@ -229,7 +296,7 @@ def unit_state(name):
     return {'running': 'Running', 'dead': 'Stopped', 'failed': 'Failed', 'exited': 'Exited'}.get(out.strip(), out.strip() or 'Unknown')
 
 
-def execute(name, action, blocked, prefixes, allow):
+def execute(name, action, blocked, prefixes, allow, conf=None):
     result = {'status': 'failed', 'code': 'agent_error', 'message': '', 'serviceStatus': ''}
     if action not in ('start', 'stop', 'restart') or not NAME_RE.match(name or '') or is_blocked(name, blocked, prefixes):
         result.update(code='blocked', message='Serviço protegido; recusado pelo agente.')
@@ -237,6 +304,9 @@ def execute(name, action, blocked, prefixes, allow):
     if allow and not any(fnmatch.fnmatch(name.lower(), p.lower()) for p in allow):
         result.update(code='not_allowed_locally', message='Fora da política local deste servidor.')
         return result
+    proc = PROC_RE.match(name)
+    if proc:
+        return restart_hana_process(proc.groups(), action, bool(conf and conf.get('hanaProcessos')))
     hana = HANA_RE.match(name)
     if hana:
         sid, nr = hana.groups()
@@ -271,7 +341,7 @@ def poll_once(conf):
     if not job:
         return None
     name, action = str(job.get('serviceName', '')), str(job.get('action', ''))
-    out = execute(name, action, claim.body.get('blocked') or [], claim.body.get('blockedPrefixes') or [], conf.get('allowPatterns') or [])
+    out = execute(name, action, claim.body.get('blocked') or [], claim.body.get('blockedPrefixes') or [], conf.get('allowPatterns') or [], conf)
     r = signed(conf, '/api/agent/result', dict(out, jobId=job.get('jobId')))
     summary = '%s %s: %s (%s)%s' % (action, name, out['status'], out['code'], '' if r.status == 200 else ' [resultado não registrado: ' + r.explain() + ']')
     log(summary)
@@ -345,6 +415,7 @@ def cmd_status(_):
     print('Painel:   ' + conf.get('apiBaseUrl', ''))
     print('Situação: ' + ('Conectado a %s · %s (ID %s…)' % (conf.get('projectName'), conf.get('ecsName'), conf['agentId'][:8]) if conf.get('agentId') else 'Não ativado'))
     print('Política local: ' + (', '.join(conf.get('allowPatterns') or []) or '(vazia: vale o que o painel liberar)'))
+    print('Processos do HANA: ' + ('ligados (ver + reiniciar secundários)' if conf.get('hanaProcessos') else 'desligados'))
     print('Instâncias HANA: ' + (', '.join('%s/HDB%s' % x for x in hana_instances()) or 'nenhuma'))
     print('Serviço:  ' + sh(['systemctl', 'is-active', 'ananim-manager-agent'])[1].strip())
 
@@ -384,6 +455,17 @@ def cmd_run(_):
         time.sleep(wait)
 
 
+def cmd_config(args):
+    require_root()
+    conf = load_config()
+    if args.hana_processos:
+        conf['hanaProcessos'] = args.hana_processos == 'on'
+        save_config(conf)
+        log('Processos do HANA: %s.' % ('ligados' if conf['hanaProcessos'] else 'desligados'))
+        if conf.get('agentId'):
+            publish(conf)
+
+
 def main():
     parser = argparse.ArgumentParser(prog='ananim-manager-agent', description='Ananim Manager Agent (Linux)')
     sub = parser.add_subparsers(dest='cmd')
@@ -396,8 +478,10 @@ def main():
     sub.add_parser('discover', help='lista os serviços que serão enviados ao painel')
     sub.add_parser('publish', help='envia a lista de serviços agora')
     sub.add_parser('run', help='laço do serviço systemd')
+    c = sub.add_parser('config', help='opções deste servidor')
+    c.add_argument('--hana-processos', choices=['on', 'off'], help='mostrar os processos do HANA e reiniciar os secundários (teste)')
     args = parser.parse_args()
-    handlers = {'activate': cmd_activate, 'status': cmd_status, 'discover': cmd_discover, 'publish': cmd_publish, 'run': cmd_run}
+    handlers = {'activate': cmd_activate, 'status': cmd_status, 'discover': cmd_discover, 'publish': cmd_publish, 'run': cmd_run, 'config': cmd_config}
     if args.cmd not in handlers:
         parser.print_help()
         return 2
