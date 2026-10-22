@@ -36,7 +36,7 @@ NAME_RE = re.compile(r'^[A-Za-z0-9_.@-]{1,256}$')
 # Mesmos bloqueios do painel; valem mesmo que o painel peça.
 BLOCKED = {'ananim-manager-agent', 'sshd', 'ssh', 'dbus', 'dbus-broker', 'networkmanager', 'wicked', 'wickedd', 'network',
            'auditd', 'polkit', 'firewalld'}
-BLOCKED_PREFIXES = ('systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@')
+BLOCKED_PREFIXES = ('systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@', 'dbus-')
 HANA_RE = re.compile(r'^HANA_([A-Z][A-Z0-9]{2})_HDB(\d{2})$')
 SERVICE_TIMEOUT = 120
 HANA_TIMEOUT = 900
@@ -201,7 +201,7 @@ def discover():
     code, out = sh(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager'])
     for line in out.splitlines() if code == 0 else []:
         parts = line.split()
-        if len(parts) < 2 or not parts[0].endswith('.service') or parts[0].endswith('@.service'):
+        if len(parts) < 2 or not parts[0].endswith('.service') or parts[0].endswith('@.service') or parts[1] == 'alias':
             continue
         name = parts[0][:-len('.service')]
         start = {'enabled': 'Automatic', 'disabled': 'Disabled', 'static': 'Static', 'masked': 'Masked'}.get(parts[1], parts[1].capitalize())
@@ -246,6 +246,11 @@ def execute(name, action, blocked, prefixes, allow):
         code, out = sh(['su', '-', sid.lower() + 'adm', '-c', 'HDB ' + action], timeout=HANA_TIMEOUT)
         result['serviceStatus'] = hana_status(sid, nr)
     else:
+        # Apelidos (ex.: dbus-org.freedesktop.login1 = systemd-logind): o bloqueio vale para a unidade real.
+        real = sh(['systemctl', 'show', name + '.service', '--property=Id', '--value'])[1].strip()
+        if real.endswith('.service') and is_blocked(real[:-len('.service')], blocked, prefixes):
+            result.update(code='blocked', message='Serviço protegido (%s); recusado pelo agente.' % real)
+            return result
         code, out = sh(['systemctl', action, name + '.service'], timeout=SERVICE_TIMEOUT)
         result['serviceStatus'] = unit_state(name)
     if code == 0:

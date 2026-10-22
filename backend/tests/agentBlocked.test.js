@@ -4,7 +4,7 @@ import { isBlocked, validServiceName } from '../src/agent/agentCrypto.js';
 
 test('serviços críticos do Linux são bloqueados (nome e prefixo)', () => {
   for (const name of ['sshd', 'ssh', 'dbus', 'NetworkManager', 'wicked', 'auditd', 'polkit', 'firewalld', 'ananim-manager-agent',
-    'systemd-journald', 'systemd-logind', 'getty@tty1', 'serial-getty@ttyS0', 'user@1000']) {
+    'systemd-journald', 'systemd-logind', 'dbus-org.freedesktop.login1', 'getty@tty1', 'serial-getty@ttyS0', 'user@1000']) {
     assert.equal(isBlocked(name), true, name);
   }
 });

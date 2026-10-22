@@ -17,7 +17,7 @@ export const BLOCKED_SERVICES = new Set(['ananimmanageragent', 'ananim-manager-a
   // Linux (unidades systemd, sem ".service")
   'ssh', 'dbus', 'dbus-broker', 'networkmanager', 'wicked', 'wickedd', 'network', 'auditd', 'polkit', 'firewalld']);
 /** Prefixos bloqueados no Linux: núcleo do systemd e sessões de login. */
-export const BLOCKED_PREFIXES = ['systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@'];
+export const BLOCKED_PREFIXES = ['systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@', 'dbus-'];
 
 export function isBlocked(name) {
   const value = String(name || '').toLowerCase();
