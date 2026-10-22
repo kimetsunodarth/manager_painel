@@ -908,6 +908,30 @@ export default function Usuarios() {
                         </div>
                       </>
                     )}
+                    {(editForm.visibleProjects || []).length > 0 ? (
+                      <div className="mt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ananim-muted">Projetos atribuídos ({editForm.visibleProjects.length})</p>
+                        <div className="flex flex-wrap gap-2">
+                          {editForm.visibleProjects.map((p) => {
+                            const key = projectKey(p);
+                            return (
+                              <span key={key} className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs text-ananim-text">
+                                {displayPerfil(p.perfil)} — {p.name || p.id}
+                                <button type="button" aria-label={`Remover ${p.name || p.id} deste usuário`} title="Remover projeto deste usuário"
+                                  className="text-rose-300 hover:text-white"
+                                  onClick={() => setEditForm((f) => {
+                                    if (!f) return f;
+                                    const restantes = { ...(f.allowedHuaweiEcsIds || {}) };
+                                    delete restantes[key];
+                                    return { ...f, visibleProjects: f.visibleProjects.filter((x) => projectKey(x) !== key), allowedHuaweiEcsIds: restantes };
+                                  })}>×</button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 text-xs text-ananim-muted">Clique em × e depois em Salvar alterações. O usuário deixa de ver o projeto, suas VMs e os serviços do conector dele.</p>
+                      </div>
+                    ) : null}
                   </section>
 
                   {/* Seção: ECS por projeto */}
