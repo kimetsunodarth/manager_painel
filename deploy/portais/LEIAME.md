@@ -72,6 +72,13 @@ para a release anterior.
 | 502 | serviço parado: `systemctl status ananim-manager-painel`, `journalctl -u ananim-manager-painel` |
 | serviço "skipped" | falta `shared/config.enc` (condição da unit) |
 
+## Baixar os agentes pelo painel
+
+Os dois agentes vão em cada release (`releases/<ts>/agents/{windows,linux}`; o exe é compilado do mesmo commit pelo
+`publicar-portais.py`). Em **Servidores (conector)**: botões **Agente Windows / Agente Linux** (sem ativação) e, em
+**Conectar**, o instalador já ativado para aquele servidor: o código (uso único, 24 h) vai no fim do exe ou no
+`ativacao.conf` do tar.gz. Windows: executar como administrador (ou `--auto`); Linux: `bash install.sh`.
+
 ## Ananim Manager Agent (Linux: SUSE, RHEL, Ubuntu)
 
 Pacote: `agent/linux/` (Python 3.6+ só biblioteca padrão, `openssl`, `systemd`). No servidor, como root:
