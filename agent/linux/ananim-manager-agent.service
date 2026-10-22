@@ -1,0 +1,14 @@
+[Unit]
+Description=Ananim Manager Agent (serviços liberados no Ananim Manager Painel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# root: precisa de systemctl start/stop/restart e de "su - <sid>adm" para o HANA.
+ExecStart=/usr/local/sbin/ananim-manager-agent run
+Restart=always
+RestartSec=10
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Instala/atualiza o Ananim Manager Agent (Linux). Uso, como root, na pasta com os arquivos do agente:
+#   bash install.sh                                  instala/atualiza (ativação e chave ficam como estão)
+#   bash install.sh --code XXXX-XXXX-XXXX [--url https://ananim-manager.ananim.com.br]   instala e ativa
+set -euo pipefail
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+BIN=/usr/local/sbin/ananim-manager-agent
+UNIT=/etc/systemd/system/ananim-manager-agent.service
+CODE=""; URL=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --code) CODE="$2"; shift 2 ;;
+    --url) URL="$2"; shift 2 ;;
+    *) echo "Opção inválida: $1"; exit 1 ;;
+  esac
+done
+
+[ "$(id -u)" -eq 0 ] || { echo "Rode como root (sudo)."; exit 1; }
+command -v python3 >/dev/null || { echo "python3 não encontrado (SUSE: zypper install python3)."; exit 1; }
+python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' || { echo "Python 3.6+ necessário."; exit 1; }
+command -v openssl >/dev/null || { echo "openssl não encontrado."; exit 1; }
+command -v systemctl >/dev/null || { echo "systemd necessário."; exit 1; }
+
+install -m 0755 -o root -g root "$HERE/ananim-manager-agent" "$BIN.new"
+mv -f "$BIN.new" "$BIN"
+install -m 0644 -o root -g root "$HERE/ananim-manager-agent.service" "$UNIT"
+install -d -m 0700 -o root -g root /etc/ananim-manager-agent
+systemctl daemon-reload
+
+if [ -n "$CODE" ]; then
+  "$BIN" activate --code "$CODE" ${URL:+--url "$URL"}
+fi
+
+if [ -f /etc/ananim-manager-agent/config.json ] && grep -q '"agentId"' /etc/ananim-manager-agent/config.json; then
+  systemctl enable ananim-manager-agent >/dev/null 2>&1
+  systemctl restart ananim-manager-agent
+  sleep 2
+  "$BIN" status
+else
+  echo "Instalado. Ative com: $BIN activate --code <código do painel>  e depois: systemctl enable --now ananim-manager-agent"
+fi

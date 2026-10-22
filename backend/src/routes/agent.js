@@ -3,7 +3,7 @@
  * pela chave do agente. Montadas antes do express.json global, porque a assinatura cobre o corpo cru.
  */
 import express, { Router } from 'express';
-import { BLOCKED_SERVICES, unwrapEnvelope, verifySignature } from '../agent/agentCrypto.js';
+import { BLOCKED_PREFIXES, BLOCKED_SERVICES, unwrapEnvelope, verifySignature } from '../agent/agentCrypto.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_FAILURES = 20;
@@ -64,7 +64,7 @@ export function createAgentRouter(getStore) {
     const job = getStore().claim(req.agent.id);
     res.json({
       job: job && { jobId: job.id, serviceName: job.serviceName, action: job.action, attempt: job.attempts, requestedBy: job.requestedBy },
-      blocked: [...BLOCKED_SERVICES], pollSeconds: POLL_SECONDS,
+      blocked: [...BLOCKED_SERVICES], blockedPrefixes: BLOCKED_PREFIXES, pollSeconds: POLL_SECONDS,
     });
   });
 

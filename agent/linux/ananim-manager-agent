@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+"""Ananim Manager Agent para Linux (SUSE/Ubuntu/RHEL): publica as unidades systemd e as instâncias HANA no
+Ananim Manager Painel e executa iniciar/parar/reiniciar só do que o administrador liberou.
+
+Mesmo protocolo do agente Windows: ativação por código de 12 caracteres, chave RSA 2048 desta máquina
+(arquivo 0600 do root, nunca sai do servidor), pedidos assinados (RSA PKCS#1 v1.5 + SHA-256) com horário e nonce.
+Só biblioteca padrão do Python 3.6+ e o comando `openssl`.
+
+Uso (root):  ananim-manager-agent activate --url https://ananim-manager.ananim.com.br --code XXXX-XXXX-XXXX
+             ananim-manager-agent status | discover | publish | run
+"""
+import argparse
+import base64
+import fnmatch
+import gzip
+import hashlib
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+import uuid
+
+VERSION = 'linux-1.0.0'
+# Modo de teste (ANANIM_AGENT_CONF_DIR): configuração em outra pasta, sem exigir root e aceitando http://127.0.0.1.
+TEST_MODE = bool(os.environ.get('ANANIM_AGENT_CONF_DIR'))
+CONF_DIR = os.environ.get('ANANIM_AGENT_CONF_DIR') or '/etc/ananim-manager-agent'
+CONF_FILE = CONF_DIR + '/config.json'
+LOG_FILE = CONF_DIR + '/agente.log' if TEST_MODE else '/var/log/ananim-manager-agent.log'
+CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+NAME_RE = re.compile(r'^[A-Za-z0-9_.@-]{1,256}$')
+# Mesmos bloqueios do painel; valem mesmo que o painel peça.
+BLOCKED = {'ananim-manager-agent', 'sshd', 'ssh', 'dbus', 'dbus-broker', 'networkmanager', 'wicked', 'wickedd', 'network',
+           'auditd', 'polkit', 'firewalld'}
+BLOCKED_PREFIXES = ('systemd-', 'getty@', 'serial-getty@', 'autovt@', 'user@', 'user-runtime-dir@')
+HANA_RE = re.compile(r'^HANA_([A-Z][A-Z0-9]{2})_HDB(\d{2})$')
+SERVICE_TIMEOUT = 120
+HANA_TIMEOUT = 900
+
+
+# ---------------------------------------------------------------- utilidades
+
+def log(message):
+    line = time.strftime('%Y-%m-%d %H:%M:%SZ', time.gmtime()) + ' ' + re.sub(r'[\r\n]+', ' ', str(message))[:500]
+    try:
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 2 * 1024 * 1024:
+            os.replace(LOG_FILE, LOG_FILE + '.1')
+        with open(LOG_FILE, 'a') as f:
+            f.write(line + '\n')
+    except OSError:
+        pass
+    print(line, flush=True)
+
+
+def sh(args, timeout=60, stdin=None):
+    """Executa sem shell; devolve (código, saída)."""
+    try:
+        p = subprocess.run(args, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+        return p.returncode, p.stdout.decode('utf-8', 'replace')
+    except subprocess.TimeoutExpired:
+        return 124, 'timeout'
+    except OSError as e:
+        return 127, str(e)
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
+
+
+def is_blocked(name, extra=(), extra_prefixes=()):
+    value = (name or '').lower()
+    return (value in BLOCKED or value in {x.lower() for x in extra}
+            or value.startswith(BLOCKED_PREFIXES) or value.startswith(tuple(p.lower() for p in extra_prefixes)))
+
+
+def load_config():
+    try:
+        with open(CONF_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {'apiBaseUrl': 'https://ananim-manager.ananim.com.br', 'allowPatterns': []}
+
+
+def save_config(conf):
+    os.makedirs(CONF_DIR, mode=0o700, exist_ok=True)
+    os.chmod(CONF_DIR, 0o700)
+    tmp = CONF_FILE + '.tmp'
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        json.dump(conf, f, indent=2)
+    os.replace(tmp, CONF_FILE)
+
+
+def validate_url(url):
+    m = re.match(r'^https://[A-Za-z0-9.-]+(:\d{1,5})?/?$', url or '')
+    if not m and TEST_MODE:
+        m = re.match(r'^http://127\.0\.0\.1:\d{1,5}/?$', url or '')
+    if not m:
+        raise SystemExit('Endereço do painel: só a origem HTTPS, ex.: https://ananim-manager.ananim.com.br')
+    return url.rstrip('/')
+
+
+# ---------------------------------------------------------------- chave e HTTP
+
+def new_key(path):
+    code, out = sh(['openssl', 'genrsa', '-out', path, '2048'], timeout=60)
+    if code != 0:
+        raise SystemExit('openssl genrsa falhou: ' + out[-300:])
+    os.chmod(path, 0o600)
+    code, text = sh(['openssl', 'rsa', '-in', path, '-noout', '-text'])
+    mod = re.search(r'^Modulus=([0-9A-F]+)$', sh(['openssl', 'rsa', '-in', path, '-noout', '-modulus'])[1], re.M)
+    exp = re.search(r'publicExponent: (\d+)', text)
+    if code != 0 or not mod or not exp:
+        raise SystemExit('Não foi possível ler a chave pública gerada.')
+    n = bytes.fromhex(mod.group(1))
+    e = int(exp.group(1)).to_bytes((int(exp.group(1)).bit_length() + 7) // 8, 'big')
+    return {'kty': 'RSA', 'n': b64url(n.lstrip(b'\x00')), 'e': b64url(e)}
+
+
+def sign(key_path, message):
+    p = subprocess.run(['openssl', 'dgst', '-sha256', '-sign', key_path], input=message, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+    if p.returncode != 0:
+        raise RuntimeError('openssl dgst falhou: ' + p.stderr.decode('utf-8', 'replace')[-200:])
+    return base64.b64encode(p.stdout).decode('ascii')
+
+
+class Reply(object):
+    def __init__(self, status, text):
+        self.status, self.text = status, text
+        try:
+            self.body = json.loads(text) if text else None
+        except ValueError:
+            self.body = None
+
+    def explain(self):
+        if self.status == 403 and not (isinstance(self.body, dict) and 'error' in self.body):
+            rid = re.search(r'Request ID:\s*([0-9a-fA-F]+)', self.text or '')
+            return 'Bloqueado antes do painel (HTTP 403 do WAF/proxy).' + (' WAF Request ID: ' + rid.group(1) if rid else '')
+        err = self.body.get('error') if isinstance(self.body, dict) else ''
+        return 'HTTP %s%s' % (self.status, ' (%s)' % err if err else '')
+
+
+def post(url, body, headers=None):
+    req = urllib.request.Request(url, data=body, method='POST', headers=dict({'Content-Type': 'application/json',
+                                                                              'User-Agent': 'AnanimManagerAgent/' + VERSION}, **(headers or {})))
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return Reply(r.status, r.read().decode('utf-8', 'replace'))
+    except urllib.error.HTTPError as e:
+        return Reply(e.code, e.read().decode('utf-8', 'replace'))
+
+
+def signed(conf, path, payload):
+    body = json.dumps(payload, separators=(',', ':')).encode('utf-8')
+    stamp, nonce = str(int(time.time())), str(uuid.uuid4())
+    message = '\n'.join(['POST', path, conf['agentId'], stamp, nonce, hashlib.sha256(body).hexdigest()]).encode('utf-8')
+    return post(conf['apiBaseUrl'] + path, body, {'X-Agent-Id': conf['agentId'], 'X-Timestamp': stamp, 'X-Nonce': nonce,
+                                                  'X-Signature': sign(conf['keyFile'], message)})
+
+
+# ---------------------------------------------------------------- descoberta
+
+def hana_instances():
+    found = []
+    try:
+        sids = sorted(d for d in os.listdir('/usr/sap') if re.match(r'^[A-Z][A-Z0-9]{2}$', d))
+    except OSError:
+        return found
+    for sid in sids:
+        try:
+            for inst in sorted(os.listdir('/usr/sap/' + sid)):
+                m = re.match(r'^HDB(\d{2})$', inst)
+                if m:
+                    found.append((sid, m.group(1)))
+        except OSError:
+            pass
+    return found
+
+
+def hana_status(sid, nr):
+    # sapcontrol GetProcessList: 3 = tudo verde, 4 = tudo parado.
+    code, _ = sh(['su', '-', sid.lower() + 'adm', '-c', 'sapcontrol -nr %s -function GetProcessList' % nr], timeout=60)
+    return {3: 'Running', 4: 'Stopped'}.get(code, 'Partial')
+
+
+def discover():
+    services = {}
+    code, out = sh(['systemctl', 'list-units', '--type=service', '--all', '--no-legend', '--no-pager', '--plain'])
+    for line in out.splitlines() if code == 0 else []:
+        parts = line.split(None, 4)
+        if len(parts) < 4 or not parts[0].endswith('.service'):
+            continue
+        name = parts[0][:-len('.service')]
+        sub = parts[3]
+        status = {'running': 'Running', 'exited': 'Exited', 'failed': 'Failed', 'dead': 'Stopped'}.get(sub, sub.capitalize())
+        services[name] = {'name': name, 'displayName': parts[4].strip() if len(parts) > 4 else name, 'status': status, 'startType': 'Unknown'}
+    code, out = sh(['systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager'])
+    for line in out.splitlines() if code == 0 else []:
+        parts = line.split()
+        if len(parts) < 2 or not parts[0].endswith('.service') or parts[0].endswith('@.service'):
+            continue
+        name = parts[0][:-len('.service')]
+        start = {'enabled': 'Automatic', 'disabled': 'Disabled', 'static': 'Static', 'masked': 'Masked'}.get(parts[1], parts[1].capitalize())
+        services.setdefault(name, {'name': name, 'displayName': name, 'status': 'Stopped', 'startType': start})['startType'] = start
+    for sid, nr in hana_instances():
+        name = 'HANA_%s_HDB%s' % (sid, nr)
+        services[name] = {'name': name, 'displayName': 'SAP HANA %s (instância %s)' % (sid, nr), 'status': hana_status(sid, nr), 'startType': 'HANA'}
+    return sorted((s for s in services.values() if NAME_RE.match(s['name']) and not is_blocked(s['name'])),
+                  key=lambda s: s['displayName'].lower())[:2000]
+
+
+def publish(conf):
+    inner = json.dumps({'agentVersion': VERSION, 'services': discover()}, separators=(',', ':')).encode('utf-8')
+    # Um campo só, comprimido: o WAF recusa JSON com milhares de campos.
+    r = signed(conf, '/api/agent/catalog', {'format': 'gzip-base64-json', 'data': base64.b64encode(gzip.compress(inner)).decode('ascii')})
+    result = ('Serviços publicados no painel: %s.' % r.body.get('services')) if r.status == 200 and isinstance(r.body, dict) else 'Catálogo recusado: ' + r.explain()
+    log(result)
+    return r.status == 200
+
+
+# ---------------------------------------------------------------- execução
+
+def unit_state(name):
+    _, out = sh(['systemctl', 'show', name + '.service', '--property=SubState', '--value'])
+    return {'running': 'Running', 'dead': 'Stopped', 'failed': 'Failed', 'exited': 'Exited'}.get(out.strip(), out.strip() or 'Unknown')
+
+
+def execute(name, action, blocked, prefixes, allow):
+    result = {'status': 'failed', 'code': 'agent_error', 'message': '', 'serviceStatus': ''}
+    if action not in ('start', 'stop', 'restart') or not NAME_RE.match(name or '') or is_blocked(name, blocked, prefixes):
+        result.update(code='blocked', message='Serviço protegido; recusado pelo agente.')
+        return result
+    if allow and not any(fnmatch.fnmatch(name.lower(), p.lower()) for p in allow):
+        result.update(code='not_allowed_locally', message='Fora da política local deste servidor.')
+        return result
+    hana = HANA_RE.match(name)
+    if hana:
+        sid, nr = hana.groups()
+        if (sid, nr) not in hana_instances():
+            result.update(code='service_error', message='Instância HANA não encontrada neste servidor.')
+            return result
+        code, out = sh(['su', '-', sid.lower() + 'adm', '-c', 'HDB ' + action], timeout=HANA_TIMEOUT)
+        result['serviceStatus'] = hana_status(sid, nr)
+    else:
+        code, out = sh(['systemctl', action, name + '.service'], timeout=SERVICE_TIMEOUT)
+        result['serviceStatus'] = unit_state(name)
+    if code == 0:
+        result.update(status='done', code={'start': 'started', 'stop': 'stopped', 'restart': 'restarted'}[action],
+                      message='Status: ' + result['serviceStatus'])
+    else:
+        result.update(code='timeout' if code == 124 else 'service_error', message=out.strip()[-300:])
+    return result
+
+
+def poll_once(conf):
+    claim = signed(conf, '/api/agent/claim', {})
+    if claim.status != 200 or not isinstance(claim.body, dict):
+        if claim.status != 200:
+            log('Busca de tarefas: ' + claim.explain())
+        return None
+    job = claim.body.get('job')
+    if not job:
+        return None
+    name, action = str(job.get('serviceName', '')), str(job.get('action', ''))
+    out = execute(name, action, claim.body.get('blocked') or [], claim.body.get('blockedPrefixes') or [], conf.get('allowPatterns') or [])
+    r = signed(conf, '/api/agent/result', dict(out, jobId=job.get('jobId')))
+    summary = '%s %s: %s (%s)%s' % (action, name, out['status'], out['code'], '' if r.status == 200 else ' [resultado não registrado: ' + r.explain() + ']')
+    log(summary)
+    return summary
+
+
+# ---------------------------------------------------------------- comandos
+
+def require_root():
+    if os.geteuid() != 0 and not TEST_MODE:
+        raise SystemExit('Rode como root (sudo).')
+
+
+def require_active(conf):
+    if not conf.get('agentId') or not conf.get('keyFile'):
+        raise SystemExit('Agente não ativado. Use: ananim-manager-agent activate --url <endereço> --code <código>')
+
+
+def cmd_activate(args):
+    require_root()
+    conf = load_config()
+    url = validate_url(args.url or conf.get('apiBaseUrl'))
+    code = re.sub(r'[\s-]', '', (args.code or '').upper())
+    if len(code) != 12 or any(c not in CODE_ALPHABET for c in code):
+        raise SystemExit('Código inválido. Use o código de 12 caracteres gerado no painel (Servidores (conector) → Conectar).')
+    os.makedirs(CONF_DIR, mode=0o700, exist_ok=True)
+    agent_id = str(uuid.uuid4())
+    # Chave nova com nome próprio: código errado não derruba a ativação que já funciona.
+    key = os.path.join(CONF_DIR, 'agent-%s.key' % agent_id[:8])
+    jwk = new_key(key)
+    try:
+        r = post(url + '/api/agent/activate', json.dumps({'code': code, 'agentId': agent_id, 'publicKey': jwk, 'hostname': socket.gethostname(),
+                                                          'os': 'linux', 'agentVersion': VERSION}).encode('utf-8'))
+    except (urllib.error.URLError, OSError) as e:
+        os.remove(key)
+        raise SystemExit('Sem conexão com o painel (%s). Confira endereço, DNS, firewall e certificado.' % e)
+    if r.status != 201 or not isinstance(r.body, dict):
+        os.remove(key)
+        if r.status == 403 and isinstance(r.body, dict):
+            raise SystemExit('Código inválido, expirado ou já usado. Gere outro no painel.')
+        raise SystemExit('O painel recusou a ativação: ' + r.explain())
+    old = conf.get('keyFile')
+    conf.update(apiBaseUrl=url, agentId=agent_id, projectName=r.body.get('projectName', ''), ecsName=r.body.get('ecsName', ''), keyFile=key)
+    conf.setdefault('allowPatterns', [])
+    save_config(conf)
+    if old and old != key and os.path.exists(old):
+        os.remove(old)
+    log('Ativação: conectado a %s · %s.' % (conf['projectName'], conf['ecsName']))
+    publish(conf)
+    print('Próximo passo: systemctl enable --now ananim-manager-agent')
+
+
+def cmd_status(_):
+    conf = load_config()
+    print('Versão:   ' + VERSION)
+    print('Painel:   ' + conf.get('apiBaseUrl', ''))
+    print('Situação: ' + ('Conectado a %s · %s (ID %s…)' % (conf.get('projectName'), conf.get('ecsName'), conf['agentId'][:8]) if conf.get('agentId') else 'Não ativado'))
+    print('Política local: ' + (', '.join(conf.get('allowPatterns') or []) or '(vazia: vale o que o painel liberar)'))
+    print('Instâncias HANA: ' + (', '.join('%s/HDB%s' % x for x in hana_instances()) or 'nenhuma'))
+    print('Serviço:  ' + sh(['systemctl', 'is-active', 'ananim-manager-agent'])[1].strip())
+
+
+def cmd_discover(_):
+    for s in discover():
+        print('%-48s %-9s %-10s %s' % (s['name'], s['status'], s['startType'], s['displayName']))
+
+
+def cmd_publish(_):
+    require_root()
+    conf = load_config()
+    require_active(conf)
+    sys.exit(0 if publish(conf) else 1)
+
+
+def cmd_run(_):
+    require_root()
+    log('Serviço iniciado (%s).' % VERSION)
+    next_catalog = 0
+    while True:
+        conf = load_config()
+        wait = 30
+        if conf.get('agentId'):
+            try:
+                if time.time() >= next_catalog:
+                    next_catalog = time.time() + (6 * 3600 if publish(conf) else 1800)
+                worked = False
+                for _ in range(10):
+                    if poll_once(conf) is None:
+                        break
+                    worked = True
+                if worked:
+                    wait, next_catalog = 5, min(next_catalog, time.time() + 60)
+            except Exception as e:  # o serviço não pode morrer por uma falha de rede
+                log('Falha: %s: %s' % (type(e).__name__, e))
+        time.sleep(wait)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog='ananim-manager-agent', description='Ananim Manager Agent (Linux)')
+    sub = parser.add_subparsers(dest='cmd')
+    a = sub.add_parser('activate', help='ativa com o código gerado no painel')
+    a.add_argument('--url', help='endereço do painel (padrão: o da configuração)')
+    a.add_argument('--code', required=True)
+    sub.add_parser('status', help='situação da ativação e do serviço')
+    sub.add_parser('discover', help='lista os serviços que serão enviados ao painel')
+    sub.add_parser('publish', help='envia a lista de serviços agora')
+    sub.add_parser('run', help='laço do serviço systemd')
+    args = parser.parse_args()
+    handlers = {'activate': cmd_activate, 'status': cmd_status, 'discover': cmd_discover, 'publish': cmd_publish, 'run': cmd_run}
+    if args.cmd not in handlers:
+        parser.print_help()
+        return 2
+    handlers[args.cmd](args)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
