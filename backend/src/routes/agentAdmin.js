@@ -9,6 +9,8 @@ import { userStore } from '../data/store.js';
 import { getAgentStore, getManualProjects } from '../agent/index.js';
 import { ONLINE_MS, userCanSeeProject } from '../agent/agentAccess.js';
 import { clientsOverview } from '../agent/clientsOverview.js';
+import { agentPackage } from '../agent/agentPackages.js';
+import { PACKAGE_CODE_TTL_MS } from '../agent/agentStore.js';
 
 const router = Router();
 router.use(authMiddleware, requireAdmin);
@@ -24,6 +26,48 @@ router.post('/activations', (req, res) => {
   const result = getAgentStore().issueCode({ projectKey, projectName, ecsId, ecsName, createdBy: req.user.email || req.user.id });
   logAction(req, 'agent_activation_code', { projectKey, ecsName });
   res.status(201).json(result);
+});
+
+/** Endereço público do painel que vai embutido no instalador (o mesmo que o navegador usa). */
+function publicUrl(req) {
+  const origin = String(process.env.FRONTEND_ORIGIN || '').split(',').map((o) => o.trim()).find((o) => /^https:\/\//.test(o));
+  return origin || `${req.protocol}://${req.get('host')}`;
+}
+
+function sendPackage(res, pkg) {
+  res.set('Content-Type', pkg.contentType);
+  res.set('Content-Disposition', `attachment; filename="${pkg.fileName.replace(/[^A-Za-z0-9._-]/g, '_')}"`);
+  res.set('Cache-Control', 'no-store');
+  res.send(pkg.data);
+}
+
+// Agente sem ativação (para guardar ou instalar e ativar com código depois).
+router.get('/downloads/:os', (req, res) => {
+  try {
+    sendPackage(res, agentPackage(req.params.os));
+  } catch (e) {
+    if (e.message === 'invalid_os') return res.status(400).json({ error: 'Sistema inválido (windows ou linux)' });
+    return res.status(404).json({ error: 'Instalador do agente não encontrado no servidor. Publique de novo o painel.' });
+  }
+});
+
+// Instalador já ativado para um servidor: o código (uso único, 24 h) vai dentro do arquivo; ninguém precisa digitá-lo.
+router.post('/activations/package', (req, res) => {
+  const { projectKey, projectName, ecsId, ecsName, os } = req.body || {};
+  if (![projectKey, projectName, ecsId, ecsName].every((v) => typeof v === 'string' && v.trim()) || !['windows', 'linux'].includes(os)) {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+  let pkg;
+  try {
+    agentPackage(os); // confere que o arquivo existe antes de gastar um código
+    const { code, expiresAt } = getAgentStore().issueCode({ projectKey, projectName, ecsId, ecsName, createdBy: req.user.email || req.user.id, ttlMs: PACKAGE_CODE_TTL_MS });
+    pkg = agentPackage(os, { url: publicUrl(req), code, projectName, ecsName });
+    res.set('X-Activation-Expires', String(expiresAt));
+  } catch (e) {
+    return res.status(404).json({ error: 'Instalador do agente não encontrado no servidor. Publique de novo o painel.' });
+  }
+  logAction(req, 'agent_activation_package', { projectKey, ecsName, os });
+  sendPackage(res, pkg);
 });
 
 router.get('/agents', (req, res) => {

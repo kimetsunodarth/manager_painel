@@ -17,6 +17,13 @@ while [ $# -gt 0 ]; do
 done
 
 [ "$(id -u)" -eq 0 ] || { echo "Rode como root (sudo)."; exit 1; }
+
+# Pacote baixado do painel já com a ativação deste servidor (Servidores → Conectar → Baixar para Linux): sem digitar código.
+if [ -z "$CODE" ] && [ -f "$HERE/ativacao.conf" ]; then
+  CODE=$(sed -n 's/^CODE=\([A-Za-z0-9-]*\)$/\1/p' "$HERE/ativacao.conf" | head -1)
+  [ -n "$URL" ] || URL=$(sed -n 's#^URL=\(https://[A-Za-z0-9.:-]*\)/*$#\1#p' "$HERE/ativacao.conf" | head -1)
+  [ -n "$CODE" ] && echo "Usando a ativação que veio no pacote."
+fi
 command -v python3 >/dev/null || { echo "python3 não encontrado (SUSE: zypper install python3)."; exit 1; }
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' || { echo "Python 3.6+ necessário."; exit 1; }
 command -v openssl >/dev/null || { echo "openssl não encontrado."; exit 1; }
@@ -29,7 +36,13 @@ install -d -m 0700 -o root -g root /etc/ananim-manager-agent
 systemctl daemon-reload
 
 if [ -n "$CODE" ]; then
-  "$BIN" activate --code "$CODE" ${URL:+--url "$URL"}
+  if grep -q '"agentId"' /etc/ananim-manager-agent/config.json 2>/dev/null && [ -f "$HERE/ativacao.conf" ]; then
+    echo "Este servidor já está ativado; a ativação do pacote não foi usada (só atualizei o agente)."
+  else
+    "$BIN" activate --code "$CODE" ${URL:+--url "$URL"}
+  fi
+  # Código de uso único: não deixa o arquivo para trás.
+  rm -f "$HERE/ativacao.conf"
 fi
 
 if [ -f /etc/ananim-manager-agent/config.json ] && grep -q '"agentId"' /etc/ananim-manager-agent/config.json; then

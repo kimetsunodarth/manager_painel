@@ -85,7 +85,7 @@ namespace AnanimManagerAgent
         /// <summary>Serviço instalado com um programa diferente deste (outra versão).</summary>
         public static bool Outdated()
         {
-            return Exists(Paths.ServiceName) && !RunningInstalled && Build.Of(Paths.InstalledExe) != Build.Of(Self);
+            return Exists(Paths.ServiceName) && !RunningInstalled && Build.Hash(Paths.InstalledExe) != Build.Hash(Self);
         }
 
         static void CopySelf()

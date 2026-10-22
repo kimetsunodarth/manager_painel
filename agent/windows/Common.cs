@@ -34,18 +34,59 @@ namespace AnanimManagerAgent
         public static string InstalledExe { get { return Path.Combine(InstallDir, "AnanimManagerAgent.exe"); } }
     }
 
-    /// <summary>Versão pelo conteúdo do programa (data + início do SHA-256).</summary>
+    /// <summary>Versão pelo conteúdo do programa (data + início do SHA-256), sem a ativação embutida no fim do arquivo.</summary>
     public static class Build
     {
+        /// <summary>8 hex do SHA-256 do programa; o mesmo para o exe genérico e para o baixado com ativação.</summary>
+        public static string Hash(string exe)
+        {
+            if (!File.Exists(exe)) return "ausente";
+            byte[] bytes = File.ReadAllBytes(exe);
+            int length = Embedded.ProgramLength(bytes);
+            using (SHA256 sha = SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(bytes, 0, length), 0, 4).Replace("-", "").ToLowerInvariant();
+        }
+
         public static string Of(string exe)
         {
             if (!File.Exists(exe)) return "ausente";
-            using (FileStream stream = File.OpenRead(exe))
-            using (SHA256 sha = SHA256.Create())
-                return File.GetLastWriteTime(exe).ToString("yyyy-MM-dd HH:mm") + " #" + BitConverter.ToString(sha.ComputeHash(stream), 0, 4).Replace("-", "").ToLowerInvariant();
+            return File.GetLastWriteTime(exe).ToString("yyyy-MM-dd HH:mm") + " #" + Hash(exe);
         }
 
-        public static string Self { get { return Of(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName); } }
+        public static string SelfPath { get { return System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName; } }
+        public static string Self { get { return Of(SelfPath); } }
+    }
+
+    /// <summary>Ativação gravada pelo painel no fim do exe baixado (Servidores → Conectar → Baixar instalador). Código de uso único.</summary>
+    public class Embedded
+    {
+        const string Start = "\n#ANANIM-ATIVACAO#", End = "#FIM-ATIVACAO#";
+        public string url = "", code = "", projectName = "", ecsName = "";
+
+        /// <summary>Tamanho do programa sem a ativação (o arquivo inteiro quando não há).</summary>
+        public static int ProgramLength(byte[] bytes)
+        {
+            int from = Math.Max(0, bytes.Length - 4096);
+            string tail = Encoding.GetEncoding(28591).GetString(bytes, from, bytes.Length - from);
+            int i = tail.LastIndexOf(Start, StringComparison.Ordinal);
+            return i < 0 ? bytes.Length : from + i;
+        }
+
+        public static Embedded Read(string exe)
+        {
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(exe);
+                int from = Math.Max(0, bytes.Length - 4096);
+                string tail = Encoding.GetEncoding(28591).GetString(bytes, from, bytes.Length - from);
+                int i = tail.LastIndexOf(Start, StringComparison.Ordinal), j = tail.LastIndexOf(End, StringComparison.Ordinal);
+                if (i < 0 || j < i) return null;
+                string json = Encoding.UTF8.GetString(Convert.FromBase64String(tail.Substring(i + Start.Length, j - i - Start.Length)));
+                Embedded e = new JavaScriptSerializer().Deserialize<Embedded>(json);
+                return e != null && !string.IsNullOrEmpty(e.code) && ConfigStore.ValidateUrl(e.url) == null ? e : null;
+            }
+            catch (Exception) { return null; }
+        }
     }
 
     public static class Security

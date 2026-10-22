@@ -45,7 +45,30 @@ export const JOB_LABEL: Record<AgentJob['status'], string> = {
 /** Mesma chave de projeto do backend (routes/huawei.js). */
 export const projectKeyOf = (p: { id: string; perfil?: string }) => (p.perfil ? `${p.perfil}-${p.id}` : p.id);
 
+export type AgentOs = 'windows' | 'linux';
+
+/** Baixa um arquivo da API (com o cookie da sessão) e entrega ao navegador para salvar. */
+async function baixar(path: string, init?: RequestInit): Promise<void> {
+  const base = (import.meta.env.VITE_API_URL as string) || '/api';
+  const res = await fetch(`${base}${path}`, { credentials: 'include', ...init });
+  if (!res.ok) {
+    let msg = `Falha no download (HTTP ${res.status})`;
+    try { msg = (await res.json()).error || msg; } catch { /* corpo não é JSON */ }
+    throw new Error(msg);
+  }
+  const nome = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'ananim-manager-agent';
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export const agentAdmin = {
+  /** Agente sem ativação (Windows: exe; Linux: tar.gz). */
+  downloadAgent: (os: AgentOs) => baixar(`/agent-admin/downloads/${os}`),
+  /** Instalador já ativado para o servidor (código de uso único, 24 h, dentro do arquivo). */
+  downloadActivated: (body: { projectKey: string; projectName: string; ecsId: string; ecsName: string; os: AgentOs }) =>
+    baixar('/agent-admin/activations/package', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   issueCode: (body: { projectKey: string; projectName: string; ecsId: string; ecsName: string }) =>
     api<{ code: string; expiresAt: number }>('/agent-admin/activations', { method: 'POST', body: JSON.stringify(body) }),
   agents: (projectKey?: string) => api<{ agents: AgentInfo[] }>(`/agent-admin/agents${projectKey ? `?projectKey=${encodeURIComponent(projectKey)}` : ''}`),

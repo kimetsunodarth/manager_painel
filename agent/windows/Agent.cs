@@ -99,6 +99,24 @@ namespace AnanimManagerAgent
 
         // ---- Ativação -----------------------------------------------------------------------------------
 
+        /// <summary>
+        /// Instalador baixado do painel com ativação embutida: ativa e instala/atualiza o serviço sem digitar código.
+        /// Devolve null quando não há o que fazer (sem ativação embutida ou este servidor já está ativado).
+        /// </summary>
+        public static string ActivateEmbedded()
+        {
+            Embedded e = Embedded.Read(Build.SelfPath);
+            AgentConfig c = ConfigStore.Load();
+            if (e == null || !string.IsNullOrEmpty(c.AgentId)) return null;
+            c.ApiBaseUrl = e.url.TrimEnd('/');
+            ConfigStore.Save(c);
+            Log.Write("Instalador com ativação embutida para " + e.ecsName + ".");
+            string result = Activate(c, Regex.Replace(e.code.ToUpperInvariant(), @"[\s-]", ""));
+            if (string.IsNullOrEmpty(c.AgentId)) return result;
+            string service = ServiceManager.Exists(Paths.ServiceName) ? ServiceManager.Update() : ServiceManager.Install();
+            return result + Environment.NewLine + service + Environment.NewLine + "Os serviços deste servidor aparecem no painel em cerca de 1 minuto.";
+        }
+
         public static string Activate(AgentConfig c, string code)
         {
             string id = Guid.NewGuid().ToString("D"), keyName = Paths.KeyName + "-" + id.Substring(0, 8);

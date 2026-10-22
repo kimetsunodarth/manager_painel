@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { huawei, type HuaweiEcsServer, type HuaweiProject } from '../api/client';
 import {
-  ACTION_LABEL, JOB_LABEL, agentAdmin, isManualProject, projectKeyOf, statusLabel, type AgentAction, type AgentDetail, type AgentInfo, type ServiceRelease,
+  ACTION_LABEL, JOB_LABEL, agentAdmin, isManualProject, projectKeyOf, statusLabel, type AgentAction, type AgentOs, type AgentDetail, type AgentInfo, type ServiceRelease,
 } from '../api/agent';
 
 const ACOES: AgentAction[] = ['start', 'stop', 'restart'];
@@ -30,6 +31,8 @@ export default function Servidores() {
   const [liberacoes, setLiberacoes] = useState<Record<string, ServiceRelease>>({});
   const [filtroServico, setFiltroServico] = useState('');
   const [nomeLote, setNomeLote] = useState('');
+  const [conectando, setConectando] = useState<HuaweiEcsServer | null>(null);
+  const [baixando, setBaixando] = useState('');
   const [codigo, setCodigo] = useState<{ code: string; expiresAt: number; ecsName: string } | null>(null);
   const [aviso, setAviso] = useState('');
   const [erro, setErro] = useState('');
@@ -81,7 +84,7 @@ export default function Servidores() {
   }, [projetos, busca]);
 
   async function abrirProjeto(p: HuaweiProject) {
-    setProjeto(p); setDetalhe(null); setCodigo(null); setAviso(''); setErro('');
+    setProjeto(p); setDetalhe(null); setCodigo(null); setConectando(null); setAviso(''); setErro('');
     try {
       const servidoresDe = isManualProject(p)
         ? agentAdmin.manualServers(p.id).then((r) => r.servers as HuaweiEcsServer[])
@@ -106,6 +109,23 @@ export default function Servidores() {
       const r = await agentAdmin.issueCode({ projectKey: projectKeyOf(projeto), projectName: projeto.name, ecsId: servidor.id, ecsName: servidor.name });
       setCodigo({ ...r, ecsName: servidor.name });
     } catch (e) { setErro(erroDe(e)); }
+  }
+
+  /** Instalador com a ativação deste servidor dentro do arquivo: no servidor é só executar (Windows) ou rodar o install.sh (Linux). */
+  async function baixarAtivado(servidor: HuaweiEcsServer, os: AgentOs) {
+    if (!projeto) return;
+    setBaixando(`${servidor.id}/${os}`); setErro('');
+    try {
+      await agentAdmin.downloadActivated({ projectKey: projectKeyOf(projeto), projectName: projeto.name, ecsId: servidor.id, ecsName: servidor.name, os });
+      setAviso(os === 'windows'
+        ? `Instalador de ${servidor.name} baixado. No servidor, execute-o como administrador: ele ativa e instala o serviço sozinho (vale 24 h, uma vez).`
+        : `Pacote de ${servidor.name} baixado. No servidor: tar xzf no arquivo, entre na pasta e rode sudo bash install.sh (vale 24 h, uma vez).`);
+    } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
+  }
+
+  async function baixarAgente(os: AgentOs) {
+    setBaixando(os); setErro('');
+    try { await agentAdmin.downloadAgent(os); } catch (e) { setErro(erroDe(e)); } finally { setBaixando(''); }
   }
 
   /** Marca ou desmarca as ações dadas em vários serviços de uma vez (filtrados, coluna ou linha). */
@@ -181,7 +201,17 @@ export default function Servidores() {
 
   return (
     <div className="ananim-page space-y-6">
-      <PageHeader badge="Conector" title="Servidores" description="Conecte o Ananim Manager Agent aos servidores do projeto, escolha os serviços e quem pode iniciar, parar ou reiniciar." />
+      <PageHeader badge="Conector" title="Servidores" description="Conecte o Ananim Manager Agent aos servidores do projeto, escolha os serviços e quem pode iniciar, parar ou reiniciar."
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('windows')}>
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'windows' ? 'Baixando...' : 'Agente Windows'}
+            </button>
+            <button type="button" className="ananim-btn ananim-btn-ghost" disabled={!!baixando} onClick={() => void baixarAgente('linux')}>
+              <Download className="h-4 w-4" aria-hidden="true" />{baixando === 'linux' ? 'Baixando...' : 'Agente Linux'}
+            </button>
+          </div>
+        )} />
       {erro ? <div className="ananim-alert ananim-alert-danger">{erro}</div> : null}
       {aviso ? <div className="ananim-alert">{aviso}</div> : null}
 
@@ -220,7 +250,8 @@ export default function Servidores() {
                       <td>{ag ? <span className={ag.online ? 'text-emerald-300' : 'text-amber-200'}>{ag.online ? 'Online' : `Sem contato desde ${fmt(ag.lastSeen)}`} · {ag.os} · {ag.agentVersion} · {ag.serviceCount ?? 0} serviços encontrados</span> : <span className="text-ananim-muted">Não conectado</span>}</td>
                       <td className="text-right">
                         {ag ? <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void abrirAgente(ag.id)}>Serviços e acesso ({ag.serviceCount ?? 0})</button>
-                          : <button type="button" className="ananim-btn ananim-btn-primary" onClick={() => void gerarCodigo(s)}>Conectar</button>}
+                          : <button type="button" className="ananim-btn ananim-btn-primary" aria-expanded={conectando?.id === s.id}
+                              onClick={() => { setConectando(conectando?.id === s.id ? null : s); setCodigo(null); }}>Conectar</button>}
                       </td>
                     </tr>
                   );
@@ -236,15 +267,36 @@ export default function Servidores() {
               {ecs.length === 0 ? <span className="text-sm text-ananim-muted">Projeto manual: informe os servidores e clique em Conectar em cada um.</span> : null}
             </form>
           ) : null}
-          {codigo ? (
-            <div className="ananim-card-muted space-y-2 p-4">
-              <div className="ananim-label">Código para {codigo.ecsName} · uso único · válido até {new Date(codigo.expiresAt).toLocaleTimeString('pt-BR')}</div>
-              <div className="font-mono text-2xl tracking-widest text-cyan-300">{codigo.code}</div>
-              <ol className="list-decimal space-y-1 pl-5 text-sm text-ananim-muted">
-                <li>No servidor, abra o <strong>AnanimManagerAgent.exe</strong> como administrador.</li>
-                <li>Informe o endereço do painel e este código e clique em <strong>Ativar</strong>; depois em <strong>Instalar / atualizar serviço</strong>.</li>
-                <li>Em até 1 minuto os serviços aparecem em "Serviços e acesso".</li>
-              </ol>
+          {conectando ? (
+            <div className="ananim-card-muted space-y-4 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="ananim-section-title">Conectar {conectando.name}</h3>
+                <button type="button" className="ananim-btn ananim-btn-ghost h-8 px-3 text-xs" onClick={() => { setConectando(null); setCodigo(null); }}>Fechar</button>
+              </div>
+              <p className="text-sm text-ananim-muted">O instalador já sai ativado para este servidor: ninguém precisa digitar código. A ativação dentro do arquivo vale 24 horas e uma única vez.</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 rounded-xl border border-white/10 p-3">
+                  <button type="button" className="ananim-btn ananim-btn-primary w-full" disabled={!!baixando} onClick={() => void baixarAtivado(conectando, 'windows')}>
+                    <Download className="h-4 w-4" aria-hidden="true" />{baixando === `${conectando.id}/windows` ? 'Gerando...' : 'Baixar instalador Windows'}
+                  </button>
+                  <p className="text-xs text-ananim-muted">No servidor: execute o <span className="font-mono">AnanimManagerAgent-{conectando.name}.exe</span> como administrador. Ele ativa e instala o serviço sozinho. Sem tela: <span className="font-mono">Start-Process .\AnanimManagerAgent-{conectando.name}.exe --auto -Verb RunAs -Wait</span></p>
+                </div>
+                <div className="space-y-2 rounded-xl border border-white/10 p-3">
+                  <button type="button" className="ananim-btn ananim-btn-primary w-full" disabled={!!baixando} onClick={() => void baixarAtivado(conectando, 'linux')}>
+                    <Download className="h-4 w-4" aria-hidden="true" />{baixando === `${conectando.id}/linux` ? 'Gerando...' : 'Baixar pacote Linux'}
+                  </button>
+                  <p className="text-xs text-ananim-muted">No servidor (root): <span className="font-mono">tar xzf ananim-manager-agent-linux-{conectando.name}.tar.gz && cd ananim-manager-agent-linux && bash install.sh</span></p>
+                </div>
+              </div>
+              {codigo ? (
+                <div className="space-y-1 rounded-xl border border-white/10 p-3">
+                  <div className="ananim-label">Código manual para {codigo.ecsName} · uso único · válido até {new Date(codigo.expiresAt).toLocaleTimeString('pt-BR')}</div>
+                  <div className="font-mono text-2xl tracking-widest text-cyan-300">{codigo.code}</div>
+                  <p className="text-xs text-ananim-muted">Use no agente já instalado: abra-o como administrador, informe o código e clique em Ativar.</p>
+                </div>
+              ) : (
+                <button type="button" className="text-xs text-cyan-300 hover:underline" onClick={() => void gerarCodigo(conectando)}>Prefiro gerar só um código para digitar no agente</button>
+              )}
             </div>
           ) : null}
           {agentes.filter((a) => !a.revoked && !ecs.some((s) => s.id === a.ecsId)).length && conectados.size ? (

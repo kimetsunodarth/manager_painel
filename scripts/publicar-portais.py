@@ -48,6 +48,10 @@ def build(tree, ref):
     else:
         sh(['npm', 'ci', '--no-audit', '--no-fund'], frontend)
     sh(['npm', 'run', 'build'], frontend, env={**os.environ, 'VITE_APP_VERSION': version})
+    # Agente Windows compilado do mesmo commit (csc do .NET Framework, só no Windows).
+    powershell = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    subprocess.run([powershell, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(tree / 'agent' / 'windows' / 'build.ps1')],
+                   check=True, capture_output=True)
     return version
 
 
@@ -66,6 +70,10 @@ def package(tree, out, version, commit):
     with tarfile.open(out, 'w:gz') as tar:
         tar.add(tree / 'backend', arcname='backend', filter=keep)
         tar.add(tree / 'frontend' / 'dist', arcname='public', filter=keep)
+        # Agentes para baixar no painel (Servidores → Baixar / Conectar): o exe compilado deste commit e os arquivos do Linux.
+        tar.add(tree / 'agent' / 'windows' / 'dist' / 'AnanimManagerAgent.exe', arcname='agents/windows/AnanimManagerAgent.exe', filter=keep)
+        for name in ('ananim-manager-agent', 'install.sh', 'ananim-manager-agent.service'):
+            tar.add(tree / 'agent' / 'linux' / name, arcname='agents/linux/' + name, filter=keep)
         # Lido pela unit systemd (EnvironmentFile=-.../current/release.env): versão no /api/health e no rodapé.
         data = ('APP_VERSION=%s+%s\n' % (version, commit)).encode('ascii')
         info = tarfile.TarInfo('release.env')
