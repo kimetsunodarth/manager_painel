@@ -187,13 +187,12 @@ function ecsProjectTitle(
   return `${label} — ${name}`;
 }
 
-/** Formato curto do flavor: vCPUs x GB (ex.: 4x16). RAM da API Huawei vem em MB. */
-function formatFlavor(flavor: HuaweiEcsServer['flavor']): string {
-  if (!flavor?.vcpus) return '—';
-  const vcpus = Number(flavor.vcpus) || 0;
-  const ramMB = Number(flavor.ram) || 0;
-  const ramGB = ramMB >= 1024 ? Math.round(ramMB / 1024) : ramMB;
-  return ramGB ? `${vcpus}x${ramGB}` : String(vcpus);
+/** Cliente do projeto (usado quando a ECS não tem centro de custo/cliente nos metadados ou tags). */
+function projectClientName(project: HuaweiProject | null, ecsList: HuaweiEcsServer[] | null): string | null {
+  if (!project) return null;
+  if (project.perfil?.startsWith('ANANIMCLOUD_')) return getClientNameFromEcsList(ecsList);
+  const name = projectDisplayName(project);
+  return name && name !== project.id ? name : null;
 }
 
 /** Exibe tamanho dos discos: total em GB ou detalhe (ex.: 40 + 100 GB). */
@@ -261,6 +260,7 @@ export default function Home() {
   const [selectedProjects, setSelectedProjects] = useState<HuaweiProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<HuaweiProject | null>(null);
   const [huaweiEcs, setHuaweiEcs] = useState<HuaweiEcsServer[] | null>(null);
+  const clienteDoProjeto = projectClientName(selectedProject, huaweiEcs);
   const [huaweiEcsLoading, setHuaweiEcsLoading] = useState(false);
   const [huaweiEcsError, setHuaweiEcsError] = useState<string | null>(null);
   const [huaweiEcsActionLoading, setHuaweiEcsActionLoading] = useState<string | null>(null);
@@ -1035,9 +1035,8 @@ export default function Home() {
                             {isAdmin && <th className="w-10 text-center"> </th>}
                             <th>Nome</th>
                             {isAdmin && <th>ID</th>}
-                            <th>Cliente (metadata)</th>
+                            <th>Cliente</th>
                             <th>Status</th>
-                            <th>Flavor</th>
                             {showEcsInfra && <th>Disco(s)</th>}
                             {showEcsInfra && <th>IPs</th>}
                             <th title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
@@ -1046,13 +1045,13 @@ export default function Home() {
                         </thead>
                         <tbody>
                           {huaweiEcs.length === 0 ? (
-                            <tr><td colSpan={6 + (isAdmin ? 2 : 0) + (showEcsInfra ? 2 : 0)} className="py-5 text-center text-ananim-muted">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
+                            <tr><td colSpan={5 + (isAdmin ? 2 : 0) + (showEcsInfra ? 2 : 0)} className="py-5 text-center text-ananim-muted">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
                           ) : (
                             huaweiEcs.map((s) => {
                               const ips = s.addresses
                                 ? Object.values(s.addresses).flat().map((a) => a.addr).filter(Boolean).join(', ')
                                 : '—';
-                              const metaCliente = s.metadata?.centro_custo || s.metadata?.centrodecusto || s.metadata?.cost_center || s.metadata?.cliente || s.metadata?.client || '—';
+                              const metaCliente = getClientNameFromMetadata(s.metadata, (s as any).tags) || clienteDoProjeto || '—';
                               const loading = huaweiEcsActionLoading !== null;
                               return (
                                 <tr key={s.id}>
@@ -1071,7 +1070,6 @@ export default function Home() {
                                   {isAdmin && <td className="font-mono text-xs">{s.id}</td>}
                                   <td>{metaCliente}</td>
                                   <td><EcsStatusBadge status={s.status} />{acoesVm[s.id] ? <AcaoVmProgresso acao={acoesVm[s.id]} status={String(s.status || '')} /> : null}</td>
-                                  <td>{formatFlavor(s.flavor)}</td>
                                   {showEcsInfra && <td>{formatDiskSize(s)}</td>}
                                   {showEcsInfra && <td>{ips || '—'}</td>}
                                   <td className="font-medium text-ananim-text" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
