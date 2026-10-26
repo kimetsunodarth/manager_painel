@@ -253,16 +253,18 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
     const region = req.query.region || undefined;
     // Proteção para projetos enormes (ex.: MOOVE): limita resultados e aplica filtro durante a paginação.
     const maxServers = req.query.max ? Number(req.query.max) : undefined;
+    const u = userStore.getById(req.user.id);
+    // Discos e IPs são informação de infraestrutura: só o admin recebe.
+    const showInfra = u?.role === 'admin';
     let servers = await listEcsForProject(projectId, region, perfil, {
       cliente: cliente || undefined,
       maxServers: Number.isFinite(maxServers) ? maxServers : (cliente ? 500 : 300),
-      includeDisks: true,
+      includeDisks: showInfra,
       includeDisksMax: 200,
     });
     // Fallback local (metadados) — mantém compatibilidade com tenants que não retornam metadata no /servers/detail.
     servers = filterEcsByCliente(servers, cliente);
 
-    const u = userStore.getById(req.user.id);
     const allowedByProject = u?.allowedHuaweiEcsIds || {};
     const key = projectKey(projectId, perfil);
     const allowedIds = allowedByProject[key];
@@ -287,8 +289,9 @@ router.get('/projects/:projectId/ecs', async (req, res) => {
       const fromSessions = typeof extraBySession[s.id] === 'number' ? extraBySession[s.id] : 0;
       const fromLegacy = typeof extraByServer[s.id] === 'number' ? extraByServer[s.id] : 0;
       const extraHours = Math.round((fromSessions + fromLegacy) * 100) / 100;
+      const { addresses, totalDiskGb, volumeAttachments, ...rest } = s;
       return {
-        ...s,
+        ...(showInfra ? s : rest),
         schedule: schedule || undefined,
         extraHours: extraHours > 0 ? extraHours : 0,
       };
