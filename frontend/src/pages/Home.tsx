@@ -238,6 +238,8 @@ export default function Home() {
   const user = useUser();
   const canHuaweiAdmin = user?.role === 'admin' || (Array.isArray(user?.permissions) && user?.permissions.includes('huawei:projects'));
   const isAdmin = canHuaweiAdmin;
+  /** Discos e IPs das ECS: somente role admin (o backend também omite para os demais). */
+  const showEcsInfra = user?.role === 'admin';
   const shouldAutoLoadBoundProject =
     user?.role === 'client' || (user?.role !== 'admin' && (user?.visibleProjects?.length ?? 0) === 1);
   const hideAutoLoadedProjectFilter = !isAdmin && shouldAutoLoadBoundProject;
@@ -1036,15 +1038,15 @@ export default function Home() {
                             <th>Cliente (metadata)</th>
                             <th>Status</th>
                             <th>Flavor</th>
-                            <th>Disco(s)</th>
-                            <th>IPs</th>
+                            {showEcsInfra && <th>Disco(s)</th>}
+                            {showEcsInfra && <th>IPs</th>}
                             <th title="Tempo fora do horário programado: ex.: cancelou a programação do dia ou ligou a VM após o horário de início">Horas a mais</th>
                             <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {huaweiEcs.length === 0 ? (
-                            <tr><td colSpan={isAdmin ? 10 : 8} className="py-5 text-center text-ananim-muted">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
+                            <tr><td colSpan={6 + (isAdmin ? 2 : 0) + (showEcsInfra ? 2 : 0)} className="py-5 text-center text-ananim-muted">Nenhuma ECS neste projeto.{ecsClienteFilter.trim() ? ' Tente outro filtro de cliente.' : ''}</td></tr>
                           ) : (
                             huaweiEcs.map((s) => {
                               const ips = s.addresses
@@ -1070,8 +1072,8 @@ export default function Home() {
                                   <td>{metaCliente}</td>
                                   <td><EcsStatusBadge status={s.status} />{acoesVm[s.id] ? <AcaoVmProgresso acao={acoesVm[s.id]} status={String(s.status || '')} /> : null}</td>
                                   <td>{formatFlavor(s.flavor)}</td>
-                                  <td>{formatDiskSize(s)}</td>
-                                  <td>{ips || '—'}</td>
+                                  {showEcsInfra && <td>{formatDiskSize(s)}</td>}
+                                  {showEcsInfra && <td>{ips || '—'}</td>}
                                   <td className="font-medium text-ananim-text" title={(s.extraHours ?? 0) > 0 ? `Extensão de horário: ${Math.round(Number(s.extraHours) * 60)} min (cancelou o dia ou ligou a VM após o horário). Cobrança por hora cheia.` : 'Nenhuma extensão de horário'}>
                                     {formatMinutes(s.extraHours ? Math.round(Number(s.extraHours) * 60) : undefined)}
                                   </td>
