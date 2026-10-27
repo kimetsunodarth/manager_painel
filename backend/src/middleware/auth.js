@@ -73,9 +73,19 @@ export function authMiddleware(req, res, next) {
   try {
     const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret);
-    req.user = decoded;
+    const currentUser = decoded.id ? userStore.getAuthStateById(decoded.id) : null;
+    const lockedUntil = currentUser?.lockedUntil ? Date.parse(currentUser.lockedUntil) : 0;
+    if (
+      !currentUser ||
+      !Number.isInteger(decoded.authVersion) ||
+      decoded.authVersion !== currentUser.authVersion ||
+      (Number.isFinite(lockedUntil) && lockedUntil > Date.now())
+    ) {
+      return res.status(401).json({ error: 'Token inválido ou expirado' });
+    }
+    req.user = { ...decoded, ...currentUser };
     // Tokens já emitidos para clientes também perdem as permissões que mostram todos os clientes.
-    req.user.permissions = effectivePermissions(decoded.role, decoded.permissions);
+    req.user.permissions = effectivePermissions(currentUser.role, currentUser.permissions);
 
     // Renovação deslizante: quando passou da metade da validade, re-emite o cookie
     // (só quando o token veio de cookie; Bearer é responsabilidade do chamador).

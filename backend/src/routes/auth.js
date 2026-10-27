@@ -55,6 +55,23 @@ const meLimiter = rateLimit({
   keyGenerator: (req) => extractIp(req),
 });
 
+function signAuthToken(user) {
+  const current = userStore.getAuthStateById(user.id);
+  if (!current) throw new Error('Usuário não encontrado');
+  return jwt.sign(
+    {
+      id: current.id,
+      email: current.email,
+      role: current.role,
+      permissions: current.permissions,
+      allowedEcsIds: current.allowedEcsIds,
+      authVersion: current.authVersion,
+    },
+    getJwtSecret(),
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+}
+
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -144,11 +161,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds },
-      getJwtSecret(),
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = signAuthToken(user);
 
     res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
 
@@ -187,11 +200,7 @@ router.post('/mfa/setup/verify', loginLimiter, async (req, res) => {
     const user = userStore.findById(String(confirmed.userId));
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
     userStore.update(user.id, { mfaEnabled: true, mfaSecret: confirmed.secret });
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds },
-      getJwtSecret(),
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = signAuthToken(user);
     res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
     appendLog({
       userId: user.id,
@@ -227,11 +236,7 @@ router.post('/login/mfa', loginLimiter, async (req, res) => {
     const user = userStore.getById(String(verified.userId));
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, permissions: user.permissions, allowedEcsIds: user.allowedEcsIds },
-      getJwtSecret(),
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = signAuthToken(user);
     res.cookie('token', token, getCookieOptions(req, parseJwtExpiryToMs()));
     appendLog({
       userId: user.id,
@@ -285,4 +290,3 @@ router.get('/me', meLimiter, authMiddleware, (req, res) => {
 });
 
 export default router;
-

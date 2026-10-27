@@ -110,7 +110,6 @@ router.patch('/:id', requirePermission('users:*'), async (req, res) => {
   if (preferredServiceClientKey !== undefined) data.preferredServiceClientKey = preferredServiceClientKey == null || preferredServiceClientKey === '' ? null : String(preferredServiceClientKey).trim();
   if (password !== undefined && typeof password === 'string' && password.length >= 6) {
     data.passwordHash = await bcrypt.hash(password, 10);
-    userStore.setPassword(req.params.id, data.passwordHash);
   }
   const updated = userStore.update(req.params.id, data);
   const actions = [];
