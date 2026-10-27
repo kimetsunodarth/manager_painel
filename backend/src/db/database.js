@@ -157,6 +157,11 @@ export function initDb() {
     if (!e.message?.includes('duplicate column')) throw e;
   }
   try {
+    database.exec(`ALTER TABLE users ADD COLUMN authVersion INTEGER NOT NULL DEFAULT 0`);
+  } catch (e) {
+    if (!e.message?.includes('duplicate column')) throw e;
+  }
+  try {
     database.exec(`UPDATE users SET mfaEnabled = 1 WHERE mfaEnabled IS NULL`);
   } catch (_) {}
 
@@ -309,4 +314,3 @@ export function closeDb() {
     db = null;
   }
 }
-

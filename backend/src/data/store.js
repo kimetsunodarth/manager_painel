@@ -186,19 +186,33 @@ export const userStore = {
       values.push(data.lastLoginAt || null);
     }
     if (updates.length === 0) return this.getById(id);
+    const authFields = [
+      'name', 'email', 'role', 'permissions', 'allowedEcsIds', 'visibleProjects',
+      'allowedHuaweiEcsIds', 'allowedServiceIds', 'preferredServiceClientKey',
+      'mfaEnabled', 'mfaEmail', 'mfaSecret', 'passwordHash',
+    ];
+    if (authFields.some((field) => data[field] !== undefined)) {
+      updates.push('authVersion = authVersion + 1');
+    }
     values.push(id);
     getDb().prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
     return this.getById(id);
   },
 
   setPassword(id, passwordHash) {
-    const result = getDb().prepare('UPDATE users SET passwordHash = ? WHERE id = ?').run(passwordHash, id);
+    const result = getDb().prepare('UPDATE users SET passwordHash = ?, authVersion = authVersion + 1 WHERE id = ?').run(passwordHash, id);
     return result.changes > 0;
   },
 
   getById(id) {
     const row = getDb().prepare('SELECT id, name, email, role, permissions, allowedEcsIds, visibleProjects, allowedHuaweiEcsIds, allowedServiceIds, preferredServiceClientKey, mfaEnabled, mfaEmail, failedLoginAttempts, lockedUntil, lastLoginAt FROM users WHERE id = ?').get(id);
     return row ? rowToUser(row) : null;
+  },
+
+  getAuthStateById(id) {
+    const row = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+    if (!row) return null;
+    return { ...rowToUser(row), authVersion: Number(row.authVersion || 0) };
   },
 
   registerFailedLogin(id, { lockMinutes = 15, maxAttempts = 5 } = {}) {
